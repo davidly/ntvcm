@@ -21,10 +21,22 @@ other Windows apps in a test script.
 The app supports tracing to the ntvcm.log file. Instruction tracing includes a disassembler
 that shows instructions either as 8080 or Z80 depending on the mode.
 
-Performance of the CPU emulator is faster than the half-dozen other emulators I looked at. I
-wrote the code to be more readable than other emulators, whose use of lookup tables and macros
-I found to be nearly inscrutable. An interesting fact is that on modern CPUs, code for computing
-parity of a byte is faster than a 256-element lookup table. The same applies for other tables.
+Performance of the CPU emulator is > 25% faster than the half-dozen other emulators I looked at. 
+I wrote the code to be more readable than other emulators, whose use of lookup tables and macros
+I found to be nearly inscrutable (though I'm sure that's just me). An interesting fact is that 
+on modern CPUs, code for computing parity of a byte is faster than a 256-element lookup table. 
+The same applies to other lookup tables.
+
+Cycle counts are pretty close, but not precise. I used documented numbers, which are sometimes
+incorrect. And I made guesses for cycle counts for undocumented Z80 instructions.
+
+Support for Z80 undocumented instructions and the Y and X flags passes the tests specified
+above, but I can't vouch for more than that.
+
+The two versions of Turbo Pascal and the apps they generate use a tiny fraction of Z80 instructions.
+It took a day to implement the former, and three more days to implement the latter. Getting the
+undocumented featuers to work too an extra couple days. The invaluable resources required to do
+that are listed in x80.cxx. No single resource was 100% correct or complete. It takes a village :)
 
     NT Virtual CP/M 2.2 Machine: emulates a CP/M 2.2 i8080/Z80 runtime environment
 
@@ -42,3 +54,85 @@ parity of a byte is faster than a 256-element lookup table. The same applies for
                    ntvcm asm.com test
                    ntvcm load.com test
                    ntvcm test.com
+
+Example usage:
+
+    C:\>ntvcm -p z80test\zexall.com
+    Z80all instruction exerciser
+    <adc,sbc> hl,<bc,de,hl,sp>....  OK
+    add hl,<bc,de,hl,sp>..........  OK
+    add ix,<bc,de,ix,sp>..........  OK
+    add iy,<bc,de,iy,sp>..........  OK
+    aluop a,nn....................  OK
+    aluop a,<b,c,d,e,h,l,(hl),a>..  OK
+    aluop a,<ixh,ixl,iyh,iyl>.....  OK
+    aluop a,(<ix,iy>+1)...........  OK
+    bit n,(<ix,iy>+1).............  OK
+    bit n,<b,c,d,e,h,l,(hl),a>....  OK
+    cpd<r>........................  OK
+    cpi<r>........................  OK
+    <daa,cpl,scf,ccf>.............  OK
+    <inc,dec> a...................  OK
+    <inc,dec> b...................  OK
+    <inc,dec> bc..................  OK
+    <inc,dec> c...................  OK
+    <inc,dec> d...................  OK
+    <inc,dec> de..................  OK
+    <inc,dec> e...................  OK
+    <inc,dec> h...................  OK
+    <inc,dec> hl..................  OK
+    <inc,dec> ix..................  OK
+    <inc,dec> iy..................  OK
+    <inc,dec> l...................  OK
+    <inc,dec> (hl)................  OK
+    <inc,dec> sp..................  OK
+    <inc,dec> (<ix,iy>+1).........  OK
+    <inc,dec> ixh.................  OK
+    <inc,dec> ixl.................  OK
+    <inc,dec> iyh.................  OK
+    <inc,dec> iyl.................  OK
+    ld <bc,de>,(nnnn).............  OK
+    ld hl,(nnnn)..................  OK
+    ld sp,(nnnn)..................  OK
+    ld <ix,iy>,(nnnn).............  OK
+    ld (nnnn),<bc,de>.............  OK
+    ld (nnnn),hl..................  OK
+    ld (nnnn),sp..................  OK
+    ld (nnnn),<ix,iy>.............  OK
+    ld <bc,de,hl,sp>,nnnn.........  OK
+    ld <ix,iy>,nnnn...............  OK
+    ld a,<(bc),(de)>..............  OK
+    ld <b,c,d,e,h,l,(hl),a>,nn....  OK
+    ld (<ix,iy>+1),nn.............  OK
+    ld <b,c,d,e>,(<ix,iy>+1)......  OK
+    ld <h,l>,(<ix,iy>+1)..........  OK
+    ld a,(<ix,iy>+1)..............  OK
+    ld <ixh,ixl,iyh,iyl>,nn.......  OK
+    ld <bcdehla>,<bcdehla>........  OK
+    ld <bcdexya>,<bcdexya>........  OK
+    ld a,(nnnn) / ld (nnnn),a.....  OK
+    ldd<r> (1)....................  OK
+    ldd<r> (2)....................  OK
+    ldi<r> (1)....................  OK
+    ldi<r> (2)....................  OK
+    neg...........................  OK
+    <rrd,rld>.....................  OK
+    <rlca,rrca,rla,rra>...........  OK
+    shf/rot (<ix,iy>+1)...........  OK
+    shf/rot <b,c,d,e,h,l,(hl),a>..  OK
+    <set,res> n,<bcdehl(hl)a>.....  OK
+    <set,res> n,(<ix,iy>+1).......  OK
+    ld (<ix,iy>+1),<b,c,d,e>......  OK
+    ld (<ix,iy>+1),<h,l>..........  OK
+    ld (<ix,iy>+1),a..............  OK
+    ld (<bc,de>),a................  OK
+    Tests complete
+    Z80  cycles:      46,716,028,182
+    clock rate:            unbounded
+    approx ms at 2Mhz:    23,358,014
+    kernel CPU ms:                31
+    user CPU ms:              30,968
+    total CPU ms:             31,000
+    elapsed ms:               31,508
+    
+
