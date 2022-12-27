@@ -1278,7 +1278,7 @@ void usage( char const * perr = 0 )
         printf( "error: %s\n", perr );
 
     printf( "NT Virtual CP/M 2.2 Machine: emulates a CP/M 2.2 i8080/Z80 runtime environment\n" );
-    printf( "usage: ntvcx80 [-c] [-p] [-s:X] [-t] <cp/m 2.2 .com file> [filearg1] [filearg2]\n" );
+    printf( "usage: ntvcm [-c] [-p] [-s:X] [-t] <cp/m 2.2 .com file> [filearg1] [filearg2]\n" );
     printf( "  notes:    filearg1 and filearg2 optionally specify filename arguments for the command\n" );
     printf( "            -c     don't auto-detect ESC characters and change to to 80x24 mode\n" );
     printf( "            -i     trace 8080/Z80 instructions when tracing\n" );

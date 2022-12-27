@@ -888,7 +888,6 @@ uint64_t z80_emulate( uint8_t op )
         else if ( 0x86 == ( op2 & 0xc7 ) ) // math on [ ix/iy + index ]
         {
             cycles = 19;
-
             uint8_t math = ( ( op2 >> 3 ) & 0x7 );
             uint16_t x = reg.getIndex( op );
             x += (int16_t) (char) pcbyte();
@@ -920,29 +919,18 @@ uint64_t z80_emulate( uint8_t op )
         else if ( 0xcb == op2 ) // bit operations
         {
             reg.incR();
-            if ( 0x26 == op4 ) // sla
+            if ( 0x26 == op4 || 0x2e == op4 || 0x3e == op4 ) // sla, sra, srl [ix/iy + offset]
             {
-                uint8_t offset = pcbyte();
-                pcbyte(); // the 26
+                uint8_t offset = pcbyte(); // the op3
+                pcbyte(); // the op4
                 uint16_t index = reg.getIndex( op );
                 index += (int16_t) (char) offset;
-                z80_op_sla( & memory[ index ] );
-            }
-            else if ( 0x2e == op4 ) // sra
-            {
-                uint8_t offset = pcbyte();
-                pcbyte(); // the 26
-                uint16_t index = reg.getIndex( op );
-                index += (int16_t) (char) offset;
-                z80_op_sra( & memory[ index ] );
-            }
-            else if ( 0x3e == op4 ) // srl
-            {
-                uint8_t offset = pcbyte();
-                pcbyte(); // the 26
-                uint16_t index = reg.getIndex( op );
-                index += (int16_t) (char) offset;
-                z80_op_srl( & memory[ index ] );
+                if ( 0x26 == op4 ) // sla
+                    z80_op_sla( & memory[ index ] );
+                else if ( 0x2e == op4 ) // sra
+                    z80_op_sra( & memory[ index ] );
+                else // ( 0x3e == op4 ) srl
+                    z80_op_srl( & memory[ index ] );
             }
             else if ( op4 <= 0x3f ) // bit shift on memory
             {
