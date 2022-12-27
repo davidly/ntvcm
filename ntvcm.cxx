@@ -1528,7 +1528,10 @@ int main( int argc, char * argv[] )
         if ( 0 == clockrate )
         {
             printf( "      %14s\n", "unbounded" );
-            printf( "approx ms at 2Mhz: %13ws\n", perfApp.RenderLL( total_cycles / 2000 ) );
+            if ( reg.fZ80Mode )
+                printf( "approx ms at 4Mhz: %13ws\n", perfApp.RenderLL( total_cycles / 4000 ) );
+            else
+                printf( "approx ms at 2Mhz: %13ws\n", perfApp.RenderLL( total_cycles / 2000 ) );
         }
         else
             printf( "      %14ws Hz\n", perfApp.RenderLL( (LONGLONG ) clockrate ) );
