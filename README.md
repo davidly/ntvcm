@@ -18,7 +18,27 @@ so I wouldn't have to copy files to my TRS-80 Model 100 or Z80 CP/M 2.2 machines
 as painful copying them to other emulators because those (that I found) can't be invoked with 
 other Windows apps in a test script.
 
+The app supports tracing to the ntvcm.log file. Instruction tracing includes a disassembler
+that shows instructions either as 8080 or Z80 depending on the mode.
+
 Performance of the CPU emulator is faster than the half-dozen other emulators I looked at. I
 wrote the code to be more readable than other emulators, whose use of lookup tables and macros
 I found to be nearly inscrutable. An interesting fact is that on modern CPUs, code for computing
 parity of a byte is faster than a 256-element lookup table. The same applies for other tables.
+
+    NT Virtual CP/M 2.2 Machine: emulates a CP/M 2.2 i8080/Z80 runtime environment
+
+    usage: ntvcm [-c] [-p] [-s:X] [-t] <cp/m 2.2 .com file> [filearg1] [filearg2]
+
+    notes:    filearg1 and filearg2 optionally specify filename arguments for the command
+              -c     don't auto-detect ESC characters and change to to 80x24 mode
+              -i     trace 8080/Z80 instructions when tracing
+              -p     show performance information
+              -s:X   speed in Hz. Default is 0, which is as fast as possible.
+                     for 4Mhz, use -s:4000000
+              -t     enable debug tracing to ntvcm.log
+              -8     emulate 8080, not Z80
+              e.g. to assemble, load, and run test.asm:
+                   ntvcm asm.com test
+                   ntvcm load.com test
+                   ntvcm test.com
