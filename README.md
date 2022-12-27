@@ -21,11 +21,12 @@ other Windows apps in a test script.
 The app supports tracing to the ntvcm.log file. Instruction tracing includes a disassembler
 that shows instructions either as 8080 or Z80 depending on the mode.
 
-Performance of the CPU emulator is > 25% faster than the half-dozen other emulators I looked at. 
+Performance of the CPU emulator is about 25% faster than the half-dozen other emulators I looked at. 
 I wrote the code to be more readable than other emulators, whose use of lookup tables and macros
 I found to be nearly inscrutable (though I'm sure that's just me). An interesting fact is that 
 on modern CPUs, code for computing parity of a byte is faster than a 256-element lookup table. 
-The same applies to other lookup tables.
+The same applies to other lookup tables. The amazing emulator [Manuel Sainz](https://github.com/redcode/Z80)
+runs zexall.com on my machine in 40.7 seconds. This emulator runs it in 31.5 seconds.
 
 Cycle counts are pretty close, but not precise. I used documented numbers, which are sometimes
 incorrect. And I made guesses for cycle counts for undocumented Z80 instructions.
