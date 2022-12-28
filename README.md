@@ -31,7 +31,7 @@ computing parity of a byte is faster than a 256-element lookup table.
 
     The super-fast https://github.com/anotherlin/z80emu runs it in 20.7 seconds. 
 
-    This emulator runs it in 31.5 seconds.
+    This emulator runs it in 27.9 seconds.
 
 Cycle counts are pretty close, but not precise. I used documented numbers, which are sometimes
 incorrect. And I made guesses for cycle counts for undocumented Z80 instructions.
@@ -135,10 +135,10 @@ Example usage:
     Tests complete
     Z80  cycles:      46,716,028,182
     clock rate:            unbounded
-    approx ms at 2Mhz:    23,358,014
-    kernel CPU ms:                31
-    user CPU ms:              30,968
-    total CPU ms:             31,000
-    elapsed ms:               31,508
+    approx ms at 4Mhz:    11,679,007
+    kernel CPU ms:                15
+    user CPU ms:              27,500
+    total CPU ms:             27,515
+    elapsed ms:               27,879
     
 
