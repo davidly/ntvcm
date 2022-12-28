@@ -25,7 +25,9 @@ Performance of the CPU emulator is in the ballpark of other emulators I looked a
 I wrote the code to be more readable than other emulators, whose use of lookup tables and macros
 I found to be nearly inscrutable (though I'm sure that's just me). I also wanted both 8080 and Z80
 modes, which hurts the performance of each. An interesting fact is that on modern CPUs, code for 
-computing parity of a byte is faster than a 256-element lookup table. 
+computing parity of a byte is faster than a 256-element lookup table. zexall.com runs 5.748 billion
+instructions shared with the 8080, and just 16 million instructions unique to the Z80; optimizing
+for the 8080 will have the most impact.
 
     The amazing emulator https://github.com/redcode/Z80 runs zexall.com on my machine in 40.7 seconds. 
 
