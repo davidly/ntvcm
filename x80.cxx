@@ -9,6 +9,7 @@
 //          http://www.z80.info/z80undoc.htm
 //          http://www.z80.info/z80sflag.htm
 //          http://www.righto.com/2012/12/the-6502-overflow-flag-explained.html
+//          https://mdfs.net/Software/Z80/Exerciser/
 // symbols that start with z80_ are (unsurprisingly) Z80-specific. 80% of this code is Z80-specific.
 // 8080 emulation would be >20% faster if not for the z80 checks
 // Validated 100% pass for 8080 with 8080ex1.com, 8080pre.com, Microcosm v1.0, and cputest.com Diagnostics II V1.2 in 8080 mode.
@@ -40,7 +41,7 @@ struct Instruction
     const char assembly[ 15 ];
 };
 
-#define cyclesnt 6  // cycles not taken when a conditional call or return isn't taken
+#define cyclesnt 6  // cycles not taken when a conditional call, jump, or return isn't taken
 
 // instructions starting with '*' are undocumented for 8080, and not implemented here. They also signal likely Z80 instructions
 
@@ -267,7 +268,7 @@ void op_cmp( uint8_t x )
     reg.a = tmp;
 
     if ( reg.fZ80Mode )
-        reg.assignYX( x );
+        reg.assignYX( x ); // done on operand, not the result or reg.a
 } //op_cmp
 
 void op_ana( uint8_t x )
@@ -316,7 +317,6 @@ void op_xra( uint8_t x )
 void op_math( uint8_t math, uint8_t src )
 {
     assert( math <= 7 );
-
     if ( 7 == math ) op_cmp( src );         // in order of usage for performance
     else if ( 6 == math ) op_ora( src );
     else if ( 4 == math ) op_ana( src );
@@ -588,7 +588,7 @@ void z80_op_srl( uint8_t * pval )
     *pval = val;
 } //z80_op_srl
 
-uint64_t z80_emulate( uint8_t op )
+uint64_t z80_emulate( uint8_t op )    // this is just for instructions that aren't shared with 8080
 {
     uint16_t opaddress = reg.pc - 1;
     uint8_t op2 = memory[ reg.pc ];
