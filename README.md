@@ -45,7 +45,7 @@ The two versions of Turbo Pascal and the apps they generate use a tiny fraction 
 It took a day to implement the instructions for Turbo Pascal, and three more days to implement the 
 full instruction set. Getting the undocumented featuers to work took an extra couple days. The 
 invaluable resources required to do that are listed in x80.cxx. No single resource was 100% correct
-r complete. It takes a village :)
+or complete. It takes a village :)
 
     NT Virtual CP/M 2.2 Machine: emulates a CP/M 2.2 i8080/Z80 runtime environment
 
