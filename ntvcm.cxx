@@ -31,7 +31,7 @@
 #define OPCODE_RET       0xC9
 #define OPCODE_HALT      0x76
 
-// CP/M constances for memory addresses where OS-global state is stored
+// CP/M constants for memory addresses where OS-global state is stored
 #define FCB_ARG1_OFFSET    0x5c
 #define FCB_ARG2_OFFSET    0x6c
 #define ARGUMENTS_OFFSET   0x80

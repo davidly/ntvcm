@@ -1631,14 +1631,14 @@ uint64_t x80_emulate( uint64_t maxcycles )
 {
     uint64_t cycles = 0;
 
-    while ( cycles < maxcycles ) // 12% of runtime checking this
+    while ( cycles < maxcycles )        // 10.5% of runtime checking this for zexall.com
     {
-        if ( g_traceInstructions )    // 2% of runtime is checking this flag
+        if ( g_traceInstructions )      // 2% of runtime is checking this flag
             x80_trace_state();
 
-        uint8_t op = memory[ reg.pc ];
-        if ( OPCODE_HOOK == op )      // 5% of runtime is checking for this
-            op = x80_invoke_hook();   // returned op generally ret, hlt, or nop
+        uint8_t op = memory[ reg.pc ];  // 2% of runtime here
+        if ( OPCODE_HOOK == op )        // 4% of runtime is checking for this
+            op = x80_invoke_hook();     // returned op generally ret, hlt, or nop
 
         reg.pc++;
 
@@ -1657,7 +1657,7 @@ uint64_t x80_emulate( uint64_t maxcycles )
                 exit( 1 );
             }
         }
-        else if ( reg.fZ80Mode ) // 3.5% of runtime is checking this
+        else if ( reg.fZ80Mode )        // 4% of runtime is checking this
         {
             reg.incR();
             cycles += z80_ins[ op ].cycles;
@@ -1665,8 +1665,8 @@ uint64_t x80_emulate( uint64_t maxcycles )
         else
             cycles += ins_8080[ op ].cycles;
 
-        bool handled = true;
-        switch ( op )
+        bool handled = true;            // 4% of runtime clearing this
+        switch ( op )                   // 10.5% of runtime is setting up for the jump table jump
         {
             case 0x00: /*nop*/ break;
             case 0x01: /*lxi b, d16*/ reg.SetB( pcword() ); break;
@@ -1855,6 +1855,8 @@ uint64_t x80_emulate( uint64_t maxcycles )
             case 0xc3: /*jmp a16*/ { reg.pc = pcword(); break; }
             case 0xc9: /*ret*/ { reg.pc = popword(); break; }
             case 0xcd: /*call a16*/ { uint16_t v = pcword(); pushword( reg.pc ); reg.pc = v; break; }
+            case 0xd3: /*out d8*/ { x80_invoke_out( pcbyte() ); break; }
+            case 0xdb: /*in d8*/ { x80_invoke_in( pcbyte() ); break; }
             case 0xe3: /*xthl*/ { uint16_t t = reg.H(); reg.SetH( mword( reg.sp ) ); setmword( reg.sp, t ); break; }
             case 0xe9: /*pchl*/ { reg.pc = reg.H(); break; }
             case 0xeb: /*xchg*/ { uint16_t t = reg.H(); reg.SetH( reg.D() ); reg.SetD( t ); break; }
@@ -1870,7 +1872,7 @@ uint64_t x80_emulate( uint64_t maxcycles )
 
         if ( !handled )
         {
-            uint8_t op2reg3 = ( op & 0xc7 ); // two bits, 3 reg bits, 3 bits
+            uint8_t op2reg3 = ( op & 0xc7 ); // two bits, 3 reg bits, 3 bits. 2% of runtime
             uint8_t op2rp4 = ( op & 0xcf );  // two bits, 2 rp bits, 4 bits
 
             if ( 0x80 == ( op & 0xc0 ) ) // math
@@ -1880,32 +1882,22 @@ uint64_t x80_emulate( uint64_t maxcycles )
 
                 uint8_t math = ( op >> 3 ) & 0x7;
                 uint8_t src = src_value( op );
-                op_math( math, src );
-            }
-            else if ( 3 == op2rp4 ) // inx. no status flag updates
-            {
-                uint16_t * pdst = reg.rpAddressFromOp( op );
-                *pdst = 1 + *pdst;
-            }
-            else if ( 0x0b == op2rp4 ) // dcx. no status flag updates
-            {
-                uint16_t * pdst = reg.rpAddressFromOp( op );
-                *pdst = *pdst - 1;
-            }
-            else if ( 4 == op2reg3 ) // inr r. does not set carry
-            {
-                uint8_t * pdst = dst_address( op );
-                *pdst = op_inc( *pdst );
+                op_math( math, src );             // 4% of runtime
             }
             else if ( 5 == op2reg3 ) // dcr r. does not set carry
             {
                 uint8_t * pdst = dst_address( op );
-                *pdst = op_dec( * pdst );
+                *pdst = op_dec( * pdst );         // 5% of runtime
             }
-            else if  ( op >= 0x40 && op <= 0x7f ) // mov r, r.  hlt is in this range but handled above
+            else if  ( op >= 0x40 && op <= 0x7f ) // mov r, r.  hlt is in this range but handled above.
             {
                 uint8_t src = 0x7 & op;
-                *dst_address( op ) = ( 6 == src ) ? memory[ reg.H() ] : * reg.regOffset( src );
+                *dst_address( op ) = ( 6 == src ) ? memory[ reg.H() ] : * reg.regOffset( src ); // 5% of runtime
+            }
+            else if ( 0xc6 == op2reg3 ) // immediate math. 0 adi, 1 aci, 2 sui, 3 sbi, 4 ani, 5 xri, 6 ori, 7 cpi  
+            {
+                uint8_t math = ( op >> 3 ) & 0x7;
+                op_math( math, pcbyte() );         // 4% of runtime
             }
             else if ( 6 == op2reg3 ) // mvi r, d8
             {
@@ -1939,12 +1931,7 @@ uint64_t x80_emulate( uint64_t maxcycles )
                 else
                     cycles -= cyclesnt;
             }
-            else if ( 0xc6 == op2reg3 ) // immediate math. 0 adi, 1 aci, 2 sui, 3 sbi, 4 ani, 5 xri, 6 ori, 7 cpi  
-            {
-                uint8_t math = ( op >> 3 ) & 0x7;
-                op_math( math, pcbyte() );
-            }
-            else if ( 0xc1 == ( 0xcf & op ) ) // pop
+            else if ( 0xc1 == op2rp4 ) // pop
             {
                 uint16_t val = popword();
                 if ( 0xc1 == op )
@@ -1956,7 +1943,7 @@ uint64_t x80_emulate( uint64_t maxcycles )
                 else
                     reg.SetPSW( val );
             }
-            else if ( 0xc5 == ( 0xcf & op ) ) // push
+            else if ( 0xc5 == op2rp4 ) // push
             {
                 if ( 0xe5 == op )            // HL is most frequent push
                     pushword( reg.H() );
@@ -1966,6 +1953,21 @@ uint64_t x80_emulate( uint64_t maxcycles )
                     pushword( reg.D() );
                 else
                     pushword( reg.PSW() );
+            }
+            else if ( 3 == op2rp4 ) // inx. no status flag updates
+            {
+                uint16_t * pdst = reg.rpAddressFromOp( op );
+                *pdst = 1 + *pdst;
+            }
+            else if ( 0x0b == op2rp4 ) // dcx. no status flag updates
+            {
+                uint16_t * pdst = reg.rpAddressFromOp( op );
+                *pdst = *pdst - 1;
+            }
+            else if ( 4 == op2reg3 ) // inr r. does not set carry
+            {
+                uint8_t * pdst = dst_address( op );
+                *pdst = op_inc( *pdst );
             }
             else if ( 0xc3 == ( 0xc3 & op ) ) // rst
             {
