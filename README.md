@@ -33,7 +33,7 @@ for the 8080 will have the most impact.
 
     The super-fast https://github.com/anotherlin/z80emu runs it in 20.7 seconds. 
 
-    This emulator runs it in 27.9 seconds.
+    This emulator runs it in 26.6 seconds.
 
 Cycle counts are pretty close, but not precise. I used documented numbers, which are sometimes
 incorrect. And I made guesses for cycle counts for undocumented Z80 instructions.
@@ -139,9 +139,9 @@ Example usage:
     Z80  cycles:      46,716,028,182
     clock rate:            unbounded
     approx ms at 4Mhz:    11,679,007
-    kernel CPU ms:                15
-    user CPU ms:              27,500
-    total CPU ms:             27,515
-    elapsed ms:               27,879
+    kernel CPU ms:                31
+    user CPU ms:              25,890
+    total CPU ms:             25,921
+    elapsed ms:               26,574
     
 
