@@ -39,12 +39,13 @@ Cycle counts are pretty close, but not precise. I used documented numbers, which
 incorrect. And I made guesses for cycle counts for undocumented Z80 instructions.
 
 Support for Z80 undocumented instructions and the Y and X flags passes the tests specified
-above, but I can't vouch for more than that.
+above, but I can't vouch for more than that. Undocumented 8080 instructions are not implemented.
 
 The two versions of Turbo Pascal and the apps they generate use a tiny fraction of Z80 instructions.
-It took a day to implement the former, and three more days to implement the latter. Getting the
-undocumented featuers to work took an extra couple days. The invaluable resources required to do
-that are listed in x80.cxx. No single resource was 100% correct or complete. It takes a village :)
+It took a day to implement the instructions for Turbo Pascal, and three more days to implement the 
+full instruction set. Getting the undocumented featuers to work took an extra couple days. The 
+invaluable resources required to do that are listed in x80.cxx. No single resource was 100% correct
+or complete. It takes a village :)
 
     NT Virtual CP/M 2.2 Machine: emulates a CP/M 2.2 i8080/Z80 runtime environment
 
