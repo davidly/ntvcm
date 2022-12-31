@@ -197,6 +197,7 @@ struct registers
     } //getFlag
 
     void incR() { r++; r &= 0x7f; }
+    void decR() { r--; r &= 0x7f; }
 
     const char * renderFlags()
     {

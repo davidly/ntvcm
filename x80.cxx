@@ -98,7 +98,7 @@ static const Instruction z80_ins[ 256 ] =
     /*48*/  4, "ld c,b",    4, "ld c,c",     4, "ld c,d",      4, "ld c,e",      4, "ld c,h",       4, "ld c,l",    7, "ld c, (hl)", 4, "ld c,a",
     /*20*/  4, "ld d,b",    4, "ld d,c",     4, "ld d,d",      4, "ld d,e",      4, "ld d,h",       4, "ld d,l",    7, "ld d, (hl)", 4, "ld d,a",
     /*28*/  4, "ld e,b",    4, "ld e,c",     4, "ld e,d",      4, "ld e,e",      4, "ld e,h",       4, "ld e,l",    7, "ld e, (hl)", 4, "ld e,a",
-    /*60*/  4, "ld h,b",    4, "ld h,c",     4, "ld h,d",      4, "ld h,e",      3, "(hook)",       4, "ld h,l",    7, "ld h, (hl)", 4, "ld h,a",
+    /*60*/  4, "ld h,b",    4, "ld h,c",     4, "ld h,d",      4, "ld h,e",      0, "(hook)",       4, "ld h,l",    7, "ld h, (hl)", 4, "ld h,a",
     /*68*/  4, "ld l,b",    4, "ld l,c",     4, "ld l,d",      4, "ld l,e",      4, "ld l,h",       4, "ld l,l",    7, "ld l, (hl)", 4, "ld l,a",
     /*70*/  7, "ld (hl),b", 7, "ld (hl),c",  7, "ld (hl),d",   7, "ld (hl),e",   7, "ld (hl),h",    7, "ld (hl),l", 4, "halt",       7, "ld (hl),a",
     /*78*/  4, "ld a,b",    4, "ld a,c",     4, "ld a,d",      4, "ld a,e",      4, "ld a,h",       4, "ld a,l",    7, "ld a,(hl)",  4, "ld a,a",
@@ -210,7 +210,7 @@ void op_add( uint8_t x, bool carry = false )
     if ( reg.fZ80Mode )
     {
         reg.fWasSubtract = false;
-        reg.fParityEven_Overflow = ! ( ( reg.a ^ x ) & 0x80 ) && ( ( reg.a ^ r8 ) & 0x80 );
+        reg.fParityEven_Overflow = ( ! ( ( reg.a ^ x ) & 0x80 ) ) && ( ( reg.a ^ r8 ) & 0x80 );
         reg.assignYX( r8 );
     }
 
@@ -1637,11 +1637,9 @@ uint64_t x80_emulate( uint64_t maxcycles )
             x80_trace_state();
 
         uint8_t op = memory[ reg.pc ];  // 2% of runtime here
-        if ( OPCODE_HOOK == op )        // 4% of runtime is checking for this
-            op = x80_invoke_hook();     // returned op generally ret, hlt, or nop
-
         reg.pc++;
 
+_restart_op:
         if ( '*' == ins_8080[ op ].assembly[0] ) // 17% of runtime is checking this
         {
             if ( reg.fZ80Mode )
@@ -1851,7 +1849,8 @@ uint64_t x80_emulate( uint64_t maxcycles )
                 }
                 break;
             }
-            case 0x76: /*hlt*/ { x80_invoke_halt(); goto all_done; }
+            case 0x64: /*hook*/ { op = x80_invoke_hook(); if ( reg.fZ80Mode ) reg.decR(); goto _restart_op; }
+            case 0x76: /*hlt*/ { x80_invoke_halt(); goto _all_done; }
             case 0xc3: /*jmp a16*/ { reg.pc = pcword(); break; }
             case 0xc9: /*ret*/ { reg.pc = popword(); break; }
             case 0xcd: /*call a16*/ { uint16_t v = pcword(); pushword( reg.pc ); reg.pc = v; break; }
@@ -1984,6 +1983,6 @@ uint64_t x80_emulate( uint64_t maxcycles )
             }
         }
     }
-all_done:
+_all_done:
     return cycles;
 } //x80_emulate

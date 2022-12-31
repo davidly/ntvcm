@@ -335,7 +335,7 @@ const char * get_bdos_function( uint16_t address )
 
 uint8_t x80_invoke_hook()
 {
-    uint16_t address = reg.pc;
+    uint16_t address = reg.pc - 1; // the emulator has moved past this instruction already
 
     if ( address >= 0xff00 )
     {
