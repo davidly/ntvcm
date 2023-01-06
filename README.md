@@ -4,6 +4,8 @@ NT Virtual CP/M Machine. Emulates CP/M 2.2 and the 8080/Z80 on Windows to run .c
 This app emulates the subset of CP/M 2.2 required to run asm.com, load.com, and Turbo Pascal
 versions 1.00 and 3.01A. The latter two use bdos APIs very differently.
 
+I've also tested with Wordstar CP/M Editition Release 4. It works well.
+
 Console input/output work for both bios bdos API. Disk input/output work via the bdos API.
 There is no attempt at emulating physical disks; apps that use bdos will just work.
 
