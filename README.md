@@ -135,9 +135,9 @@ Example usage:
     Z80  cycles:      46,716,028,182
     clock rate:            unbounded
     approx ms at 4Mhz:    11,679,007
-    kernel CPU ms:                31
-    user CPU ms:              25,890
-    total CPU ms:             25,921
-    elapsed ms:               26,574
+    kernel CPU ms:                15
+    user CPU ms:              24,171
+    total CPU ms:             24,187
+    elapsed ms:               25,601
     
 
