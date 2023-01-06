@@ -10,6 +10,7 @@
 //          http://www.z80.info/z80sflag.htm
 //          http://www.righto.com/2012/12/the-6502-overflow-flag-explained.html
 //          https://mdfs.net/Software/Z80/Exerciser/
+//          https://onlinedisassembler.com/odaweb/
 // symbols that start with z80_ are (unsurprisingly) Z80-specific. 80% of this code is Z80-specific.
 // 8080 emulation would be >20% faster if not for the z80 checks
 // Validated 100% pass for 8080 with 8080ex1.com, 8080pre.com, Microcosm v1.0, and cputest.com Diagnostics II V1.2 in 8080 mode.
@@ -120,8 +121,8 @@ static const Instruction z80_ins[ 256 ] =
     /*f8*/ 11, "ret m",     5, "ld sp,hl",  10, "jp m,a16",    4, "ei",         17, "call m,a16",   0, "*",         7, "cp d8",     11, "rst 7",
 };
 
-uint16_t mword( uint16_t offset ) { return * ( (uint16_t * ) & memory[ offset ] ); }
-void setmword( uint16_t offset, uint16_t value ) { * ( uint16_t * ) & memory[ offset ] = value; }
+uint16_t mword( uint16_t offset ) { return * ( (uint16_t *) & memory[ offset ] ); }
+void setmword( uint16_t offset, uint16_t value ) { * (uint16_t *) & memory[ offset ] = value; }
 uint8_t pcbyte() { return memory[ reg.pc++ ]; }
 uint16_t pcword() { uint16_t r = mword( reg.pc ); reg.pc += 2; return r; }
 void pushword( uint16_t val ) { reg.sp -= 2; setmword( reg.sp, val ); }
@@ -131,16 +132,7 @@ bool is_parity_even( uint8_t x )
 {
     // it seems counter-intuitive, but this is much faster than a lookup table. 10% overall emulator perf faster for my benchmark.
 
-    size_t c = !!( x & 0x01 );
-    c += !!( x & 0x02 );
-    c += !!( x & 0x04 );
-    c += !!( x & 0x08 );
-    c += !!( x & 0x10 );
-    c += !!( x & 0x20 );
-    c += !!( x & 0x40 );
-    c += !!( x & 0x80 );
-
-    return ( 0 == ( c & 1 ) );
+    return ( ( ~ ( x ^= ( x ^= ( x ^= x >> 4 ) >> 2 ) >> 1 ) ) & 1 );
 } //is_parity_even
 
 void set_sign_zero_parity( uint8_t x )
