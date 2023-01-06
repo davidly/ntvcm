@@ -4,6 +4,8 @@ NT Virtual CP/M Machine. Emulates CP/M 2.2 and the 8080/Z80 on Windows to run .c
 This app emulates the subset of CP/M 2.2 required to run asm.com, load.com, and Turbo Pascal
 versions 1.00 and 3.01A. The latter two use bdos APIs very differently.
 
+I've also tested with Wordstar CP/M Editition Release 4. It works well.
+
 Console input/output work for both bios bdos API. Disk input/output work via the bdos API.
 There is no attempt at emulating physical disks; apps that use bdos will just work.
 
@@ -28,12 +30,6 @@ modes, which hurts the performance of each. An interesting fact is that on moder
 computing parity of a byte is faster than a 256-element lookup table. zexall.com runs 5.748 billion
 instructions shared with the 8080, and just 16 million instructions unique to the Z80; optimizing
 for the 8080 will have the most impact.
-
-    The amazing emulator https://github.com/redcode/Z80 runs zexall.com on my machine in 40.7 seconds. 
-
-    The super-fast https://github.com/anotherlin/z80emu runs it in 20.7 seconds. 
-
-    This emulator runs it in 27.9 seconds.
 
 Cycle counts are pretty close, but not precise. I used documented numbers, which are sometimes
 incorrect. And I made guesses for cycle counts for undocumented Z80 instructions.
@@ -139,9 +135,9 @@ Example usage:
     Z80  cycles:      46,716,028,182
     clock rate:            unbounded
     approx ms at 4Mhz:    11,679,007
-    kernel CPU ms:                15
-    user CPU ms:              27,500
-    total CPU ms:             27,515
-    elapsed ms:               27,879
+    kernel CPU ms:                31
+    user CPU ms:              25,890
+    total CPU ms:             25,921
+    elapsed ms:               26,574
     
 
