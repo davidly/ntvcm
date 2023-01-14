@@ -759,7 +759,7 @@ uint8_t x80_invoke_hook()
             if ( ok )
             {
                 tracer.Trace( "  deleting file '%s'\n", acFilename );
-                int removeok = remove( acFilename );
+                int removeok = !remove( acFilename );
                 if ( removeok )
                     reg.a = 0;
             }
@@ -1367,7 +1367,7 @@ int main( int argc, char * argv[] )
                 if ( ':' == parg[2] )
                     clockrate = _strtoui64( parg + 3 , 0, 10 );
                 else
-                    usage( "colon required after c argument" );
+                    usage( "colon required after s argument" );
             }
             else if ( '8' == ca )
                 reg.fZ80Mode = false;
