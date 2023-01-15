@@ -20,6 +20,7 @@
 #include <memory.h>
 #include <assert.h>
 #include <vector>
+#include <intrin.h>
 #include <djltrace.hxx>
 
 using namespace std;
@@ -121,18 +122,20 @@ static const Instruction z80_ins[ 256 ] =
     /*f8*/ 11, "ret m",     5, "ld sp,hl",  10, "jp m,a16",    4, "ei",         17, "call m,a16",   0, "*",         7, "cp d8",     11, "rst 7",
 };
 
-uint16_t mword( uint16_t offset ) { return * ( (uint16_t *) & memory[ offset ] ); }
-void setmword( uint16_t offset, uint16_t value ) { * (uint16_t *) & memory[ offset ] = value; }
-uint8_t pcbyte() { return memory[ reg.pc++ ]; }
-uint16_t pcword() { uint16_t r = mword( reg.pc ); reg.pc += 2; return r; }
-void pushword( uint16_t val ) { reg.sp -= 2; setmword( reg.sp, val ); }
-uint16_t popword() {  uint16_t val = mword( reg.sp ); reg.sp += 2; return val; }
+static uint16_t mword( uint16_t offset ) { return * ( (uint16_t *) & memory[ offset ] ); }
+static void setmword( uint16_t offset, uint16_t value ) { * (uint16_t *) & memory[ offset ] = value; }
+static uint8_t pcbyte() { return memory[ reg.pc++ ]; }
+static uint16_t pcword() { uint16_t r = mword( reg.pc ); reg.pc += 2; return r; }
+static void pushword( uint16_t val ) { reg.sp -= 2; setmword( reg.sp, val ); }
+static uint16_t popword() {  uint16_t val = mword( reg.sp ); reg.sp += 2; return val; }
 
 bool is_parity_even( uint8_t x )
 {
-    // it seems counter-intuitive, but this is much faster than a lookup table. 10% overall emulator perf faster for my benchmark.
-
+#ifdef _M_AMD64
+    return ( ! ( __popcnt16( x ) & 1 ) ); // less portable, but faster
+#else
     return ( ( ~ ( x ^= ( x ^= ( x ^= x >> 4 ) >> 2 ) >> 1 ) ) & 1 );
+#endif
 } //is_parity_even
 
 void set_sign_zero_parity( uint8_t x )

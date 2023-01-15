@@ -344,13 +344,13 @@ uint8_t x80_invoke_hook()
 
         // BIOS call
 
-        if ( 0xff00 == address || 0xff03 == address )
+        if ( 0xff00 == address || 0xff03 == address || 0xff80 == address || 0xff81 == address )
         {
             // boot, which means exit the app
 
             return OPCODE_HALT;
         }
-        else if ( 0xff06 == address )
+        else if ( 0xff06 == address || 0xff82 == address )
         {
             // const console status. A=0 if nothing available, A=0xff if a keystroke is available
 
@@ -359,14 +359,14 @@ uint8_t x80_invoke_hook()
             else
                 reg.a = 0;
         }
-        else if ( 0xff09 == address )
+        else if ( 0xff09 == address || 0xff83 == address )
         {
             // conin
 
             reg.a = _getch();
             tracer.Trace( "conin is returning %02xh\n", reg.a );
         }
-        else if ( 0xff0c == address )
+        else if ( 0xff0c == address || 0xff84 )
         {
             // conout
             // if the output character is ESC, assume the app wants 80x24. 
@@ -759,7 +759,7 @@ uint8_t x80_invoke_hook()
             if ( ok )
             {
                 tracer.Trace( "  deleting file '%s'\n", acFilename );
-                int removeok = !remove( acFilename );
+                int removeok = ( 0 == remove( acFilename ) );
                 if ( removeok )
                     reg.a = 0;
             }
@@ -1339,6 +1339,8 @@ static bool load_file( char const * file_path, int & file_size, uint16_t offset,
     return ok;
 } //load_file
 
+static void setmword( uint16_t offset, uint16_t value ) { * (uint16_t *) & memory[ offset ] = value; }
+
 int main( int argc, char * argv[] )
 {
     memset( memory, 0, sizeof( memory ) );
@@ -1471,7 +1473,8 @@ int main( int argc, char * argv[] )
     //   0100-????: App run space growing upward until it collides with the stack
     //   ????-fdff: Stack growing downward until it collides with the app
     //   fe00-ff00: reserved space for bdos; filled with 0s
-    //   ff00-ffff: reserved space for bios; has jump table in first 3*16 bytes. (ff03 stored at 0x1)
+    //   ff00-ff33: bios jump table of 3*17 bytes. (ff03 stored at 0x1)
+    //   ff80-ff91: where jump table addresses point, filled with OPCODE_HOOK
     //
     // On a typical CP/M machine:
     //   0000-00ff: CP/M global storage
@@ -1481,6 +1484,8 @@ int main( int argc, char * argv[] )
     //   f200-????: bios (f203 stored at 0x1)
 
     memset( memory + 0xff00, OPCODE_HOOK, 0xff );
+    for ( uint32_t v = 0; v < 17; v++ )
+        setmword( 0xff01 + ( v * 3 ), 0xff80 + v );
 
     int file_size = 0;
     bool ok = load_file( acCOM, file_size, 0, memory + 0x100 );
