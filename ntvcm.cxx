@@ -295,15 +295,15 @@ const char * get_bdos_function( uint16_t address )
 
     // the ids are shifted by 3 since I put code start at 0, not -3
 
-    if ( 0 == id )
+    if ( 0 == id || 0x80 == id )
         return "cold sart";
-    if ( 3 == id )
+    if ( 3 == id || 0x81 == id )
         return "warm boot (reload command processor)";
-    if ( 6 == id )
+    if ( 6 == id || 0x82 == id )
         return "console status";
-    if ( 9 == id )
+    if ( 9 == id || 0x83 == id )
         return "console input";
-    if ( 12 == id )
+    if ( 12 == id || 0x84 == id )
         return "console output";
     if ( 15 == id )
         return "list: printer output";
@@ -333,6 +333,25 @@ const char * get_bdos_function( uint16_t address )
     return "unknown";
 } //get_bdos_function
 
+// _kbhit() does device I/O in Windows, which sleeps waiting for a reply, so compute-bound
+// mbasic.com apps run 10x slower than they should because mbasic polls for keyboard input.
+// Workaround: only call _kbhit() if 50 milliseconds has gone by since the last call.
+
+bool throttled_kbhit()
+{
+    static ULONGLONG last_call = 0;
+
+    ULONGLONG this_call = GetTickCount64();
+
+    if ( ( this_call - last_call ) > 50 )
+    {
+        last_call = this_call;
+        return _kbhit();
+    }
+
+    return false;
+} //throttled_kbhit
+
 uint8_t x80_invoke_hook()
 {
     uint16_t address = reg.pc - 1; // the emulator has moved past this instruction already
@@ -342,7 +361,9 @@ uint8_t x80_invoke_hook()
         tracer.Trace( "bios function %#x: %s\n", address, get_bdos_function( address ) );
         //x80_trace_state();
 
-        // BIOS call
+        // BIOS call. 0xff00-0xff33 are for actual, documented BIOS calls.
+        // 0xff80 and above are when apps like mbasic.com read the jump table, assume it's a series of
+        // jmp <16-bit-address> sequences, and call the <16-bit-address) directly.
 
         if ( 0xff00 == address || 0xff03 == address || 0xff80 == address || 0xff81 == address )
         {
@@ -354,7 +375,7 @@ uint8_t x80_invoke_hook()
         {
             // const console status. A=0 if nothing available, A=0xff if a keystroke is available
 
-            if ( _kbhit() )
+            if ( throttled_kbhit() )
                 reg.a = 0xff;
             else
                 reg.a = 0;
@@ -448,7 +469,7 @@ uint8_t x80_invoke_hook()
             byte e = reg.e;
             if ( 0xff == e )
             {
-                if ( _kbhit() )
+                if ( throttled_kbhit() )
                     reg.a = _getch();
             }
 
