@@ -2,13 +2,14 @@
 // This app runs CP/M 2.2 .com programs on Windows.
 // Written by David Lee
 // Notes:   -- Only the subset of CP/M 2.2 required to run asm.com, load.com, and Turbo Pascal 1.00 & 3.01A is implemented.
+//          -- Also tested with Wordstar Release 4 and mbasic.com BASIC-80 Ref 5.21.
 //          -- Use tinst.com to configure Turbo Pascal 1.00 for vT100 and 3.01A for ANSI to get the screen to work.
 //          -- pip.com runs for simple file copies. Not tested for other modes, which probably fail.
 //          -- Can be run in 8080 or Z80 modes (the latter is required for Turbo Pascal).
 //          -- Detects if an ESC character is output, and switches to 80,24 mode.
 //          -- Uses x80.?xx for 8080 and Z80 emulation
 //          -- Not tested for other CP/M apps, which means they probably don't work. If they fail, it's probably
-//             not the CPU emulation (that's pretty well tested). It's probably the CP/M emulation below.
+//             not the CPU emulation (that's pretty well tested). It's probably the CP/M emulation in this file.
 //          
 #define UNICODE
 
@@ -91,7 +92,7 @@ static HANDLE g_hFindFirst = INVALID_HANDLE_VALUE;
 static bool g_forceConsole = false;
 ConsoleConfiguration g_consoleConfig;
 
-void print_FCB( FCB * p )
+void trace_FCB( FCB * p )
 {
     tracer.Trace( "FCB:\n" );
     tracer.Trace( "  drive:    %#x == %c\n", p->dr, ( 0 == p->dr ) ? 'A' : 'A' + p->dr - 1 );
@@ -104,7 +105,7 @@ void print_FCB( FCB * p )
     tracer.Trace( "  r0:       %u\n", p->r0 );
     tracer.Trace( "  r1:       %u\n", p->r1 );
     tracer.Trace( "  r2:       %u\n", p->r2 );
-} //print_FCB
+} //trace_FCB
 
 bool parse_FCB_Filename( FCB * pfcb, char * pcFilename )
 {
@@ -363,7 +364,7 @@ uint8_t x80_invoke_hook()
 
         // BIOS call. 0xff00-0xff33 are for actual, documented BIOS calls.
         // 0xff80 and above are when apps like mbasic.com read the jump table, assume it's a series of
-        // jmp <16-bit-address> sequences, and call the <16-bit-address) directly.
+        // jmp <16-bit-address> sequences, and call the <16-bit-address> directly.
 
         if ( 0xff00 == address || 0xff03 == address || 0xff80 == address || 0xff81 == address )
         {
@@ -563,7 +564,7 @@ uint8_t x80_invoke_hook()
             tracer.Trace( "open file\n" );
     
             FCB * pfcb = (FCB *) ( memory + reg.D() );
-            print_FCB( pfcb );
+            trace_FCB( pfcb );
             reg.a = 255;
     
             char acFilename[ CPM_FILENAME_LEN ];
@@ -609,7 +610,7 @@ uint8_t x80_invoke_hook()
             tracer.Trace( "close file\n" );
     
             FCB * pfcb = (FCB *) ( memory + reg.D() );
-            print_FCB( pfcb );
+            trace_FCB( pfcb );
             reg.a = 255;
     
             char acFilename[ CPM_FILENAME_LEN ];
@@ -642,7 +643,7 @@ uint8_t x80_invoke_hook()
             tracer.Trace( "search for first\n" );
     
             FCB * pfcb = (FCB *) ( memory + reg.D() );
-            print_FCB( pfcb );
+            trace_FCB( pfcb );
             reg.a = 255;
     
             char acFilename[ CPM_FILENAME_LEN ];
@@ -708,7 +709,7 @@ uint8_t x80_invoke_hook()
             tracer.Trace( "search for next\n" );
     
             FCB * pfcb = (FCB *) ( memory + reg.D() );
-            print_FCB( pfcb );
+            trace_FCB( pfcb );
             reg.a = 255;
     
             char acFilename[ CPM_FILENAME_LEN ];
@@ -772,7 +773,7 @@ uint8_t x80_invoke_hook()
             tracer.Trace( "delete file\n" );
     
             FCB * pfcb = (FCB *) ( memory + reg.D() );
-            print_FCB( pfcb );
+            trace_FCB( pfcb );
             reg.a = 255;
     
             char acFilename[ CPM_FILENAME_LEN ];
@@ -798,7 +799,7 @@ uint8_t x80_invoke_hook()
             tracer.Trace( "read sequential file\n" );
     
             FCB * pfcb = (FCB *) ( memory + reg.D() );
-            print_FCB( pfcb );
+            trace_FCB( pfcb );
             reg.a = 255;
     
             char acFilename[ CPM_FILENAME_LEN ];
@@ -850,7 +851,7 @@ uint8_t x80_invoke_hook()
             tracer.Trace( "write sequential file\n" );
     
             FCB * pfcb = (FCB *) ( memory + reg.D() );
-            print_FCB( pfcb );
+            trace_FCB( pfcb );
             reg.a = 255;
     
             char acFilename[ CPM_FILENAME_LEN ];
@@ -885,7 +886,7 @@ uint8_t x80_invoke_hook()
             tracer.Trace( "make file\n" );
     
             FCB * pfcb = (FCB *) ( memory + reg.D() );
-            print_FCB( pfcb );
+            trace_FCB( pfcb );
             reg.a = 255;
     
             char acFilename[ CPM_FILENAME_LEN ];
@@ -916,7 +917,7 @@ uint8_t x80_invoke_hook()
             tracer.Trace( "rename file\n" );
     
             FCB * pfcb = (FCB *) ( memory + reg.D() );
-            print_FCB( pfcb );
+            trace_FCB( pfcb );
             reg.a = 255;
 
             char acOldName[ CPM_FILENAME_LEN ];
@@ -997,7 +998,7 @@ uint8_t x80_invoke_hook()
             tracer.Trace( "set file attributes \n" );
     
             FCB * pfcb = (FCB *) ( memory + reg.D() );
-            print_FCB( pfcb );
+            trace_FCB( pfcb );
             reg.a = 255;
     
             char acFilename[ CPM_FILENAME_LEN ];
@@ -1031,7 +1032,7 @@ uint8_t x80_invoke_hook()
             tracer.Trace( "read random\n" );
     
             FCB * pfcb = (FCB *) ( memory + reg.D() );
-            print_FCB( pfcb );
+            trace_FCB( pfcb );
             reg.a = 6; // seek past end of disk
 
             char acFilename[ CPM_FILENAME_LEN ];
@@ -1100,7 +1101,7 @@ uint8_t x80_invoke_hook()
             tracer.Trace( "write random\n" );
     
             FCB * pfcb = (FCB *) ( memory + reg.D() );
-            print_FCB( pfcb );
+            trace_FCB( pfcb );
             reg.a = 6; // seek past end of disk
 
             char acFilename[ CPM_FILENAME_LEN ];
@@ -1159,7 +1160,7 @@ uint8_t x80_invoke_hook()
             tracer.Trace( "compute file size\n" );
     
             FCB * pfcb = (FCB *) ( memory + reg.D() );
-            print_FCB( pfcb );
+            trace_FCB( pfcb );
             reg.a = 0xff;
 
             char acFilename[ CPM_FILENAME_LEN ];
@@ -1202,7 +1203,7 @@ uint8_t x80_invoke_hook()
             tracer.Trace( "set random record\n" );
     
             FCB * pfcb = (FCB *) ( memory + reg.D() );
-            print_FCB( pfcb );
+            trace_FCB( pfcb );
             reg.a = 0xff;
 
             char acFilename[ CPM_FILENAME_LEN ];
@@ -1234,7 +1235,7 @@ uint8_t x80_invoke_hook()
             tracer.Trace( "write random with zero fill\n" );
     
             FCB * pfcb = (FCB *) ( memory + reg.D() );
-            print_FCB( pfcb );
+            trace_FCB( pfcb );
             reg.a = 6; // seek past end of disk
 
             char acFilename[ CPM_FILENAME_LEN ];
@@ -1301,17 +1302,20 @@ void usage( char const * perr = 0 )
     printf( "NT Virtual CP/M 2.2 Machine: emulates a CP/M 2.2 i8080/Z80 runtime environment\n" );
     printf( "usage: ntvcm [-c] [-p] [-s:X] [-t] <cp/m 2.2 .com file> [filearg1] [filearg2]\n" );
     printf( "  notes:    filearg1 and filearg2 optionally specify filename arguments for the command\n" );
-    printf( "            -c     don't auto-detect ESC characters and change to to 80x24 mode\n" );
-    printf( "            -i     trace 8080/Z80 instructions when tracing\n" );
-    printf( "            -p     show performance information\n" ); 
+    printf( "            -c     never auto-detect ESC characters and change to to 80x24 mode\n" );
+    printf( "            -C     always switch to 80x24 mode\n" );
+    printf( "            -i     trace 8080/Z80 instructions when tracing with -t\n" );
+    printf( "            -p     show performance information at app exit\n" ); 
     printf( "            -s:X   speed in Hz. Default is 0, which is as fast as possible.\n" );
     printf( "                   for 4Mhz, use -s:4000000\n" );
     printf( "            -t     enable debug tracing to ntvcm.log\n" );
-    printf( "            -8     emulate 8080, not Z80\n" );
+    printf( "            -8     emulate the i8080, not Z80\n" );
     printf( "            e.g. to assemble, load, and run test.asm:\n" );
     printf( "                 ntvcm asm.com test\n" );
     printf( "                 ntvcm load.com test\n" );
     printf( "                 ntvcm test.com\n" );
+    printf( "            e.g. to run Star Trek in mbasic in 80x24 mode using i8080 emulation:\n" );
+    printf( "                 ntvcm -8 -C mbasic startrek.bas\n" );
     exit( -1 );
 } //usage
 
@@ -1375,6 +1379,7 @@ int main( int argc, char * argv[] )
     bool traceInstructions = false;
     uint64_t clockrate = 0;
     bool showPerformance = false;
+    bool force80x24 = false;
 
     for ( int i = 1; i < argc; i++ )
     {
@@ -1400,8 +1405,10 @@ int main( int argc, char * argv[] )
                 trace = true;
             else if ( 'p' == ca )
                 showPerformance = true;
-            else if ( 'c' == ca )
+            else if ( 'c' == parg[1] )
                 g_forceConsole = true;
+            else if ( 'C' == parg[1] )
+                force80x24 = true;
             else
                 usage( "invalid argument specified" );
         }
@@ -1424,7 +1431,7 @@ int main( int argc, char * argv[] )
     x80_trace_instructions( traceInstructions );
 
     if ( 0 == pcCOM )
-        usage( "no command specified" );
+        usage( "no CP/M command specified" );
 
     char acCOM[ MAX_PATH ];
     strcpy( acCOM, pcCOM );
@@ -1487,14 +1494,17 @@ int main( int argc, char * argv[] )
     memory[6] = 0x00;
     memory[7] = 0xfe;
 
-    // The real bios function table is a list of 3-byte entries for jmp and the address of each of 16 functions
-    // Here, just hook the jmp instruction and don't worry about the function addresses because we'll handle
-    // it in C++ instead via the hook call. Memory map is here:
+    // The real bios function table is a list of 3-byte entries containing jmp and the address of
+    // each of bios functions 16 functions (17 including the -1 entry to exit).
+    // Here, just hook the jmp instruction and put a pointer to the hook opcode in each address.
+    // Apps like mbasic.com don't call bios functions; they take the address from the vector and
+    // call it directly to save a tiny bit of performance.
+    // The memory map is here (giving apps a little more RAM than standard CP/M):
     //   0000-00ff: CP/M global storage
     //   0100-????: App run space growing upward until it collides with the stack
     //   ????-fdff: Stack growing downward until it collides with the app
     //   fe00-ff00: reserved space for bdos; filled with 0s
-    //   ff00-ff33: bios jump table of 3*17 bytes. (ff03 stored at 0x1)
+    //   ff00-ff33: bios jump table of 3*17 bytes. (0xff03 is stored at addess 0x1)
     //   ff80-ff91: where jump table addresses point, filled with OPCODE_HOOK
     //
     // On a typical CP/M machine:
@@ -1502,7 +1512,7 @@ int main( int argc, char * argv[] )
     //   0100-????: app space
     //   ????-e3a9: stack given to apps at start.
     //   e406-????: bdos
-    //   f200-????: bios (f203 stored at 0x1)
+    //   f200-????: bios (0xf203 stored at address 0x1)
 
     memset( memory + 0xff00, OPCODE_HOOK, 0xff );
     for ( uint32_t v = 0; v < 17; v++ )
@@ -1525,6 +1535,9 @@ int main( int argc, char * argv[] )
     reg.bp = reg.cp = reg.dp = reg.ep = reg.hp = reg.lp = 0;
     reg.ix = reg.iy = 0;
     g_haltExecuted = false;
+
+    if ( force80x24 )
+        g_consoleConfig.EstablishConsole( 80, 24 );
 
     CPerfTime perfApp;
     uint64_t total_cycles = 0;
