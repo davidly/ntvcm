@@ -1562,15 +1562,23 @@ int main( int argc, char * argv[] )
 
     if ( showPerformance )
     {
-        printf( "%s cycles:      %14ws\n", reg.fZ80Mode ? "Z80 " : "8080", perfApp.RenderLL( (LONGLONG) total_cycles ) );
+        printf( "\n%s cycles:      %14ws\n", reg.fZ80Mode ? "Z80 " : "8080", perfApp.RenderLL( (LONGLONG) total_cycles ) );
         printf( "clock rate: " );
         if ( 0 == clockrate )
         {
             printf( "      %14s\n", "unbounded" );
+            uint64_t total_ms = total_cycles / ( reg.fZ80Mode ? 4000 : 2000 );
             if ( reg.fZ80Mode )
-                printf( "approx ms at 4Mhz: %13ws\n", perfApp.RenderLL( total_cycles / 4000 ) );
+                printf( "approx ms at 4Mhz: %13ws == ", perfApp.RenderLL( total_ms ) );
             else
-                printf( "approx ms at 2Mhz: %13ws\n", perfApp.RenderLL( total_cycles / 2000 ) );
+                printf( "approx ms at 2Mhz: %13ws == ", perfApp.RenderLL( total_ms ) );
+
+            uint16_t days = (uint16_t) ( total_ms / 1000 / 60 / 60 / 24 );
+            uint16_t hours = (uint16_t) ( ( total_ms % ( 1000 * 60 * 60 * 24 ) ) / 1000 / 60 / 60 );
+            uint16_t minutes = (uint16_t) ( ( total_ms % ( 1000 * 60 * 60 ) ) / 1000 / 60 );
+            uint16_t seconds = (uint16_t) ( ( total_ms % ( 1000 * 60 ) ) / 1000 );
+            uint64_t milliseconds = ( ( total_ms % 1000 ) );
+            printf( "%u days, %u hours, %u minutes, %u seconds, %llu milliseconds\n", days, hours, minutes, seconds, milliseconds );
         }
         else
             printf( "      %14ws Hz\n", perfApp.RenderLL( (LONGLONG ) clockrate ) );
