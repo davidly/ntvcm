@@ -1030,22 +1030,23 @@ uint64_t z80_emulate( uint8_t op )    // this is just for instructions that aren
         reg.incR();
         pcbyte();  // consume op2
 
-        if ( 0xb == ( op2 & 0xf ) )      // ld rp, (nn) AKA ld dd, (nn)
-        {
-            cycles = 20;
-            uint8_t rp = op2 & 0x30;
-            uint16_t * prp = reg.rpAddressFromOp( rp );
-            *prp = mword( pcword() );
-        }
-        else if ( 0x3 == ( op2 & 0xf ) ) // ld (mw), rp AKA ld (nn), dd
+        if ( 0x3 == ( op2 & 0xf ) ) // ld (mw), rp AKA ld (nn), dd
         {
             cycles = 20;
             uint8_t rp = op2 & 0x30;
             uint16_t * prp = reg.rpAddressFromOp( rp );
             setmword( pcword(), *prp );
         }
+        else if ( 0xb == ( op2 & 0xf ) )      // ld rp, (nn) AKA ld dd, (nn)
+        {
+            cycles = 20;
+            uint8_t rp = op2 & 0x30;
+            uint16_t * prp = reg.rpAddressFromOp( rp );
+            *prp = mword( pcword() );
+        }
         else if ( 0x44 == op2 ) // neg
         {
+            cycles = 8;
             uint8_t prior = reg.a;
             reg.a = 0 - reg.a;
             set_sign_zero_parity( reg.a );
@@ -1125,6 +1126,20 @@ uint64_t z80_emulate( uint8_t op )    // this is just for instructions that aren
             reg.fAuxCarry = 0;
             reg.fWasSubtract = 0;
         }
+        else if ( 0xa1 == op2 ) // cpi
+        {
+            bool oldCarry = reg.fCarry;
+            cycles = 16;
+            uint8_t memval = memory[ reg.H() ];
+            op_cmp( memval );
+            reg.SetH( reg.H() + 1 );
+            reg.SetB( reg.B() - 1 );
+            reg.fParityEven_Overflow = ( 0 != reg.B() );
+            uint8_t n = reg.a - memval - ( reg.fAuxCarry ? 1 : 0 ); // n = A - (HL) - HF
+            reg.fY = ( 0 != ( n & 0x02 ) );
+            reg.fX = ( 0 != ( n & 0x08 ) );
+            reg.fCarry = oldCarry; // carry is not affected
+        }
         else if ( 0xa8 == op2 ) // ldd
         {
             cycles = 16;
@@ -1136,6 +1151,20 @@ uint64_t z80_emulate( uint8_t op )    // this is just for instructions that aren
             reg.SetB( reg.B() - 1 );
             reg.fParityEven_Overflow = ( 0 != reg.B() );
             reg.clearHN();
+        }
+        else if ( 0xa9 == op2 ) // cpd
+        {
+            bool oldCarry = reg.fCarry;
+            cycles = 16;
+            uint8_t memval = memory[ reg.H() ];
+            op_cmp( memval );
+            reg.SetH( reg.H() - 1 );
+            reg.SetB( reg.B() - 1 );
+            reg.fParityEven_Overflow = ( 0 != reg.B() );
+            uint8_t n = reg.a - memval - ( reg.fAuxCarry ? 1 : 0 ); // n = A - (HL) - HF
+            reg.fY = ( 0 != ( n & 0x02 ) );
+            reg.fX = ( 0 != ( n & 0x08 ) );
+            reg.fCarry = oldCarry; // carry is not affected
         }
         else if ( 0xb0 == op2 ) // ldir
         {
@@ -1157,34 +1186,6 @@ uint64_t z80_emulate( uint8_t op )    // this is just for instructions that aren
             reg.fAuxCarry = 0;
             reg.fWasSubtract = 0;
         }
-        else if ( 0xa1 == op2 ) // cpi
-        {
-            bool oldCarry = reg.fCarry;
-            cycles = 16;
-            uint8_t memval = memory[ reg.H() ];
-            op_cmp( memval );
-            reg.SetH( reg.H() + 1 );
-            reg.SetB( reg.B() - 1 );
-            reg.fParityEven_Overflow = ( 0 != reg.B() );
-            uint8_t n = reg.a - memval - ( reg.fAuxCarry ? 1 : 0 ); // n = A - (HL) - HF
-            reg.fY = ( 0 != ( n & 0x02 ) );
-            reg.fX = ( 0 != ( n & 0x08 ) );
-            reg.fCarry = oldCarry; // carry is not affected
-        }
-        else if ( 0xa9 == op2 ) // cpd
-        {
-            bool oldCarry = reg.fCarry;
-            cycles = 16;
-            uint8_t memval = memory[ reg.H() ];
-            op_cmp( memval );
-            reg.SetH( reg.H() - 1 );
-            reg.SetB( reg.B() - 1 );
-            reg.fParityEven_Overflow = ( 0 != reg.B() );
-            uint8_t n = reg.a - memval - ( reg.fAuxCarry ? 1 : 0 ); // n = A - (HL) - HF
-            reg.fY = ( 0 != ( n & 0x02 ) );
-            reg.fX = ( 0 != ( n & 0x08 ) );
-            reg.fCarry = oldCarry; // carry is not affected
-        }
         else if ( 0xb1 == op2 ) // cpir
         {
             bool oldCarry = reg.fCarry;
@@ -1204,6 +1205,24 @@ uint64_t z80_emulate( uint8_t op )    // this is just for instructions that aren
             cycles -= 5; // the last iteration is cheaper
             reg.fParityEven_Overflow = ( 0 != reg.B() ); // not what the Zilog doc says, but it's what works
             reg.fCarry = oldCarry; // carry is not affected
+        }
+        else if ( 0xb8 == op2 ) // lddr
+        {
+            cycles = 0;
+            do
+            {
+                cycles += 21;
+                memory[ reg.D() ] = memory[ reg.H() ];
+                reg.fY = ( 0 != ( ( memory[ reg.H() ] + reg.a ) & 0x02 ) );
+                reg.fX = ( 0 != ( ( memory[ reg.H() ] + reg.a ) & 0x08 ) );
+                reg.SetH( reg.H() - 1 );
+                reg.SetD( reg.D() - 1 );
+                reg.SetB( reg.B() - 1 );
+            } while ( 0 != reg.B() );
+
+            cycles -= 5; // the last iteration is cheaper
+            reg.fParityEven_Overflow = false; // unlike similar functions
+            reg.clearHN();
         }
         else if ( 0xb9 == op2 ) // cpdr
         {
@@ -1225,24 +1244,6 @@ uint64_t z80_emulate( uint8_t op )    // this is just for instructions that aren
             reg.fParityEven_Overflow = ( 0 != reg.B() );
             reg.fCarry = oldCarry; // carry is not affected
         }
-        else if ( 0xb8 == op2 ) // lddr
-        {
-            cycles = 0;
-            do
-            {
-                cycles += 21;
-                memory[ reg.D() ] = memory[ reg.H() ];
-                reg.fY = ( 0 != ( ( memory[ reg.H() ] + reg.a ) & 0x02 ) );
-                reg.fX = ( 0 != ( ( memory[ reg.H() ] + reg.a ) & 0x08 ) );
-                reg.SetH( reg.H() - 1 );
-                reg.SetD( reg.D() - 1 );
-                reg.SetB( reg.B() - 1 );
-            } while ( 0 != reg.B() );
-
-            cycles -= 5; // the last iteration is cheaper
-            reg.fParityEven_Overflow = false; // unlike similar functions
-            reg.clearHN();
-        }
         else if ( 0x02 == ( op2 & 0x8f ) ) // sbc hl, rp AKA sbc hl, ss
         {
             cycles = 15;
@@ -1257,15 +1258,6 @@ uint64_t z80_emulate( uint8_t op )    // this is just for instructions that aren
             uint16_t val = * reg.rpAddressFromOp( op );
             uint16_t result = z80_op_adc_16( reg.H(), val );
             reg.SetH( result );
-        }
-        else if ( 0x44 == op2 ) // neg
-        {
-            cycles = 8;
-            uint8_t orig = reg.a;
-            reg.a = 0 - reg.a;
-            z80_set_sign_zero_parity_16( reg.a );
-            reg.fParityEven_Overflow = ( 0x80 == orig );
-            reg.assignYX( reg.a );
         }
         else
             z80_ni( op, op2 );
