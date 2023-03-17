@@ -10,12 +10,21 @@ class CPUCycleDelay
     public:
         CPUCycleDelay( ULONGLONG clock_rate ) : clockRate( clock_rate )
         {
+            liStartExecution.QuadPart = 0;
+            liFreq.QuadPart = 0;
+
             if ( 0 != clockRate )
             {
                 QueryPerformanceFrequency( & liFreq );
                 QueryPerformanceCounter( & liStartExecution );
             }
         } //CPUCycleDelay
+
+        void Reset()
+        {
+            if ( 0 != clockRate )
+                QueryPerformanceCounter( & liStartExecution );
+        } //Reset
 
         void Delay( ULONGLONG cyclesTotal )
         {
