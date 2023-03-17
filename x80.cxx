@@ -1964,8 +1964,8 @@ _restart_op:
             }
             else
             {
-                tracer.Trace( "unimplemented instruction: %#x, next byte is %#x\n", op, memory[ reg.pc ] );
-                printf( "unimplemented instruction: %#x, next byte is %#x\n", op, memory[ reg.pc ] );
+                tracer.Trace( "unimplemented 8080 instruction: %#x, next byte is %#x\n", op, memory[ reg.pc ] );
+                printf( "unimplemented 8080 instruction: %#x, next byte is %#x\n", op, memory[ reg.pc ] );
                 exit( 1 );
             }
         }
