@@ -591,7 +591,7 @@ uint64_t z80_emulate( uint8_t op )    // this is just for instructions that aren
     uint8_t op4 = memory[ reg.pc + 2 ];
     uint8_t op5 = memory[ reg.pc + 3 ];
     uint16_t op34 = (uint16_t) op3 + ( (uint16_t) op4 << 8 );
-    int op3int = (int) (char) op3;
+    int op3int = (int) (int8_t) op3;
     uint16_t cycles = 4; // general-purpose default
 
     if ( op <= 0x38 )
@@ -609,7 +609,7 @@ uint64_t z80_emulate( uint8_t op )    // this is just for instructions that aren
             reg.b = reg.b - 1;
             if ( 0 != reg.b )
             {
-                reg.pc = opaddress + 2 + (int16_t) (char) offset;
+                reg.pc = opaddress + 2 + (int16_t) (int8_t) offset;
                 cycles = 13;
             }
             else
@@ -618,7 +618,7 @@ uint64_t z80_emulate( uint8_t op )    // this is just for instructions that aren
         else if ( 0x18 == op ) // jr n
         {
             uint8_t offset = pcbyte();
-            reg.pc = opaddress + 2 + (int16_t) (char) offset;
+            reg.pc = opaddress + 2 + (int16_t) (int8_t) offset;
             cycles = 12;
         }
         else if ( 0x20 == op ) // jr nz, n
@@ -626,7 +626,7 @@ uint64_t z80_emulate( uint8_t op )    // this is just for instructions that aren
             uint8_t offset = pcbyte();
             if ( !reg.fZero )
             {
-                reg.pc = opaddress + 2 + (int16_t) (char) offset;
+                reg.pc = opaddress + 2 + (int16_t) (int8_t) offset;
                 cycles = 12;
             }
             else
@@ -637,7 +637,7 @@ uint64_t z80_emulate( uint8_t op )    // this is just for instructions that aren
             uint8_t offset = pcbyte();
             if ( reg.fZero )
             {
-                reg.pc = opaddress + 2 + (int16_t) (char) offset;
+                reg.pc = opaddress + 2 + (int16_t) (int8_t) offset;
                 cycles = 12;
             }
             else
@@ -648,7 +648,7 @@ uint64_t z80_emulate( uint8_t op )    // this is just for instructions that aren
             uint8_t offset = pcbyte();
             if ( !reg.fCarry )
             {
-                reg.pc = opaddress + 2 + (int16_t) (char) offset;
+                reg.pc = opaddress + 2 + (int16_t) (int8_t) offset;
                 cycles = 12;
             }
             else
@@ -659,7 +659,7 @@ uint64_t z80_emulate( uint8_t op )    // this is just for instructions that aren
             uint8_t offset = pcbyte();
             if ( reg.fCarry )
             {
-                reg.pc = opaddress + 2 + (int16_t) (char) offset;
+                reg.pc = opaddress + 2 + (int16_t) (int8_t) offset;
                 cycles = 12;
             }
             else
@@ -805,21 +805,21 @@ uint64_t z80_emulate( uint8_t op )    // this is just for instructions that aren
         else if ( 0x34 == op2 ) // inc (i + index)
         {
             cycles = 23;
-            uint16_t i = reg.getIndex( op ) + (int16_t) (char) pcbyte();
+            uint16_t i = reg.getIndex( op ) + (int16_t) (int8_t) pcbyte();
             uint8_t x = memory[ i ];
             memory[i] = op_inc( x );
         }
         else if ( 0x35 == op2 ) // dec (i + index)
         {
             cycles = 23;
-            uint16_t i = reg.getIndex( op ) + (int16_t) (char) pcbyte();
+            uint16_t i = reg.getIndex( op ) + (int16_t) (int8_t) pcbyte();
             uint8_t x = memory[ i ];
             memory[ i ] = op_dec( x );
         }
         else if ( 0x36 == op2 )  // ld (ix/iy + index), immediate byte
         {
             cycles = 19;
-            uint16_t i = reg.getIndex( op ) + (int16_t) (char) pcbyte();
+            uint16_t i = reg.getIndex( op ) + (int16_t) (int8_t) pcbyte();
             uint8_t val = pcbyte();
             memory[ i ] = val;
         }
@@ -885,7 +885,7 @@ uint64_t z80_emulate( uint8_t op )    // this is just for instructions that aren
             cycles = 19;
             uint8_t math = ( ( op2 >> 3 ) & 0x7 );
             uint16_t x = reg.getIndex( op );
-            x += (int16_t) (char) pcbyte();
+            x += (int16_t) (int8_t) pcbyte();
             op_math( math, memory[ x ] );
         }
         else if ( 0x24 == ( op2 & 0xf6 ) ) // inc/dec ixh, ixl, iyh, iyl
@@ -919,7 +919,7 @@ uint64_t z80_emulate( uint8_t op )    // this is just for instructions that aren
                 uint8_t offset = pcbyte(); // the op3
                 pcbyte(); // the op4
                 uint16_t index = reg.getIndex( op );
-                index += (int16_t) (char) offset;
+                index += (int16_t) (int8_t) offset;
                 if ( 0x26 == op4 ) // sla
                     z80_op_sla( & memory[ index ] );
                 else if ( 0x2e == op4 ) // sra
@@ -933,7 +933,7 @@ uint64_t z80_emulate( uint8_t op )    // this is just for instructions that aren
                 uint8_t offset = pcbyte();
                 pcbyte();
                 uint16_t index = reg.getIndex( op );
-                index += (int16_t) (char) offset;
+                index += (int16_t) (int8_t) offset;
     
                 if ( op4 <= 0x07 )
                     z80_op_rlc( & memory[ index ] );
@@ -964,7 +964,7 @@ uint64_t z80_emulate( uint8_t op )    // this is just for instructions that aren
                 uint8_t bit = ( mod >> 3 ) & 0x7;
                 uint8_t mask = 1 << bit;
                 uint8_t top2bits = mod & 0xc0;
-                uint16_t offset = reg.getIndex( op ) + (int16_t) (char) index;
+                uint16_t offset = reg.getIndex( op ) + (int16_t) (int8_t) index;
                 uint8_t val = memory[ offset ];
     
                 if ( 0x40 == top2bits ) // bit
@@ -1287,8 +1287,8 @@ void z80_render( char * ac, uint8_t op, uint16_t address )
     uint8_t op3 = memory[ address + 2 ];
     uint8_t op4 = memory[ address + 3 ];
     uint16_t op34 = (uint16_t) op3 + ( (uint16_t) op4 << 8 );
-    int16_t op2int = (int16_t) (char) op2;
-    int16_t op3int = (int16_t) (char) op3;
+    int16_t op2int = (int16_t) (int8_t) op2;
+    int16_t op3int = (int16_t) (int8_t) op3;
     sprintf( ac, "z80 %02x %02x %02x NYI", op, op2, op3 );
 
     if ( 0xdd == op || 0xfd == op ) // ix & iy operations
@@ -1373,13 +1373,13 @@ void z80_render( char * ac, uint8_t op, uint16_t address )
         else if ( 0xcb == op2 && ( op4 <= 0x3f ) )
         {
             uint8_t rot = ( ( op4 >> 3 ) & 0x7 );
-            int offset = (int) (char) op3;
+            int offset = (int) (int8_t) op3;
             sprintf( ac, "%s %s, (%s%s%d)", z80_rotate_strings[ rot ], reg_strings[ op4 & 0x7 ], i, offset >= 0 ? "+" : "", offset );
         }
         else if ( 0xcb == op2 && ( ( ( op4 & 0xf ) == 0xe ) || ( ( op4 & 0xf ) == 0x6 ) ) ) // bit operations on indexed memory
         {
             uint8_t index = op3;
-            int32_t index32 = (int32_t) (char) index;
+            int32_t index32 = (int32_t) (int8_t) index;
             uint8_t mod = op4;
             uint8_t bit = ( mod >> 3 ) & 0x7;
             uint8_t top2bits = mod & 0xc0;

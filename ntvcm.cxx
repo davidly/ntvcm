@@ -756,7 +756,11 @@ uint8_t x80_invoke_hook()
                         reg.a = 0;
                     }
                     else
+                    {
                         tracer.Trace( "WARNING: find next file found no more, error %d\n", GetLastError() );
+                        FindClose( g_hFindFirst );
+                        g_hFindFirst = INVALID_HANDLE_VALUE;
+                    }
                 }
                 else
                     tracer.Trace( "ERROR: search for next without a prior successful search for first\n" );
