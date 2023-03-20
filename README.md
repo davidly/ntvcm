@@ -31,7 +31,8 @@ I found to be nearly inscrutable (though I'm sure that's just me). I also wanted
 modes, which hurts the performance of each. An interesting fact is that on modern CPUs, code for 
 computing parity of a byte is faster than a 256-element lookup table. zexall.com runs 5.748 billion
 instructions shared with the 8080, and just 16 million instructions unique to the Z80; optimizing
-for the 8080 will have the most impact.
+for the 8080 will have the most impact. Zexall.com runs in about 26 seconds using the Microsoft
+compiler and 21 seconds using the Gnu compiler.
 
 Cycle counts are pretty close, but not precise. I used documented numbers, which are sometimes
 incorrect. And I made guesses for cycle counts for undocumented Z80 instructions.
