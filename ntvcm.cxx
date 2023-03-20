@@ -23,7 +23,6 @@
 #include <windows.h>
 #include <djltrace.hxx>
 #include <djl_con.hxx>
-#include <djl_perf.hxx>
 #include <djl_cycle.hxx>
 
 #include "x80.hxx"
@@ -1370,6 +1369,33 @@ static bool load_file( char const * file_path, int & file_size, uint16_t offset,
 
 static void setmword( uint16_t offset, uint16_t value ) { * (uint16_t *) & memory[ offset ] = value; }
 
+static void RenderNumber( long long n, char * ac )
+{
+    if ( n < 0 )
+    {
+        strcat( ac, "-" );
+        RenderNumber( -n, ac );
+        return;
+    }
+   
+    if ( n < 1000 )
+    {
+        sprintf( ac + strlen( ac ), "%lld", n );
+        return;
+    }
+
+    RenderNumber( n / 1000, ac );
+    sprintf( ac + strlen( ac ), ",%03lld", n % 1000 );
+    return;
+} //RenderNumber
+
+static char * RenderNumberWithCommas( long long n, char * ac )
+{
+    ac[ 0 ] = 0;
+    RenderNumber( n, ac );
+    return ac;
+} //RenderNumberWithCommas
+
 int main( int argc, char * argv[] )
 {
     memset( memory, 0, sizeof( memory ) );
@@ -1543,7 +1569,7 @@ int main( int argc, char * argv[] )
     if ( force80x24 )
         g_consoleConfig.EstablishConsole( 80, 24 );
 
-    CPerfTime perfApp;
+    high_resolution_clock::time_point tStart = high_resolution_clock::now();
     uint64_t total_cycles = 0;
     CPUCycleDelay delay( clockrate );
 
@@ -1557,25 +1583,25 @@ int main( int argc, char * argv[] )
         delay.Delay( total_cycles );
     } while ( true );
 
-    LONGLONG elapsed = 0;
-    perfApp.CumulateSince( elapsed );
-    FILETIME creationFT, exitFT, kernelFT, userFT;
-    GetProcessTimes( GetCurrentProcess(), &creationFT, &exitFT, &kernelFT, &userFT );
-
+    high_resolution_clock::time_point tDone = high_resolution_clock::now();
     g_consoleConfig.RestoreConsole();
 
     if ( showPerformance )
     {
-        printf( "\n%s cycles:      %14ws\n", reg.fZ80Mode ? "Z80 " : "8080", perfApp.RenderLL( (LONGLONG) total_cycles ) );
+        char ac[ 100 ];
+        long long totalTime = duration_cast<std::chrono::milliseconds>( tDone - tStart ).count();
+        printf( "\n" );
+        printf( "elapsed milliseconds: %16s\n", RenderNumberWithCommas( totalTime, ac ) );
+        printf( "%s cycles:      %20s\n", reg.fZ80Mode ? "Z80 " : "8080", RenderNumberWithCommas( total_cycles, ac ) );
         printf( "clock rate: " );
         if ( 0 == clockrate )
         {
-            printf( "      %14s\n", "unbounded" );
+            printf( "      %20s\n", "unbounded" );
             uint64_t total_ms = total_cycles / ( reg.fZ80Mode ? 4000 : 2000 );
             if ( reg.fZ80Mode )
-                printf( "approx ms at 4Mhz: %13ws == ", perfApp.RenderLL( total_ms ) );
+                printf( "approx ms at 4Mhz: %19s == ", RenderNumberWithCommas( total_ms, ac ) );
             else
-                printf( "approx ms at 2Mhz: %13ws == ", perfApp.RenderLL( total_ms ) );
+                printf( "approx ms at 2Mhz: %19s == ", RenderNumberWithCommas( total_ms, ac ) );
 
             uint16_t days = (uint16_t) ( total_ms / 1000 / 60 / 60 / 24 );
             uint16_t hours = (uint16_t) ( ( total_ms % ( 1000 * 60 * 60 * 24 ) ) / 1000 / 60 / 60 );
@@ -1585,19 +1611,7 @@ int main( int argc, char * argv[] )
             printf( "%u days, %u hours, %u minutes, %u seconds, %llu milliseconds\n", days, hours, minutes, seconds, milliseconds );
         }
         else
-            printf( "      %14ws Hz\n", perfApp.RenderLL( (LONGLONG ) clockrate ) );
-
-        ULARGE_INTEGER ullK, ullU;
-        ullK.HighPart = kernelFT.dwHighDateTime;
-        ullK.LowPart = kernelFT.dwLowDateTime;
-    
-        ullU.HighPart = userFT.dwHighDateTime;
-        ullU.LowPart = userFT.dwLowDateTime;
-    
-        printf( "kernel CPU ms:    %14ws\n", perfApp.RenderDurationInMS( ullK.QuadPart ) );
-        printf( "user CPU ms:      %14ws\n", perfApp.RenderDurationInMS( ullU.QuadPart ) );
-        printf( "total CPU ms:     %14ws\n", perfApp.RenderDurationInMS( ullU.QuadPart + ullK.QuadPart ) );
-        printf( "elapsed ms:       %14ws\n", perfApp.RenderDurationInMS( elapsed ) );
+            printf( "      %20s Hz\n", RenderNumberWithCommas( clockrate, ac ) );
     }
 
     tracer.Shutdown();
