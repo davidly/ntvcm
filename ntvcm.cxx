@@ -283,79 +283,6 @@ char printable_ch( char ch )
     return ch;
 } //printable_ch
 
-char * append_hex_nibble( char * p, uint8_t val )
-{
-    assert( val <= 15 );
-    *p++ = ( val <= 9 ) ? val + '0' : val - 10 + 'a';
-    return p;
-} //append_hex_nibble
-
-char * append_hex_byte( char * p, uint8_t val )
-{
-    p = append_hex_nibble( p, ( val >> 4 ) & 0xf );
-    p = append_hex_nibble( p, val & 0xf );
-    return p;
-} //append_hex_byte
-
-char * append_hex_word( char * p, uint16_t val )
-{
-    p = append_hex_byte( p, ( val >> 8 ) & 0xff );
-    p = append_hex_byte( p, val & 0xff );
-    return p;
-} //append_hex_word
-
-void DumpBinaryData( uint8_t * pData, uint32_t length, uint32_t indent )
-{
-    int64_t offset = 0;
-    int64_t beyond = length;
-    const int64_t bytesPerRow = 32;
-    uint8_t buf[ bytesPerRow ];
-    char acLine[ 200 ];
-
-    while ( offset < beyond )
-    {
-        char * pline = acLine;
-
-        for ( uint32_t i = 0; i < indent; i++ )
-            *pline++ = ' ';
-
-        pline = append_hex_word( pline, (uint16_t) offset );
-        *pline++ = ' ';
-        *pline++ = ' ';
-
-        int64_t cap = get_min( offset + bytesPerRow, beyond );
-        int64_t toread = ( ( offset + bytesPerRow ) > beyond ) ? ( length % bytesPerRow ) : bytesPerRow;
-
-        memcpy( buf, pData + offset, toread );
-
-        for ( int64_t o = offset; o < cap; o++ )
-        {
-            pline = append_hex_byte( pline, buf[ o - offset ] );
-            *pline++ = ' ';
-        }
-
-        uint64_t spaceNeeded = ( bytesPerRow - ( cap - offset ) ) * 3;
-
-        for ( uint64_t sp = 0; sp < ( 1 + spaceNeeded ); sp++ )
-            *pline++ = ' ';
-
-        for ( int64_t o = offset; o < cap; o++ )
-        {
-            char ch = buf[ o - offset ];
-
-            if ( ch < ' ' || 127 == ch )
-                ch = '.';
-
-            *pline++ = ch;
-        }
-
-        offset += bytesPerRow;
-        *pline = 0;
-
-        tracer.TraceQuiet( "%s\n", acLine );
-    }
-} //DumpBinaryData
-
 FILE * RemoveFileEntry( char * name )
 {
     for ( size_t i = 0; i < g_fileEntries.size(); i++ )
@@ -623,7 +550,7 @@ uint8_t x80_invoke_hook()
             uint16_t i = reg.D();
             uint32_t count = 0;
 
-            //DumpBinaryData( memory + i, 0x20, 0 );
+            //tracer.TraceBinaryData( memory + i, 0x20, 0 );
     
             while ( '$' != memory[i] )
             {
@@ -969,7 +896,7 @@ uint8_t x80_invoke_hook()
                     size_t numread = fread( g_DMA, to_read, 1, fp );
                     if ( numread > 0 )
                     {
-                        DumpBinaryData( g_DMA, 128, 0 );
+                        tracer.TraceBinaryData( g_DMA, 128, 0 );
         
                         reg.a = 0;
                     }
@@ -1010,7 +937,7 @@ uint8_t x80_invoke_hook()
                     uint32_t curr = ftell( fp );
                     tracer.Trace( "writing at offset %#x = %u\n", curr, curr );
         
-                    DumpBinaryData( g_DMA, 128, 0 );
+                    tracer.TraceBinaryData( g_DMA, 128, 0 );
                     size_t numwritten = fwrite( g_DMA, 128, 1, fp );
                     if ( numwritten > 0 )
                         reg.a = 0;
@@ -1214,7 +1141,7 @@ uint8_t x80_invoke_hook()
                             size_t numread = fread( g_DMA, to_read, 1, fp );
                             if ( numread )
                             {
-                                DumpBinaryData( g_DMA, to_read, 0 );
+                                tracer.TraceBinaryData( g_DMA, to_read, 0 );
                                 reg.a = 0;
 
                                 // The CP/M spec says random read should set the file offset such
@@ -1270,7 +1197,7 @@ uint8_t x80_invoke_hook()
                         if ( ok )
                         {
                             tracer.Trace( "writing random at offset %#x\n", file_offset );
-                            DumpBinaryData( g_DMA, 128, 0 );
+                            tracer.TraceBinaryData( g_DMA, 128, 0 );
                             size_t numwritten = fwrite( g_DMA, 128, 1, fp );
                             if ( numwritten )
                             {
