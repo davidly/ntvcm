@@ -19,8 +19,9 @@
 #include <stdio.h>
 #include <memory.h>
 #include <assert.h>
-#include <vector>
 #include <intrin.h>
+#include <vector>
+#include <cstring>
 #include <djltrace.hxx>
 
 using namespace std;

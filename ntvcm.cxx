@@ -19,7 +19,9 @@
 #include <conio.h>
 #include <direct.h>
 #include <vector>
+#include <cstring>
 
+#define WIN32_LEAN_AND_MEAN
 #include <windows.h>
 #include <djltrace.hxx>
 #include <djl_con.hxx>
@@ -39,6 +41,20 @@
 
 #define CPM_FILENAME_LEN ( 8 + 3 + 1 + 1 ) // name + type + dot + null
 
+template <class T> T get_max( T a, T b )
+{
+    if ( a > b )
+        return a;
+    return b;
+}
+
+template <class T> T get_min( T a, T b )
+{
+    if ( a < b )
+        return a;
+    return b;
+}
+    
 // this is the first 16 bytes of an FCB used for the first two command-line arguments at 0x5c and 0x6c
 
 struct FCB_ARGUMENT
@@ -85,11 +101,109 @@ struct FileEntry
 CDJLTrace tracer;
 
 static bool g_haltExecuted;
-static byte * g_DMA = memory + DEFAULT_DMA_OFFSET;
+static uint8_t * g_DMA = memory + DEFAULT_DMA_OFFSET;
 static vector<FileEntry> g_fileEntries;
 static HANDLE g_hFindFirst = INVALID_HANDLE_VALUE;
 static bool g_forceConsole = false;
 ConsoleConfiguration g_consoleConfig;
+
+#ifdef _GNU_CPP
+#if false
+    struct termios orig_termios;
+
+    void reset_terminal_mode()
+    {
+        tcsetattr( 0, TCSANOW, &orig_termios );
+    }
+
+    void set_conio_terminal_mode()
+    {
+        struct termios new_termios;
+
+        tcgetattr( 0, &orig_termios );
+        memcpy( &new_termios, &orig_termios, sizeof( new_termios ) );
+
+        atexit( reset_terminal_mode );
+        cfmakeraw( &new_termios );
+        tcsetattr( 0, TCSANOW, &new_termios );
+    } //set_conio_terminal_mode
+
+    int _kbhit()
+    {
+        struct timeval tv = { 0L, 0L };
+        fd_set fds;
+        FD_ZERO( &fds );
+        FD_SET( 0, &fds );
+        return ( select( 1, &fds, NULL, NULL, &tv ) > 0 );
+    }
+
+    int _getch()
+    {
+        int r;
+        unsigned char c;
+
+        if ( ( r = read( 0, &c, sizeof( c ) ) ) < 0 )
+            return r;
+
+        return c;
+    } // _getch
+#endif
+
+    void output_char( char ch )
+    {
+        if ( 0xa == ch )
+            printf( "%c", 0xd );
+        
+        printf( "%c", ch );
+        fflush( stdout );
+    } //output_char
+
+    char * portable_gets_s( char * buf, size_t bufsize )
+    {
+        // getline (hangs, no echo)
+        // fscanf (works, no echo )
+        // fgets (hangs, no echo)
+
+        size_t len = 0;
+        do
+        {
+            char ch = _getch();
+            if ( '\n' == ch || '\r' == ch )
+            {
+                output_char ( 0xa );
+                break;
+            }
+
+            if ( len >= ( bufsize - 1 ) )                
+                break;
+
+            if ( 0x7f == ch || 8 == ch ) // backspace (it's not 8 for some reason)
+            {
+                if ( len > 0 )
+                {
+                    output_char( 8 );
+                    output_char( ' ' );
+                    output_char( 8 );
+                    len--;
+                }
+            }
+            else
+            {
+                output_char( ch );
+                buf[ len++ ] = ch;
+            }
+        } while( true );
+
+        buf[ len ] = 0;
+        return buf;
+    } //gets_s
+#else
+    char * portable_gets_s( char * buf, size_t bufsize )
+    {
+        return gets_s( buf, bufsize );
+    }
+#endif
+
 
 void trace_FCB( FCB * p )
 {
@@ -169,47 +283,76 @@ char printable_ch( char ch )
     return ch;
 } //printable_ch
 
-void DumpBinaryData( byte * pData, DWORD length, DWORD indent )
+char * append_hex_nibble( char * p, uint8_t val )
 {
-    __int64 offset = 0;
-    __int64 beyond = length;
-    const __int64 bytesPerRow = 32;
-    byte buf[ bytesPerRow ];
+    assert( val <= 15 );
+    *p++ = ( val <= 9 ) ? val + '0' : val - 10 + 'a';
+    return p;
+} //append_hex_nibble
+
+char * append_hex_byte( char * p, uint8_t val )
+{
+    p = append_hex_nibble( p, ( val >> 4 ) & 0xf );
+    p = append_hex_nibble( p, val & 0xf );
+    return p;
+} //append_hex_byte
+
+char * append_hex_word( char * p, uint16_t val )
+{
+    p = append_hex_byte( p, ( val >> 8 ) & 0xff );
+    p = append_hex_byte( p, val & 0xff );
+    return p;
+} //append_hex_word
+
+void DumpBinaryData( uint8_t * pData, uint32_t length, uint32_t indent )
+{
+    int64_t offset = 0;
+    int64_t beyond = length;
+    const int64_t bytesPerRow = 32;
+    uint8_t buf[ bytesPerRow ];
+    char acLine[ 200 ];
 
     while ( offset < beyond )
     {
-        tracer.Trace( "" );
+        char * pline = acLine;
 
-        for ( size_t i = 0; i < indent; i++ )
-            tracer.TraceQuiet( " " );
+        for ( uint32_t i = 0; i < indent; i++ )
+            *pline++ = ' ';
 
-        tracer.TraceQuiet( "%#10llx  ", offset );
+        pline = append_hex_word( pline, (uint16_t) offset );
+        *pline++ = ' ';
+        *pline++ = ' ';
 
-        __int64 cap = __min( offset + bytesPerRow, beyond );
-        __int64 toread = ( ( offset + bytesPerRow ) > beyond ) ? ( length % bytesPerRow ) : bytesPerRow;
+        int64_t cap = get_min( offset + bytesPerRow, beyond );
+        int64_t toread = ( ( offset + bytesPerRow ) > beyond ) ? ( length % bytesPerRow ) : bytesPerRow;
 
         memcpy( buf, pData + offset, toread );
 
-        for ( __int64 o = offset; o < cap; o++ )
-            tracer.TraceQuiet( "%02x ", buf[ o - offset ] );
+        for ( int64_t o = offset; o < cap; o++ )
+        {
+            pline = append_hex_byte( pline, buf[ o - offset ] );
+            *pline++ = ' ';
+        }
 
-        DWORD spaceNeeded = ( bytesPerRow - ( cap - offset ) ) * 3;
+        uint64_t spaceNeeded = ( bytesPerRow - ( cap - offset ) ) * 3;
 
-        for ( ULONG sp = 0; sp < ( 1 + spaceNeeded ); sp++ )
-            tracer.TraceQuiet( " " );
+        for ( uint64_t sp = 0; sp < ( 1 + spaceNeeded ); sp++ )
+            *pline++ = ' ';
 
-        for ( __int64 o = offset; o < cap; o++ )
+        for ( int64_t o = offset; o < cap; o++ )
         {
             char ch = buf[ o - offset ];
 
             if ( ch < ' ' || 127 == ch )
                 ch = '.';
-            tracer.TraceQuiet( "%c", ch );
+
+            *pline++ = ch;
         }
 
         offset += bytesPerRow;
+        *pline = 0;
 
-        tracer.TraceQuiet( "\n" );
+        tracer.TraceQuiet( "%s\n", acLine );
     }
 } //DumpBinaryData
 
@@ -414,7 +557,7 @@ uint8_t x80_invoke_hook()
         return OPCODE_NOP;
     }
 
-    byte function = reg.c;
+    uint8_t function = reg.c;
     tracer.Trace( "bdos function %d: %s\n", function, function <= 40 ? bdos_functions[ function ] : "unknown" );
     //x80_trace_state();
 
@@ -466,7 +609,7 @@ uint8_t x80_invoke_hook()
 
             reg.a = 0;
 
-            byte e = reg.e;
+            uint8_t e = reg.e;
             if ( 0xff == e )
             {
                 if ( throttled_kbhit() )
@@ -514,8 +657,8 @@ uint8_t x80_invoke_hook()
             if ( in_len > 0 )
             {
                 pbuf[ 2 ] = 0;
-                gets_s( pbuf + 2, in_len );
-                byte out_len = (byte) strlen( pbuf + 2 );
+                portable_gets_s( pbuf + 2, in_len );
+                uint8_t out_len = (uint8_t) strlen( pbuf + 2 );
                 pbuf[ 1 ] = out_len;
 
                 tracer.Trace( "  read console len %u, string '%s'\n", out_len, pbuf + 2 );
@@ -546,7 +689,7 @@ uint8_t x80_invoke_hook()
         {
             // select disk. Return 0 in A if OK, or 0xff otherwise.
 
-            byte disk = reg.e;
+            uint8_t disk = reg.e;
             tracer.Trace( "  selected disk %d == %c\n", disk, ( disk < 16 ) ? disk + 'A' : '?' );
 
             if ( 0 == disk )
@@ -820,7 +963,7 @@ uint8_t x80_invoke_hook()
                     fseek( fp, curr, SEEK_SET );
                     tracer.Trace( "file size: %u, current %u\n", file_size, curr );
 
-                    uint32_t to_read = __min( file_size - curr, 128 );
+                    uint32_t to_read = get_min( file_size - curr, (uint32_t) 128 );
                     memset( g_DMA, 0x1a, 128 ); // fill with ^Z, the EOF marker in CP/M
         
                     size_t numread = fread( g_DMA, to_read, 1, fp );
@@ -932,7 +1075,7 @@ uint8_t x80_invoke_hook()
                      fclose( RemoveFileEntry( acOldName ) );
 
                 char acNewName[ CPM_FILENAME_LEN ];
-                if ( parse_FCB_Filename( (FCB *) ( ( (byte *) pfcb ) + 16 ), acNewName ) )
+                if ( parse_FCB_Filename( (FCB *) ( ( (uint8_t *) pfcb ) + 16 ), acNewName ) )
                 {
                     tracer.Trace( "  rename from '%s' to '%s'\n", acOldName, acNewName );
 
@@ -1063,7 +1206,7 @@ uint8_t x80_invoke_hook()
     
                     if ( file_size > file_offset )
                     {
-                        uint32_t to_read = __min( file_size - file_offset, 128 );
+                        uint32_t to_read = get_min( file_size - file_offset, (uint32_t) 128 );
                         bool ok = !fseek( fp, file_offset, SEEK_SET );
                         if ( ok )
                         {
@@ -1261,7 +1404,7 @@ uint8_t x80_invoke_hook()
                         if ( ok )
                         {
                             tracer.Trace( "writing random at offset %#x\n", file_offset );
-                            byte buf[ 128 ];
+                            uint8_t buf[ 128 ];
                             memset( buf, 0, sizeof buf );
                             size_t numwritten = fwrite( buf, 128, 1, fp );
                             if ( numwritten )
@@ -1497,16 +1640,16 @@ int main( int argc, char * argv[] )
         if ( pcArg2 )
             cchars += ( 1 + strlen( pcArg2 ) );
 
-        byte * args = memory + ARGUMENTS_OFFSET;
+        char * args = (char *) memory + ARGUMENTS_OFFSET;
 
-        *args++ = (byte) cchars;
-        strcpy( (char *) args, pcArg1 );
+        *args++ = cchars;
+        strcpy( args, pcArg1 );
         args += strlen( pcArg1 );
 
         if ( pcArg2 )
         {
             *args++ = ' ';
-            strcpy( (char *) args, pcArg2 );
+            strcpy( args, pcArg2 );
         }
 
         write_arg( arg1, pcArg1 );
