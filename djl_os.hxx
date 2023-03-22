@@ -5,6 +5,7 @@
 #pragma once
 
 #include <stdint.h>
+#include <time.h>
 
 #ifdef _MSC_VER
 
@@ -27,7 +28,6 @@
 
     #include <termios.h>
     #include <ctype.h>
-    #include <time.h>
 
     template < typename T, size_t N > size_t _countof( T ( & arr )[ N ] ) { return std::extent< T[ N ] >::value; }    
     #define _stricmp strcasecmp
