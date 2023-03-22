@@ -17,6 +17,7 @@
 #include <mutex>
 #include <memory>
 #include <vector>
+#include <cstring>
 
 using namespace std;
 

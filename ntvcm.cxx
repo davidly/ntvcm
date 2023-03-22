@@ -1,5 +1,5 @@
 // NT Virtual CP/M Machine
-// This app runs CP/M 2.2 .com programs on Windows.
+// This app runs CP/M 2.2 .com programs on Windows and Linux
 // Written by David Lee
 // Notes:   -- Only the subset of CP/M 2.2 required to run asm.com, load.com, and Turbo Pascal 1.00 & 3.01A is implemented.
 //          -- Also tested with Wordstar Release 4 and mbasic.com BASIC-80 Ref 5.21.
@@ -10,28 +10,33 @@
 //          -- Uses x80.?xx for 8080 and Z80 emulation
 //          -- Not tested for other CP/M apps, which means they probably don't work. If they fail, it's probably
 //             not the CPU emulation (that's pretty well tested). It's probably the CP/M emulation in this file.
+// To build on Windows debug and release:
+//     cl /nologo ntvcm.cxx x80.cxx /Oti2 /Ob2 /Qpar /Fa /EHac /Zi /DDEBUG /D_AMD64_ /link user32.lib ntdll.lib /OPT:REF
+//     cl /nologo ntvcm.cxx x80.cxx /Oti2 /Ob2 /Qpar /Fa /EHac /Zi /DNDEBUG /D_AMD64_ /link user32.lib ntdll.lib /OPT:REF
+// To build on Linux debug and release:
+//     g++ -ggdb -Ofast -fno-builtin -D DEBUG -I . ntvcm.cxx x80.cxx -o ntvcm
+//     g++ -ggdb -Ofast -fno-builtin -D NDEBUG -I . ntvcm.cxx x80.cxx -o ntvcm
+// To build on Windows with mingw64 & g++: (performance is >10% faster than the Microsoft compiler)
+//     g++ -Ofast -ggdb -D _MSC_VER ntvcm.cxx x80.cxx -I ../djl -D DEBUG -o ntvcm.exe
+//     g++ -Ofast -ggdb -D _MSC_VER ntvcm.cxx x80.cxx -I ../djl -D NDEBUG -o ntvcm.exe
 //          
-#define UNICODE
 
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <conio.h>
-#include <direct.h>
 #include <vector>
 #include <cstring>
 
-#define WIN32_LEAN_AND_MEAN
-#include <windows.h>
+#include <djl_os.hxx>
 #include <djltrace.hxx>
 #include <djl_con.hxx>
 #include <djl_cycle.hxx>
 
 #include "x80.hxx"
 
-#define OPCODE_NOP       0x00
-#define OPCODE_RET       0xC9
-#define OPCODE_HALT      0x76
+#define OPCODE_NOP  0x00
+#define OPCODE_RET  0xC9
+#define OPCODE_HALT 0x76
 
 // CP/M constants for memory addresses where OS-global state is stored
 #define FCB_ARG1_OFFSET    0x5c
@@ -40,21 +45,7 @@
 #define DEFAULT_DMA_OFFSET 0x80 // read arguments before doing I/O because it's the same address
 
 #define CPM_FILENAME_LEN ( 8 + 3 + 1 + 1 ) // name + type + dot + null
-
-template <class T> T get_max( T a, T b )
-{
-    if ( a > b )
-        return a;
-    return b;
-}
-
-template <class T> T get_min( T a, T b )
-{
-    if ( a < b )
-        return a;
-    return b;
-}
-    
+  
 // this is the first 16 bytes of an FCB used for the first two command-line arguments at 0x5c and 0x6c
 
 struct FCB_ARGUMENT
@@ -103,107 +94,109 @@ CDJLTrace tracer;
 static bool g_haltExecuted;
 static uint8_t * g_DMA = memory + DEFAULT_DMA_OFFSET;
 static vector<FileEntry> g_fileEntries;
-static HANDLE g_hFindFirst = INVALID_HANDLE_VALUE;
 static bool g_forceConsole = false;
+static bool g_forceLowercase = false;
 ConsoleConfiguration g_consoleConfig;
 
-#ifdef _GNU_CPP
-#if false
-    struct termios orig_termios;
-
-    void reset_terminal_mode()
+#ifdef _MSC_VER
+    static HANDLE g_hFindFirst = INVALID_HANDLE_VALUE;
+#else
+    #include <dirent.h>
+    static DIR * g_FindFirst = 0;
+    struct LINUX_FIND_DATA
     {
-        tcsetattr( 0, TCSANOW, &orig_termios );
-    }
+        char cFileName[ MAX_PATH ];
+    };
 
-    void set_conio_terminal_mode()
+    void FindCloseLinux( DIR * pdir )
     {
-        struct termios new_termios;
+        closedir( pdir );
+    } //FindCloseLinux
 
-        tcgetattr( 0, &orig_termios );
-        memcpy( &new_termios, &orig_termios, sizeof( new_termios ) );
-
-        atexit( reset_terminal_mode );
-        cfmakeraw( &new_termios );
-        tcsetattr( 0, TCSANOW, &new_termios );
-    } //set_conio_terminal_mode
-
-    int _kbhit()
+    bool FindNextFileLinux( const char * pattern, DIR * pdir, LINUX_FIND_DATA & fd )
     {
-        struct timeval tv = { 0L, 0L };
-        fd_set fds;
-        FD_ZERO( &fds );
-        FD_SET( 0, &fds );
-        return ( select( 1, &fds, NULL, NULL, &tv ) > 0 );
-    }
-
-    int _getch()
-    {
-        int r;
-        unsigned char c;
-
-        if ( ( r = read( 0, &c, sizeof( c ) ) ) < 0 )
-            return r;
-
-        return c;
-    } // _getch
-#endif
-
-    void output_char( char ch )
-    {
-        if ( 0xa == ch )
-            printf( "%c", 0xd );
-        
-        printf( "%c", ch );
-        fflush( stdout );
-    } //output_char
-
-    char * portable_gets_s( char * buf, size_t bufsize )
-    {
-        // getline (hangs, no echo)
-        // fscanf (works, no echo )
-        // fgets (hangs, no echo)
-
-        size_t len = 0;
         do
         {
-            char ch = _getch();
-            if ( '\n' == ch || '\r' == ch )
+            struct dirent * pent = readdir( pdir );
+            if ( 0 == pent )
+                return false;
+
+            if ( !strcmp( pent->d_name, ".." ) )
+                continue;
+
+            // ignore files CP/M just wouldn't understand
+
+            if ( strlen( pent->d_name ) > 12 )
+                continue;
+
+            // if the first character is ?, match any filename per CP/M rules
+
+            if ( '?' != pattern[ 0 ] )
             {
-                output_char ( 0xa );
-                break;
+                // If the pattern isn't a question mark, look for a literal match
+
+                if ( strcmp( pattern, pent->d_name ) )
+                    continue;
             }
 
-            if ( len >= ( bufsize - 1 ) )                
-                break;
+            strcpy( fd.cFileName, pent->d_name );
+            return true;
+        } while ( true );
 
-            if ( 0x7f == ch || 8 == ch ) // backspace (it's not 8 for some reason)
-            {
-                if ( len > 0 )
-                {
-                    output_char( 8 );
-                    output_char( ' ' );
-                    output_char( 8 );
-                    len--;
-                }
-            }
-            else
-            {
-                output_char( ch );
-                buf[ len++ ] = ch;
-            }
-        } while( true );
+        return false;            
+    } //FindNextFileLinux
 
-        buf[ len ] = 0;
-        return buf;
-    } //gets_s
-#else
-    char * portable_gets_s( char * buf, size_t bufsize )
+    DIR * FindFirstFileLinux( const char * pattern, LINUX_FIND_DATA & fd )
     {
-        return gets_s( buf, bufsize );
-    }
+        DIR * pdir = opendir( "." );
+        tracer.Trace( "  opendir returned %p, errno %d\n", pdir, errno );
+
+        if ( 0 == pdir )
+            return 0;
+
+        bool found = FindNextFileLinux( pattern, pdir, fd );
+
+        if ( !found )
+        {
+            closedir( pdir );
+            return 0;
+        }
+
+        return pdir;
+    } //FindFirstFileLinux
+
 #endif
 
+void ParseFoundFile( char * pfile )
+{
+    memset( g_DMA, 0, 128 );
+    memset( g_DMA + 1, ' ', 11 );
+
+    int len = strlen( pfile );
+    strupr( pfile );
+
+    for ( int i = 0; i < len; i++ )
+    {
+        if ( '.' == pfile[ i ] )
+        {
+            for ( int e = 0; e < 3; e++ )
+            {
+                if ( 0 == pfile[ i + 1 + e ] )
+                    break;
+
+                g_DMA[ 8 + e + 1 ] = pfile[ i + 1 + e ];
+            }
+
+            break;
+        }
+
+        g_DMA[ i + 1 ] = pfile[ i ];
+    }
+
+    tracer.Trace( "  search for first/next found '%c%c%c%c%c%c%c%c%c%c%c'\n",
+                    g_DMA[1], g_DMA[2], g_DMA[3], g_DMA[4], g_DMA[5], g_DMA[6], g_DMA[7], g_DMA[8],
+                    g_DMA[9], g_DMA[10],  g_DMA[11] );
+} //ParseFoundFile
 
 void trace_FCB( FCB * p )
 {
@@ -246,6 +239,12 @@ bool parse_FCB_Filename( FCB * pfcb, char * pcFilename )
     }
 
     *pcFilename = 0;
+
+    // CP/M assumes all filenames are upper case. Linux users generally use all lowercase filenames
+
+    if ( g_forceLowercase )
+        strlwr( orig );
+
     return ( pcFilename != orig );
 } //parse_FCB_Filename
 
@@ -407,21 +406,6 @@ const char * get_bdos_function( uint16_t address )
 // mbasic.com apps run 10x slower than they should because mbasic polls for keyboard input.
 // Workaround: only call _kbhit() if 50 milliseconds has gone by since the last call.
 
-bool throttled_kbhit()
-{
-    static ULONGLONG last_call = 0;
-
-    ULONGLONG this_call = GetTickCount64();
-
-    if ( ( this_call - last_call ) > 50 )
-    {
-        last_call = this_call;
-        return _kbhit();
-    }
-
-    return false;
-} //throttled_kbhit
-
 uint8_t x80_invoke_hook()
 {
     uint16_t address = reg.pc - 1; // the emulator has moved past this instruction already
@@ -445,7 +429,7 @@ uint8_t x80_invoke_hook()
         {
             // const console status. A=0 if nothing available, A=0xff if a keystroke is available
 
-            if ( throttled_kbhit() )
+            if ( ConsoleConfiguration::throttled_kbhit() )
                 reg.a = 0xff;
             else
                 reg.a = 0;
@@ -454,7 +438,7 @@ uint8_t x80_invoke_hook()
         {
             // conin
 
-            reg.a = _getch();
+            reg.a = ConsoleConfiguration::portable_getch();
             tracer.Trace( "conin is returning %02xh\n", reg.a );
         }
         else if ( 0xff0c == address || 0xff84 )
@@ -468,6 +452,7 @@ uint8_t x80_invoke_hook()
             char ch = reg.c;
             tracer.Trace( "bios console out: %02x == '%c'\n", ch, printable_ch( ch ) );
             printf( "%c", reg.c );
+            fflush( stdout );
         }
         else
         {
@@ -500,7 +485,7 @@ uint8_t x80_invoke_hook()
         {
             // console input
 
-            reg.a = _getch();
+            reg.a = ConsoleConfiguration::portable_getch();
 
             break;
         }
@@ -514,6 +499,7 @@ uint8_t x80_invoke_hook()
                 //tracer.Trace( "bdos console out: %02x == '%c'\n", ch, printable_ch( ch ) );
 
                 printf( "%c", ch );
+                fflush( stdout );
             }
 
             break;
@@ -539,8 +525,8 @@ uint8_t x80_invoke_hook()
             uint8_t e = reg.e;
             if ( 0xff == e )
             {
-                if ( throttled_kbhit() )
-                    reg.a = _getch();
+                if ( ConsoleConfiguration::throttled_kbhit() )
+                    reg.a = ConsoleConfiguration::portable_getch();
             }
 
             break;
@@ -562,7 +548,10 @@ uint8_t x80_invoke_hook()
 
                 uint8_t ch = memory[ i++ ];
                 if ( 0x0d != ch )              // skip carriage return because line feed turns into cr+lf
+                {
                     printf( "%c", ch );
+                    fflush( stdout );
+                }
             }
 
             break;
@@ -584,7 +573,7 @@ uint8_t x80_invoke_hook()
             if ( in_len > 0 )
             {
                 pbuf[ 2 ] = 0;
-                portable_gets_s( pbuf + 2, in_len );
+                ConsoleConfiguration::portable_gets_s( pbuf + 2, in_len );
                 uint8_t out_len = (uint8_t) strlen( pbuf + 2 );
                 pbuf[ 1 ] = out_len;
 
@@ -721,6 +710,7 @@ uint8_t x80_invoke_hook()
             {
                 tracer.Trace( "  searchinf for first match of '%s'\n", acFilename );
 
+#ifdef _MSC_VER
                 if ( INVALID_HANDLE_VALUE != g_hFindFirst )
                 {
                     FindClose( g_hFindFirst );
@@ -731,39 +721,28 @@ uint8_t x80_invoke_hook()
                 g_hFindFirst = FindFirstFileA( acFilename, &fd );
                 if ( INVALID_HANDLE_VALUE != g_hFindFirst )
                 {
-                    memset( g_DMA, 0, 128 );
-                    for ( int i = 1; i < 12; i++ )
-                        g_DMA[ i ] = ' ';
-
-                    int len = strlen( fd.cFileName );
-                    strupr( fd.cFileName );
-
-                    for ( int i = 0; i < len; i++ )
-                    {
-                        if ( '.' == fd.cFileName[ i ] )
-                        {
-                            for ( int e = 0; e < 3; e++ )
-                            {
-                                if ( 0 == fd.cFileName[ i + 1 + e ] )
-                                    break;
-
-                                g_DMA[ 8 + e + 1 ] = fd.cFileName[ i + 1 + e ];
-                            }
-
-                            break;
-                        }
-
-                        g_DMA[ i + 1 ] = fd.cFileName[ i ];
-                    }
-
-                    tracer.Trace( "  search for first found '%c%c%c%c%c%c%c%c%c%c%c'\n",
-                                  g_DMA[1], g_DMA[2], g_DMA[3], g_DMA[4], g_DMA[5], g_DMA[6], g_DMA[7], g_DMA[8],
-                                  g_DMA[9], g_DMA[10],  g_DMA[11] );
-
+                    ParseFoundFile( fd.cFileName );
                     reg.a = 0;
                 }
                 else
                     tracer.Trace( "WARNING: find first file failed, error %d\n", GetLastError() );
+#else           
+                if ( 0 != g_FindFirst )
+                {
+                    closedir( g_FindFirst );
+                    g_FindFirst = 0;
+                }
+
+                LINUX_FIND_DATA fd = {0};
+                g_FindFirst = FindFirstFileLinux( acFilename, fd );
+                if ( 0 != g_FindFirst )
+                {
+                    ParseFoundFile( fd.cFileName );
+                    reg.a = 0;
+                }
+                else
+                    tracer.Trace( "WARNING: find first file failed, error %d\n", errno );
+#endif                    
             }
             else
                 tracer.Trace( "ERROR: can't parse filename for search for first\n" );
@@ -787,41 +766,14 @@ uint8_t x80_invoke_hook()
             {
                 tracer.Trace( "  searchinf for next match of '%s'\n", acFilename );
 
+#ifdef _MSC_VER
                 if ( INVALID_HANDLE_VALUE != g_hFindFirst )
                 {
                     WIN32_FIND_DATAA fd = {0};
                     BOOL found = FindNextFileA( g_hFindFirst, &fd );
                     if ( found )
                     {
-                        memset( g_DMA, 0, 128 );
-                        for ( int i = 1; i < 12; i++ )
-                            g_DMA[ i ] = ' ';
-    
-                        int len = strlen( fd.cFileName );
-                        strupr( fd.cFileName );
-    
-                        for ( int i = 0; i < len; i++ )
-                        {
-                            if ( '.' == fd.cFileName[ i ] )
-                            {
-                                for ( int e = 0; e < 3; e++ )
-                                {
-                                    if ( 0 == fd.cFileName[ i + 1 + e ] )
-                                        break;
-    
-                                    g_DMA[ 8 + e + 1 ] = fd.cFileName[ i + 1 + e ];
-                                }
-    
-                                break;
-                            }
-    
-                            g_DMA[ i + 1  ] = fd.cFileName[ i ];
-                        }
-    
-                        tracer.Trace( "  search for next found '%c%c%c%c%c%c%c%c%c%c%c'\n",
-                                      g_DMA[1], g_DMA[2], g_DMA[3], g_DMA[4], g_DMA[5], g_DMA[6], g_DMA[7], g_DMA[8],
-                                      g_DMA[9], g_DMA[10],  g_DMA[11] );
-    
+                        ParseFoundFile( fd.cFileName );
                         reg.a = 0;
                     }
                     else
@@ -833,6 +785,26 @@ uint8_t x80_invoke_hook()
                 }
                 else
                     tracer.Trace( "ERROR: search for next without a prior successful search for first\n" );
+#else
+                if (0 != g_FindFirst )
+                {
+                    LINUX_FIND_DATA fd = {0};
+                    bool found = FindNextFileLinux( acFilename, g_FindFirst, fd );
+                    if ( found )
+                    {
+                        ParseFoundFile( fd.cFileName );
+                        reg.a = 0;
+                    }
+                    else
+                    {
+                        tracer.Trace( "WARNING: find next file found no more, error %d\n", errno );
+                        FindCloseLinux( g_FindFirst );
+                        g_FindFirst = 0;
+                    }
+                }
+                else
+                    tracer.Trace( "ERROR: search for next without a prior successful search for first\n" );
+#endif                    
             }
             else
                 tracer.Trace( "ERROR: can't parse filename for search for first\n" );
@@ -1359,7 +1331,6 @@ uint8_t x80_invoke_hook()
             printf( "UNIMPLEMENTED BDOS FUNCTION!!!!!!!!!!!!!!!: %d = %#x\n", reg.c, reg.c );
 
             x80_trace_state();
-            DebugBreak();
             reg.a = 0xff;
         }
     }
@@ -1378,6 +1349,7 @@ void usage( char const * perr = 0 )
     printf( "            -c     never auto-detect ESC characters and change to to 80x24 mode\n" );
     printf( "            -C     always switch to 80x24 mode\n" );
     printf( "            -i     trace 8080/Z80 instructions when tracing with -t\n" );
+    printf( "            -l     force CP/M filenames to be lowercase (can be useful on Linux)\n" );
     printf( "            -p     show performance information at app exit\n" ); 
     printf( "            -s:X   speed in Hz. Default is 0, which is as fast as possible.\n" );
     printf( "                   for 4Mhz, use -s:4000000\n" );
@@ -1466,6 +1438,17 @@ static char * RenderNumberWithCommas( long long n, char * ac )
     return ac;
 } //RenderNumberWithCommas
 
+int ends_with( const char * str, const char * end )
+{
+    size_t len = strlen( str );
+    size_t lenend = strlen( end );
+
+    if ( len < lenend )
+        return false;
+
+    return ( 0 == _stricmp( str + len - lenend, end ) );
+} //ends_with
+
 int main( int argc, char * argv[] )
 {
     memset( memory, 0, sizeof( memory ) );
@@ -1493,7 +1476,7 @@ int main( int argc, char * argv[] )
             if ( 's' == ca )
             {
                 if ( ':' == parg[2] )
-                    clockrate = _strtoui64( parg + 3 , 0, 10 );
+                    clockrate = strtoull( parg + 3 , 0, 10 );
                 else
                     usage( "colon required after s argument" );
             }
@@ -1501,6 +1484,8 @@ int main( int argc, char * argv[] )
                 reg.fZ80Mode = false;
             else if ( 'i' == ca )
                 traceInstructions = true;
+            else if ( 'l' == ca )
+                g_forceLowercase = true;
             else if ( 't' == ca )
                 trace = true;
             else if ( 'p' == ca )
@@ -1533,19 +1518,17 @@ int main( int argc, char * argv[] )
     if ( 0 == pcCOM )
         usage( "no CP/M command specified" );
 
-    char acCOM[ MAX_PATH ];
+    char acCOM[ MAX_PATH ] = {0};
     strcpy( acCOM, pcCOM );
-    strupr( acCOM );
-    DWORD attr = GetFileAttributesA( acCOM );
-    if ( INVALID_FILE_ATTRIBUTES == attr )
+
+    if ( !file_exists( acCOM ) )
     {
-        if ( strstr( acCOM, ".COM" ) )
+        if ( ends_with( acCOM, ".com" ) )
             usage( "can't find command file" );
         else
         {
-            strcat( acCOM, ".COM" );
-            attr = GetFileAttributesA( acCOM );
-            if ( INVALID_FILE_ATTRIBUTES == attr )
+            strcat( acCOM, ".com" );
+            if ( !file_exists( acCOM ) )
                 usage( "can't find command file" );
         }
     }

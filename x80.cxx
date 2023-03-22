@@ -19,7 +19,6 @@
 #include <stdio.h>
 #include <memory.h>
 #include <assert.h>
-#include <intrin.h>
 #include <vector>
 #include <cstring>
 #include <djltrace.hxx>
@@ -132,7 +131,7 @@ static uint16_t popword() {  uint16_t val = mword( reg.sp ); reg.sp += 2; return
 
 bool is_parity_even( uint8_t x )
 {
-#ifdef _M_AMD64
+#if defined(_M_AMD64) && !defined(__GNUC__)
     return ( ! ( __popcnt16( x ) & 1 ) ); // less portable, but faster
 #else
     return ( ( ~ ( x ^= ( x ^= ( x ^= x >> 4 ) >> 2 ) >> 1 ) ) & 1 );
