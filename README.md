@@ -1,5 +1,5 @@
 # ntvcm
-NT Virtual CP/M Machine. Emulates CP/M 2.2 and the 8080/Z80 on Windows to run .com files. 
+NT Virtual CP/M Machine. Emulates CP/M 2.2 and the 8080/Z80 on Linux and Windows to run .com files. 
 
 This app emulates the subset of CP/M 2.2 required to run asm.com, load.com, and Turbo Pascal
 versions 1.00 and 3.01A. The latter two use bdos APIs very differently.
@@ -24,6 +24,10 @@ other Windows apps in a test script.
 
 The app supports tracing to the ntvcm.log file. Instruction tracing includes a disassembler
 that shows instructions either as 8080 or Z80 depending on the mode.
+
+I've done some testing on Linux with the same set of test apps as Windows. It all seems to work, 
+most importantly the CPU tests. More testing is to come. 80x24 mode is not supported, but it
+kind of just works given vt-100 emulation on Linux.
 
 Performance of the CPU emulator is in the ballpark of other emulators I looked at. 
 I wrote the code to be more readable than other emulators, whose use of lookup tables and macros
@@ -53,6 +57,7 @@ or complete. It takes a village :)
     notes:    filearg1 and filearg2 optionally specify filename arguments for the command
               -c     don't auto-detect ESC characters and change to to 80x24 mode
               -i     trace 8080/Z80 instructions when tracing
+              -l     force CP/M filenames to be lowercase (can be useful on Linux)
               -p     show performance information
               -s:X   speed in Hz. Default is 0, which is as fast as possible.
                      for 4Mhz, use -s:4000000
