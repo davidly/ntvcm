@@ -28,9 +28,7 @@ jobs:
       # Runs a single command using the runners shell
       - name: build the app
         run: |
-          cd \
-          dir /s vcvars64.bat
-          call "C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Auxiliary\Build\vcvars64.bat"
+          call "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Auxiliary\Build\vcvars64.bat"
           .\mr.bat
         shell: cmd
         
