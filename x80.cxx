@@ -21,6 +21,7 @@
 #include <assert.h>
 #include <vector>
 #include <cstring>
+#include <bitset>
 #include <djltrace.hxx>
 
 using namespace std;
@@ -134,7 +135,7 @@ bool is_parity_even( uint8_t x )
 #if defined(_M_AMD64) && !defined(__GNUC__)
     return ( ! ( __popcnt16( x ) & 1 ) ); // less portable, but faster
 #else
-    return ( ( ~ ( x ^= ( x ^= ( ( x ^= x ) >> 4 ) >> 2 ) >> 1 ) ) & 1 );
+    return ( ! ( std::bitset<8>( x ).count() & 1 ) );
 #endif
 } //is_parity_even
 
