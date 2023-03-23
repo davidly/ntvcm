@@ -134,7 +134,7 @@ bool is_parity_even( uint8_t x )
 #if defined(_M_AMD64) && !defined(__GNUC__)
     return ( ! ( __popcnt16( x ) & 1 ) ); // less portable, but faster
 #else
-    return ( ( ~ ( x ^= ( x ^= ( x ^= x >> 4 ) >> 2 ) >> 1 ) ) & 1 );
+    return ( ( ~ ( x ^= ( x ^= ( ( x ^= x ) >> 4 ) >> 2 ) >> 1 ) ) & 1 );
 #endif
 } //is_parity_even
 
@@ -1573,11 +1573,11 @@ const char * x80_render_operation( uint16_t address )
     if ( renderData )
     {
         char * p;
-        if ( p = strstr( ac, "d16" ) )
+        if ( ( p = strstr( ac, "d16" ) ) )
             replace_with_num( p, "d16", mword( address + 1 ), 16 );
-        else if ( p = strstr( ac, "a16" ) )
+        else if ( ( p = strstr( ac, "a16" ) ) )
             replace_with_num( p, "a16", mword( address + 1 ), 16 );
-        else if ( p = strstr( ac, "d8" ) )
+        else if ( ( p = strstr( ac, "d8" ) ) )
             replace_with_num( p, "d8", memory[ address + 1 ], 8 );
     }
 
