@@ -27,7 +27,10 @@ that shows instructions either as 8080 or Z80 depending on the mode.
 
 I've done some testing on Linux and MacOS with the same set of test apps as Windows. It all seems
 to work, most importantly the CPU tests. More testing is to come. 80x24 mode is not well-tested, 
-but it kind of just works given vt-100 emulation on Linux and MacOS.
+but it kind of just works given vt-100 emulation on Linux and MacOS. CP/M apps expect cr/lf in
+text files, so you may need to use a tool like unix2dos to convert .asm and .bas files so they
+work properly in the emulator. The -l flag in ntvcm is useful if you want to use lowercase
+filenames instead of CP/M's default of uppercase.
 
 Performance of the CPU emulator is in the ballpark of other emulators I looked at. 
 I wrote the code to be more readable than other emulators, whose use of lookup tables and macros
