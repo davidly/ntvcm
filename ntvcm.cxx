@@ -402,10 +402,6 @@ const char * get_bdos_function( uint16_t address )
     return "unknown";
 } //get_bdos_function
 
-// _kbhit() does device I/O in Windows, which sleeps waiting for a reply, so compute-bound
-// mbasic.com apps run 10x slower than they should because mbasic polls for keyboard input.
-// Workaround: only call _kbhit() if 50 milliseconds has gone by since the last call.
-
 uint8_t x80_invoke_hook()
 {
     uint16_t address = reg.pc - 1; // the emulator has moved past this instruction already
@@ -1622,9 +1618,9 @@ int main( int argc, char * argv[] )
     if ( force80x24 )
         g_consoleConfig.EstablishConsole( 80, 24 );
 
-    high_resolution_clock::time_point tStart = high_resolution_clock::now();
     uint64_t total_cycles = 0;
     CPUCycleDelay delay( clockrate );
+    high_resolution_clock::time_point tStart = high_resolution_clock::now();
 
     do
     {

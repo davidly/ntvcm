@@ -1909,7 +1909,6 @@ _restart_op:
             else if ( 0xc4 == op2reg3 ) // conditional call
             {
                 uint16_t address = pcword();
-
                 if ( check_conditional( op ) )
                 {
                     pushword( reg.pc );
