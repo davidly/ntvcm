@@ -1,5 +1,5 @@
 # ntvcm
-NT Virtual CP/M Machine. Emulates CP/M 2.2 and the 8080/Z80 on Linux and Windows to run .com files. 
+NT Virtual CP/M Machine. Emulates CP/M 2.2 and the 8080/Z80 on Linux, MacOS, and Windows to run .com files. 
 
 This app emulates the subset of CP/M 2.2 required to run asm.com, load.com, and Turbo Pascal
 versions 1.00 and 3.01A. The latter two use bdos APIs very differently.
@@ -25,9 +25,12 @@ other Windows apps in a test script.
 The app supports tracing to the ntvcm.log file. Instruction tracing includes a disassembler
 that shows instructions either as 8080 or Z80 depending on the mode.
 
-I've done some testing on Linux with the same set of test apps as Windows. It all seems to work, 
-most importantly the CPU tests. More testing is to come. 80x24 mode is not supported, but it
-kind of just works given vt-100 emulation on Linux.
+I've done some testing on Linux and MacOS with the same set of test apps as Windows. It all seems
+to work, most importantly the CPU tests. More testing is to come. 80x24 mode is not well-tested, 
+but it kind of just works given vt-100 emulation on Linux and MacOS. CP/M apps expect cr/lf in
+text files, so you may need to use a tool like unix2dos to convert .asm and .bas files so they
+work properly in the emulator. The -l flag in ntvcm is useful if you want to use lowercase
+filenames instead of CP/M's default of uppercase.
 
 Performance of the CPU emulator is in the ballpark of other emulators I looked at. 
 I wrote the code to be more readable than other emulators, whose use of lookup tables and macros
@@ -35,8 +38,8 @@ I found to be nearly inscrutable (though I'm sure that's just me). I also wanted
 modes, which hurts the performance of each. An interesting fact is that on modern CPUs, code for 
 computing parity of a byte is faster than a 256-element lookup table. zexall.com runs 5.748 billion
 instructions shared with the 8080, and just 16 million instructions unique to the Z80; optimizing
-for the 8080 will have the most impact. Zexall.com runs in about 26 seconds using the Microsoft
-compiler and 21 seconds using the Gnu compiler.
+for the 8080 will have the most impact. On my machine, Zexall.com runs in about 26 seconds using 
+the Microsoft compiler and 21 seconds using the Gnu compiler.
 
 Cycle counts are pretty close, but not precise. I used documented numbers, which are sometimes
 incorrect. And I made guesses for cycle counts for undocumented Z80 instructions.
