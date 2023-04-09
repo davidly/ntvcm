@@ -516,7 +516,7 @@ uint16_t z80_op_adc_16( uint16_t l, uint16_t r )
     {
         carryOut = ( l >= ( 0xffff - r ) );
         result = r + l + 1;
-        resultAux = ( 0xfff & r ) + ( 0xfff & l )  + 1;
+        resultAux = ( 0xfff & r ) + ( 0xfff & l ) + 1;
     }
     else
     {
@@ -1280,7 +1280,7 @@ void z80_renderByteReg( char * acfrom, uint8_t op, uint8_t fromval )
         acfrom[0] = 'a';
     else
         sprintf( acfrom, "%s%c", 0xdd == op ? "ix" : "iy", 4 == fromval ? 'h' : 'l' );
-} //z80_renderByteRef
+} //z80_renderByteReg
 
 void z80_render( char * ac, uint8_t op, uint16_t address )
 {
