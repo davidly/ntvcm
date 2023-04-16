@@ -1465,6 +1465,12 @@ int main( int argc, char * argv[] )
         char *parg = argv[i];
         char c = *parg;
 
+        // linux shell scripts pass carriage returns '\r' at the end of strings for DOS-style files
+
+        char * pR = strchr( parg, '\r' );
+        if ( 0 != pR )
+            *pR = 0;
+
         if ( '-' == c || '/' == c )
         {
             char ca = tolower( parg[1] );
