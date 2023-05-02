@@ -89,6 +89,14 @@ struct FileEntry
     FILE * fp;
 };
 
+struct CPMTime // non-standard time structure
+{
+    uint16_t hour;
+    uint16_t minute;
+    uint16_t second;
+    uint16_t millisecond;
+};
+
 CDJLTrace tracer;
 
 static bool g_haltExecuted;
@@ -466,7 +474,8 @@ uint8_t x80_invoke_hook()
     }
 
     uint8_t function = reg.c;
-    tracer.Trace( "bdos function %d: %s\n", function, function <= 40 ? bdos_functions[ function ] : "unknown" );
+    tracer.Trace( "bdos function %d: %s\n", function, function <= 40 ? bdos_functions[ function ] :
+                                                      ( 105 == function ) ? "get time" : "unknown" );
     //x80_trace_state();
 
     switch( reg.c )
@@ -1318,6 +1327,27 @@ uint8_t x80_invoke_hook()
             }
             else
                 tracer.Trace( "ERROR: write random with zero fill can't parse filename\n" );
+
+            break;
+        }
+        case 105:
+        {
+            // non-standard BDOS call GetTime. DE points to a CPMTime structure
+
+            tracer.Trace( "get time (non-standard BDOS call)\n" );
+
+            CPMTime * ptime = (CPMTime *) ( memory + reg.D() );
+
+            system_clock::time_point now = system_clock::now();
+            uint64_t ms = duration_cast<milliseconds>( now.time_since_epoch() ).count() % 1000;
+            time_t time_now = system_clock::to_time_t( now );
+            struct tm * plocal = localtime( & time_now );
+
+            ptime->hour = plocal->tm_hour;
+            ptime->minute = plocal->tm_min;
+            ptime->second = plocal->tm_sec;
+            ptime->millisecond = ms / 10; // hundredths of a second;
+            reg.a = 0;
 
             break;
         }

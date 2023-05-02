@@ -1,0 +1,43 @@
+Character left: (arrow)
+Character right: (arrow)
+Word left: CTRL-A
+Word right: CTRL-F
+Line up: CTRL-E (or arrow)
+Line down: CTRL-X (or arrow)
+Scroll up: CTRL-W
+Scroll down: CTRL-Z
+Page up: CTRL-R
+Page down: CTRL-C
+To left on line: CTRL-Q CTRL-S
+To right of line: CTRL-Q CTRL-D
+To top of page: CTRL-Q CTRL-E
+To bottom of page: CTRL-Q CTRL-X
+To top of file: CTRL-Q CTRL-R
+To end of file: CTRL-Q CTRL-C
+To beginning of block: CTRL-Q CTRL-B
+To end of block: CTRL-Q CTRL-K
+To last cursor position: CTRL-Q CTRL-P
+Insert mode on/off: CTRL-V
+Insert line: CTRL-N
+Delete line: CTRL-Y
+Delete to end of line: CTRL-Q CTRL-Y
+Delete right word: CTRL-T
+Delete character under cursor: Ctrl-G (or delete)
+Delete left character: (backspace
+Mark block begin: CTRL-K CTRL-B
+Mark block end: CTRL-K CTRL-K
+Mark single word: CTRL-K CTRL-T
+Hide/display block: CTRL-K CTRL-H
+Copy block: CTRL-K CTRL-C
+Move block: CTRL-K CTRL-V
+Delete block: CTRL-K CTRL-Y
+Read block from disk: CTRL-K CTRL-R
+Write block to disk: CTRL-K CTRL-W
+End edit: CTRL-K D
+Tab: CTRL-I (or tab)
+Auto tab on/off (Indent): CTRL-Q CTRL-I
+Restore line: CTRL-Q CTRL-L
+Find: CTRL-Q CTRL-F
+Find & replace: CTRL-Q CTRL-A
+Repeat last find: CTRL-L
+Control character prefix: CTRL-P
