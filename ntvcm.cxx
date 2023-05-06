@@ -1116,7 +1116,8 @@ uint8_t x80_invoke_hook()
     
                     if ( file_size == file_offset )
                     {
-                        reg.a = 0;
+                        tracer.Trace( "random read past eof\n" );
+                        reg.a = 1;
                         break;
                     }
     
