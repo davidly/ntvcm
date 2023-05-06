@@ -589,6 +589,17 @@ uint8_t x80_invoke_hook()
 
             break;
         }
+        case 11:
+        {
+            // console status. return A=0 if no characters are waiting or non-zero if a character is waiting
+
+            if ( ConsoleConfiguration::throttled_kbhit() )
+                reg.a = 0xff;
+            else
+                reg.a = 0;
+
+            break;
+        }
         case 12:
         {
             // return version number
@@ -952,6 +963,7 @@ uint8_t x80_invoke_hook()
                     fe.fp = fp;
                     g_fileEntries.push_back( fe );
 
+                    tracer.Trace( "  successfully created fp %p for write\n", fp );
                     reg.a = 0;
                 }
                 else
@@ -1162,11 +1174,21 @@ uint8_t x80_invoke_hook()
                 if ( fp )
                 {
                     uint16_t record = pfcb->GetRandomIOOffset();
-                    tracer.Trace( "write random record %#x\n", record );
                     uint32_t file_offset = record * 128;
     
                     fseek( fp, 0, SEEK_END );
                     uint32_t file_size = ftell( fp );
+
+                    tracer.Trace( "write random file %p, record %#x, file_offset %d, file_size %d\n", fp, record, file_offset, file_size );
+
+                    if ( file_offset > file_size )
+                    {
+                        bool ok = !fseek( fp, file_offset, SEEK_SET );
+                        if ( ok )
+                            file_size = ftell( fp );
+                        else
+                            tracer.Trace( "can't seek to extend file with zeros, error %d = %s\n", errno, strerror( errno ) );
+                    }
     
                     if ( file_size >= file_offset )
                     {
@@ -1193,7 +1215,7 @@ uint8_t x80_invoke_hook()
                             tracer.Trace( "ERROR: can't seek in write random, offset %#x, size %#x\n", file_offset, file_size );
                     }
                     else
-                        tracer.Trace( "ERROR: write random beyond end of file\n" );
+                        tracer.Trace( "ERROR: write random at offset %d beyond end of file size %d\n", file_offset, file_size );
                 }
                 else
                     tracer.Trace( "ERROR: write random on unopened file\n" );
@@ -1598,6 +1620,11 @@ int main( int argc, char * argv[] )
         if ( pcArg2 )
             write_arg( arg2, pcArg2 );
     }
+
+    tracer.Trace( "fcb argument 1:\n" );
+    trace_FCB( (FCB *) arg1 );
+    tracer.Trace( "fcb argument 2:\n" );
+    trace_FCB( (FCB *) arg2 );
 
     // make memory look like CP/M 2.2
 
