@@ -8,6 +8,8 @@ I've also tested with Wordstar CP/M Editition Release 4. It works well.
 
 mbasic.com BASIC-80 Rev. 5.21 works. Tested with startrek.bas.
 
+Tested witih Aztec C 1.06. The compiler, assembler, linker, and generated apps work.
+
 Console input/output work for both bios bdos API. Disk input/output work via the bdos API.
 There is no attempt at emulating physical disks; apps that use bdos will just work.
 
