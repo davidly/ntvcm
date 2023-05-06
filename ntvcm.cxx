@@ -39,10 +39,11 @@
 #define OPCODE_HALT 0x76
 
 // CP/M constants for memory addresses where OS-global state is stored
-#define FCB_ARG1_OFFSET    0x5c
-#define FCB_ARG2_OFFSET    0x6c
-#define ARGUMENTS_OFFSET   0x80
-#define DEFAULT_DMA_OFFSET 0x80 // read arguments before doing I/O because it's the same address
+#define FCB_ARG1_OFFSET            0x5c
+#define FCB_ARG2_OFFSET            0x6c
+#define COMMAND_TAIL_LEN_OFFSET    0x80
+#define COMMAND_TAIL_OFFSET        0x81
+#define DEFAULT_DMA_OFFSET         0x80 // read arguments before doing I/O because it's the same address
 
 #define CPM_FILENAME_LEN ( 8 + 3 + 1 + 1 ) // name + type + dot + null
   
@@ -1413,12 +1414,12 @@ void usage( char const * perr = 0 )
     exit( -1 );
 } //usage
 
-void write_arg( FCB_ARGUMENT * arg, char * pc )
+bool write_arg( FCB_ARGUMENT * arg, char * pc )
 {
     if ( ':' == pc[ 1 ] )
     {
         if ( pc[0] > 'P' || pc[0] < 'A' )
-            usage( "invalid drive specified in argument" );
+            return false; // don't write arguments that don't look like filenames
 
         arg->dr = 1 + pc[0] - 'A';
         pc += 2;
@@ -1428,12 +1429,14 @@ void write_arg( FCB_ARGUMENT * arg, char * pc )
     if ( dot )
     {
         memcpy( & ( arg->f ), pc, dot - pc );
-        memcpy( & ( arg->t ), dot + 1, 3 );
+        memcpy( & ( arg->t ), dot + 1, strlen( dot + 1 ) );
     }
     else
     {
         memcpy( & ( arg->f ), pc, strlen( pc ) );
     }
+
+    return true;
 } //write_arg
 
 static bool load_file( char const * file_path, int & file_size, uint16_t offset, void * buffer )
@@ -1504,6 +1507,8 @@ int main( int argc, char * argv[] )
     memset( &reg, 0, sizeof( reg ) );
     reg.fZ80Mode = true;
 
+    char * pCommandTail = (char *) memory + COMMAND_TAIL_OFFSET;
+    char * pCommandTailLen = (char *) memory + COMMAND_TAIL_LEN_OFFSET;
     char * pcCOM = 0;
     char * pcArg1 = 0;
     char * pcArg2 = 0;
@@ -1524,7 +1529,20 @@ int main( int argc, char * argv[] )
         if ( 0 != pR )
             *pR = 0;
 
-        if ( '-' == c || '/' == c )
+        // append arguments past the .com file to the command tail
+
+        if ( 0 != pcCOM )
+        {
+            size_t tailLen = strlen( pCommandTail ) + strlen( parg ) + 1;
+            if ( tailLen > 127 )
+                usage( "command length is too long for the 127 char limit in CP/M" );
+
+            if ( 0 != ( * pCommandTail ) )
+                strcat( pCommandTail, " " );
+            strcat( pCommandTail, parg );
+        }
+
+        if ( 0 == pcCOM && ( '-' == c || '/' == c ) )
         {
             char ca = tolower( parg[1] );
 
@@ -1556,12 +1574,10 @@ int main( int argc, char * argv[] )
         {
             if ( 0 == pcCOM )
                 pcCOM = parg;
-            else if ( 0 == pcArg1 )
+            else if ( 0 == pcArg1 && '-' != *parg )
                 pcArg1 = parg;
-            else if ( 0 == pcArg2 )
+            else if ( 0 == pcArg2 && '-' != *parg )
                 pcArg2 = parg;
-            else
-                usage( "too many arguments" );
         }
     }
 
@@ -1572,6 +1588,10 @@ int main( int argc, char * argv[] )
 
     if ( 0 == pcCOM )
         usage( "no CP/M command specified" );
+
+    * pCommandTailLen = (char) strlen( pCommandTail );
+
+    tracer.Trace( "command tail len %d value: '%s'\n", *pCommandTailLen, pCommandTail );
 
     char acCOM[ MAX_PATH ] = {0};
     strcpy( acCOM, pcCOM );
@@ -1598,28 +1618,13 @@ int main( int argc, char * argv[] )
     if ( pcArg1 )
     {
         strupr( pcArg1 );
-        if ( pcArg2 )
-            strupr( pcArg2 );
-
-        size_t cchars = strlen( pcArg1 );
-        if ( pcArg2 )
-            cchars += ( 1 + strlen( pcArg2 ) );
-
-        char * args = (char *) memory + ARGUMENTS_OFFSET;
-
-        *args++ = cchars;
-        strcpy( args, pcArg1 );
-        args += strlen( pcArg1 );
+        write_arg( arg1, pcArg1 );
 
         if ( pcArg2 )
         {
-            *args++ = ' ';
-            strcpy( args, pcArg2 );
-        }
-
-        write_arg( arg1, pcArg1 );
-        if ( pcArg2 )
+            strupr( pcArg2 );
             write_arg( arg2, pcArg2 );
+        }
     }
 
     tracer.Trace( "fcb argument 1:\n" );
