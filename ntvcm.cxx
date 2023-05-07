@@ -1,12 +1,14 @@
 // NT Virtual CP/M Machine
-// This app runs CP/M 2.2 .com programs on Windows and Linux
-// Written by David Lee
+// This app runs CP/M 2.2 .com programs on Windows, MacOS, and Linux
+// Written by David Lee in late 2022
 // Notes:   -- Only the subset of CP/M 2.2 required to run asm.com, load.com, and Turbo Pascal 1.00 & 3.01A is implemented.
 //          -- Also tested with Wordstar Release 4 and mbasic.com BASIC-80 Ref 5.21.
+//          -- Also tested with Aztec C 1.06. compiler, assembler, linker, and generated apps work.
+//          -- Also tested with MBasic.
 //          -- Use tinst.com to configure Turbo Pascal 1.00 for vT100 and 3.01A for ANSI to get the screen to work.
 //          -- pip.com runs for simple file copies. Not tested for other modes, which probably fail.
 //          -- Can be run in 8080 or Z80 modes (the latter is required for Turbo Pascal).
-//          -- Detects if an ESC character is output, and switches to 80,24 mode.
+//          -- Optionally detects if an ESC character is output, and switches to 80,24 mode.
 //          -- Uses x80.?xx for 8080 and Z80 emulation
 //          -- Not tested for other CP/M apps, which means they probably don't work. If they fail, it's probably
 //             not the CPU emulation (that's pretty well tested). It's probably the CP/M emulation in this file.
@@ -17,8 +19,8 @@
 //     g++ -ggdb -Ofast -fno-builtin -D DEBUG -I . ntvcm.cxx x80.cxx -o ntvcm
 //     g++ -ggdb -Ofast -fno-builtin -D NDEBUG -I . ntvcm.cxx x80.cxx -o ntvcm
 // To build on Windows with mingw64 & g++: (performance is >10% faster than the Microsoft compiler)
-//     g++ -Ofast -ggdb -D _MSC_VER ntvcm.cxx x80.cxx -I ../djl -D DEBUG -o ntvcm.exe
-//     g++ -Ofast -ggdb -D _MSC_VER ntvcm.cxx x80.cxx -I ../djl -D NDEBUG -o ntvcm.exe
+//     g++ -Ofast -ggdb -D _MSC_VER ntvcm.cxx x80.cxx -I ../djl -D DEBUG -o ntvcm.exe -static
+//     g++ -Ofast -ggdb -D _MSC_VER ntvcm.cxx x80.cxx -I ../djl -D NDEBUG -o ntvcm.exe -static
 //          
 
 #include <stdio.h>
@@ -107,8 +109,41 @@ static bool g_forceConsole = false;
 static bool g_forceLowercase = false;
 ConsoleConfiguration g_consoleConfig;
 
+bool ValidCPMFilename( char * pc )
+{
+    if ( !strcmp( pc, "." ) )
+        return false;
+
+    if ( !strcmp( pc, ".." ) )
+        return false;
+
+    size_t len = strlen( pc );
+
+    if ( len > 12 )
+        return false;
+
+    char * pcdot = strchr( pc, '.' );
+
+    if ( !pcdot && ( len > 8 ) )
+        return false;
+
+    if ( pcdot && ( ( pcdot - pc ) > 8 ) )
+        return false;
+
+    return true;
+} //ValidCPMFilename
+
 #ifdef _MSC_VER
     static HANDLE g_hFindFirst = INVALID_HANDLE_VALUE;
+
+    void CloseFindFirst()
+    {
+        if ( INVALID_HANDLE_VALUE != g_hFindFirst )
+        {
+            FindClose( g_hFindFirst );
+            g_hFindFirst = INVALID_HANDLE_VALUE;
+        }
+    } //CloseFindFirst
 #else
     #include <dirent.h>
     static DIR * g_FindFirst = 0;
@@ -116,6 +151,15 @@ ConsoleConfiguration g_consoleConfig;
     {
         char cFileName[ MAX_PATH ];
     };
+
+    void CloseFindFirst()
+    {
+        if ( 0 != g_FindFirst )
+        {
+            closedir( g_FindFirst );
+            g_FindFirst = 0;
+        }
+    } //CloseFindFirst
 
     void FindCloseLinux( DIR * pdir )
     {
@@ -130,12 +174,9 @@ ConsoleConfiguration g_consoleConfig;
             if ( 0 == pent )
                 return false;
 
-            if ( !strcmp( pent->d_name, ".." ) )
-                continue;
-
             // ignore files CP/M just wouldn't understand
 
-            if ( strlen( pent->d_name ) > 12 )
+            if ( !ValidCPMFilename( pent->d_name ) )
                 continue;
 
             // if the first character is ?, match any filename per CP/M rules
@@ -178,10 +219,12 @@ ConsoleConfiguration g_consoleConfig;
 
 void ParseFoundFile( char * pfile )
 {
+    tracer.Trace( "  ParseFoundFile '%s'\n", pfile );
     memset( g_DMA, 0, 128 );
     memset( g_DMA + 1, ' ', 11 );
 
     int len = strlen( pfile );
+    assert( len <= 12 ); // 8.3 only
     strupr( pfile );
 
     for ( int i = 0; i < len; i++ )
@@ -716,6 +759,11 @@ uint8_t x80_invoke_hook()
             // which of those entries is the actual one (0-3) or 0xff for not found in A.
 
             tracer.Trace( "search for first\n" );
+
+            // Find First on CP/M has a side-effect of flushing data to disk. Aztec C relies on this and calls
+            // Find First at exit() to ensure the disk is flushed, though it does close all files first.
+
+            fflush( 0 );
     
             FCB * pfcb = (FCB *) ( memory + reg.D() );
             trace_FCB( pfcb );
@@ -734,15 +782,41 @@ uint8_t x80_invoke_hook()
                     g_hFindFirst = INVALID_HANDLE_VALUE;
                 }
 
+                BOOL found = FALSE;
                 WIN32_FIND_DATAA fd = {0};
                 g_hFindFirst = FindFirstFileA( acFilename, &fd );
                 if ( INVALID_HANDLE_VALUE != g_hFindFirst )
                 {
-                    ParseFoundFile( fd.cFileName );
-                    reg.a = 0;
+                    do
+                    {
+                        if ( ValidCPMFilename( fd.cFileName ) )
+                        {
+                            ParseFoundFile( fd.cFileName );
+                            reg.a = 0;
+                            found = TRUE;
+                            break;
+                        }
+                        else
+                        {
+                            found = FindNextFileA( g_hFindFirst, &fd );
+                            if ( !found )
+                                break;
+                        }
+                    } while ( true );
                 }
                 else
                     tracer.Trace( "WARNING: find first file failed, error %d\n", GetLastError() );
+
+                if ( !found )
+                {
+                    if ( INVALID_HANDLE_VALUE != g_hFindFirst )
+                    {
+                        FindClose( g_hFindFirst );
+                        g_hFindFirst = INVALID_HANDLE_VALUE;
+                    }
+
+                    tracer.Trace( "WARNING: find first file couldn't find a single match\n" );
+                }
 #else           
                 if ( 0 != g_FindFirst )
                 {
@@ -786,14 +860,28 @@ uint8_t x80_invoke_hook()
 #ifdef _MSC_VER
                 if ( INVALID_HANDLE_VALUE != g_hFindFirst )
                 {
-                    WIN32_FIND_DATAA fd = {0};
-                    BOOL found = FindNextFileA( g_hFindFirst, &fd );
-                    if ( found )
+                    BOOL found = FALSE;
+
+                    do
                     {
-                        ParseFoundFile( fd.cFileName );
-                        reg.a = 0;
-                    }
-                    else
+                        WIN32_FIND_DATAA fd = {0};
+                        found = FindNextFileA( g_hFindFirst, &fd );
+                        if ( found )
+                        {
+                            if ( ValidCPMFilename( fd.cFileName ) )
+                            {
+                                ParseFoundFile( fd.cFileName );
+                                reg.a = 0;
+                                break;
+                            }
+                            else
+                                found = FALSE;
+                        }
+                        else
+                            break;
+                    } while ( true );
+
+                    if ( !found )
                     {
                         tracer.Trace( "WARNING: find next file found no more, error %d\n", GetLastError() );
                         FindClose( g_hFindFirst );
@@ -803,7 +891,7 @@ uint8_t x80_invoke_hook()
                 else
                     tracer.Trace( "ERROR: search for next without a prior successful search for first\n" );
 #else
-                if (0 != g_FindFirst )
+                if ( 0 != g_FindFirst )
                 {
                     LINUX_FIND_DATA fd = {0};
                     bool found = FindNextFileLinux( acFilename, g_FindFirst, fd );
@@ -1703,6 +1791,8 @@ int main( int argc, char * argv[] )
 
     high_resolution_clock::time_point tDone = high_resolution_clock::now();
     g_consoleConfig.RestoreConsole();
+
+    CloseFindFirst();
 
     if ( showPerformance )
     {
