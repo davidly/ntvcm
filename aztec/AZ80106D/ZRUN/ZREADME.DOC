@@ -1,0 +1,13 @@
+There are five files provided in this archive:
+
+ZRUN.COM     - plain vanilla Z80 CP/M-80 emulator.
+ZRUNE.COM    - Z80 CP/M-80 emulator with ADM-3A terminal emulation.
+HISTORY.DOC  - CPeMulator history.
+ZRUN.DOC     - Short manual on how to use the Z80 CPeMulator
+               and how to obtain the source code and other versions.
+ZREADME.DOC  - This file.
+
+This archive, ZRUN.ARC, is the official Z80 shareware distribution archive. 
+It should contain the five files listed above.
+
+

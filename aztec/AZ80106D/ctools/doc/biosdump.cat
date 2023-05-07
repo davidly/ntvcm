@@ -1,0 +1,66 @@
+
+
+
+BIOSDUMP(1)					      BIOSDUMP(1)
+
+
+NAME
+       biosdump - view c64/c128 CP/M disk images
+
+SYNOPSIS
+       biosdump [-h] [--help] image
+
+DESCRIPTION
+       biosdump	 is an interactive program that show sectors of a
+       c64/c128 CP/M disk image image.
+
+       You input the address of	 the  sector  that  you	 want  to
+       exame.  biosdump show you a dump of this sector and expect
+       you to input the next address.
+
+       You exit biosdump when you input a negative track  number.
+
+OPTIONS
+       -h, --help
+	      print  a	help  message on standard output and exit
+	      successfully.
+
+SEE ALSO
+       d64dump(1), cformat(1), ctools(1), d64(5)
+
+AUTHOR
+       Jochen Metzinger<1metzing@informatik.uni-hamburg.de>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Version 0.4		    1996-02-20				1
+
+

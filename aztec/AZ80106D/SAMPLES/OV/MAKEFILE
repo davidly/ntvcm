@@ -1,0 +1,38 @@
+# ------------------------------------------------------------
+# makefile(C) Copyright Bill Buckels 2008. All rights reserved.
+# ------------------------------------------------------------
+CC=ccz
+AS=as80
+LN=ln80
+PRG=ov
+OV1=ov1
+OV2=ov2
+
+# The command to link the root reserves 0x4000 bytes for the overlay’s code 
+# and 0x1000 bytes for it’s data. 
+$(PRG).com: $(PRG).rel $(OV1).rel $(OV2).rel
+        copy $(CROOT)lib\c.lib . 
+	$(LN) -o $(PRG).com -R +C 4000 +D 1000 $(PRG).rel ovloader.o -lc
+	$(LN) $(OV1).rel ovbgn.o $(PRG).rsm -lc
+	$(LN) $(OV2).rel ovbgn.o $(PRG).rsm -lc
+	del $(PRG).rel
+	del $(OV1).rel
+	del $(OV2).rel
+	del $(PRG).rsm
+	del c.lib	
+		
+$(PRG).rel: $(PRG).c 
+      $(CC) -a $(PRG).c
+      $(AS) $(PRG).asm
+      del $(PRG).asm
+           
+$(OV1).rel: $(OV1).c
+      $(CC) -a $(OV1).c
+      $(AS) $(OV1).asm
+      del $(OV1).asm
+      
+$(OV2).rel: $(OV2).c
+      $(CC) -a $(OV2).c
+      $(AS) $(OV2).asm
+      del $(OV2).asm
+      

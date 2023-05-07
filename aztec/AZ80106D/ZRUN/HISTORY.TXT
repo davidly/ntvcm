@@ -1,0 +1,100 @@
+
+A quick history of the CPeMulator:
+
+
+     The original 8080 emulator was  written  on  a  bet  in  1981  that
+specified  that  Microsoft  CP/M  Basic  had to be able to run under the
+emulator.  The bet further specified that the program had to  be written
+in  one week.  The computer used for development was a Lomas 8086 cpu in
+a S100 box.  The emulator almost worked, it would blow up after  running
+the program or listing it.
+
+     The  8080  emulator was then shelved.  In 1983 I was faced with the
+problem  of  converting  a  8080  communications  program to the IBM PC.
+After three months of effort I came to the realization  that  the  tools
+needed  to  perform the conversion were simply not available for the IBM
+yet.  I was faced with either a six month re-write of the  program  from
+scratch, or to find another way. The 8080 emulator was the other way.
+
+     The  original 8080 emulator was not usable as it was, but using the
+idea behind the emulator I was able to write an emulator specifically to
+run  the CP/M program on the IBM PC.  The result was that in one month I
+was able to release the program. The communications program  was  called
+COPYLINK and was marketed through U.S. Digital.  It came with two files,
+COPYLINK.COM which was the emulator, and COPYLINK.OVL which was the 8080
+program.  (If  you  were to rename a CP/M MBASIC program to COPYLINK.OVL
+and replace the original COPYLINK.OVL file with it you would be able  to
+run the CP/M MBASIC program.)  Thus two years later the original bet was
+finally resolved.
+
+
+     In  the  course  of my conversations with people about the COPYLINK
+program I found there was an interest in being able to run CP/M programs
+on  the  IBM PC  but without having to purchase hardware to do so.  (The
+Blue Board was the popular means to do so at the time.)  As a  result of
+this  I  took  the time to write a general usage emulator for the IBM PC
+which was called the  CPeMulator.   The  CPeMulator  was  also  marketed
+through U.S. Digital.
+
+     Later  a  Z80  version  of  the emulator was written to cover those
+programs that were Z80 dependent, though it was found that  typical  Z80
+CP/M  programs  seemed  to be machine dependent and thus often would not
+run on the IBM PC because the expected hardware simply wasn't there.
+
+     The 8080 CPeMulator was used as the basis for the  V2080  emulator.
+In  1985 I received a call from a friend about a nifty new part from NEC
+that could be plugged in place of the 8088 processor and  could  emulate
+8080  code.  I  quickly  rush out and obtained one of the parts, and two
+weeks later the V2080 emulator came into existence.
+
+
+     Having been in contact with other  dealers  and  programmers  as  a
+result  of  the  8080  CPeMulator.  I  knew  that I was not the only one
+preparing a V20 based 8080 emulator for  the  market.  Recognizing  that
+the emulator was really a small market (there were only about six active
+companies in the field), it was decided that the program could be better
+put to use as advertising.  Thus it was released as a shareware product.
+
+     By  the start of 1986 the computer industry shakeup began to affect
+U.S. Digital.  Since I needed to eat, I terminated my relationship  with
+U.S. Digital and moved on to there work (helping program a multi-tasking
+OS on the 68000 called K-OS for Hawthorne Technology).
+
+     Later in the year, monetary pressures again forced me to move on to
+a  higher  paying  position and thus I went to work for Frye Electronics
+writing  data  capture and analysis programs for hearing-aid test equip-
+ment, but not before I took an unexpected two month  vacation  with  two
+broken heals as a result of a climbing accident.
+
+     During this timem U.S. Digital finally succumbed to  its  continued
+loss  of  revenue  due to the changing fortunes in the computer software
+industry.  In July 1986 the bank foreclosed on  its  loans,  effectively
+terminating further business operations by U.S. Digital.  In the ensuing
+process of the termination  of U.S. Digital's  business  operations, the
+control and rights to the CPeMulator and COPYLINK programs were returned
+to me as the author (it took over a year to resolve the legal issues  in
+this).
+
+     Since  that  time  I have re-written the CPeMulator to take care of
+some of the complaints that have come up.   Several  of  these  included
+problems  running  the  program on the Compaq computer (interrupt vector
+conflicts), problems with running  the  program  under  debugers  (stack
+problems) and the limitations  of the built-in ADM3A terminal  emulation
+(solved by removing the terminal emulation entirely).
+
+     I am releasing the new CPeMulator again as a shareware package with
+a  few  new  twists  just  to  make  it  interesting.  A new approach to
+commercial use of the program being one of  them  which  is  more  fully
+described in the Z80CPEM.DOC file.
+
+     I  hope  that you find the new CPeMulator program a useful addition
+to your program library and that it provides you with  the  solution  to
+your CP/M to MS-DOS problems.
+
+
+                                                      Sincerely,
+
+                                                      Michael Day
+                                - end -
+
+

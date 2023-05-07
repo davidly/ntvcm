@@ -1,0 +1,46 @@
+Date   : Tue, 01 May 1984 19:08:05 CDT
+From   : vomlehn <vomlehn@...>
+Subject: Aztec CII version 1.06 released
+
+I got version 1.06 of Aztec CII for CP/M-80 recently and finally got
+it installed.  There are some unexpected things on the release disk.
+First, there is no source library.  I don't mind this since I am paying
+Manx to fix the thing; I don't want to spend any time on it myself.
+Second, there is no separate Z-80 library, though there is a separate
+Z-80 compiler.  I called the people at Manx and was told that there
+is only one library.  The code appropriate to the processor you want is
+automatically selected.  I didn't remember to ask at what level this was
+done, so I don't know if it is determined by how you compiled the main
+program, a minimization of processor across all of the compiled files
+(i.e., if you compile any routine with the 8080 compiler it uses the 8080
+library routines) or whether it figures out which type of processor is running
+the linker and links in the routines for that processor.  Third, all of
+the #include files (i.e., the ones ending in .h) are in an archive file.
+There is a program which you run (called arcv.com or something like that)
+to extract them.  The archive file is the only file whose name with .arc
+on the disk.
+
+Impressions:  They have added MANY more routines to the library.  Such
+useful goodies as setjmp/longjmp, qsort (for a quicksort routine),
+execl/exec (runs a new program with the given name), memory allocation
+routines that allow you to free storage as well as allocating it and
+many more.  All the bugs I know of were fixed, including the most annoying
+feature it had of flushing the disk buffer each time it wrote a character
+to sdtout when it was redirected to a disk file.  This means that
+
+prog >prog.out
+
+doesn't take forever to work.  The manual was rewritten and is much improved.
+They adopted the UNIX style of manual pages, which is much better than the
+rather haphazard way they were doing things.  The code generated is somewhat
+smaller, but not very much and the compiler, assembler and linker run only
+slightly faster.  I wish that the Manx people knew enough about code generation
+and optimization to produce really good code, but that is a problem shared
+with most C compilers.  Excluding that wish, the new C is much improved.  If
+you didn't know whether you should get the update service, do, the new version
+is worth it.  As you would hope, my only association with Manx Software is
+that I use their product.
+
+David M. VomLehn
+ARPA:    vomlehn@...
+USERNET: ...decvax!ihnp4!ut-ngp!vomlehn

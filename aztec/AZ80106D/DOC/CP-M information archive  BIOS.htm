@@ -1,0 +1,228 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.0 Transitional//EN">
+<!-- saved from url=(0043)http://www.seasip.demon.co.uk/Cpm/bios.html -->
+<HTML><HEAD><TITLE>CP/M information archive : BIOS</TITLE>
+<META http-equiv=Content-Type content="text/html; charset=windows-1252"><LINK 
+href="CP-M%20information%20archive%20%20BIOS_files/cpm.css" type=text/css 
+rel=stylesheet><LINK href="http://www.seasip.demon.co.uk/" rel=top><LINK 
+href="index.html" rel=up>
+<META content="MSHTML 6.00.6000.16608" name=GENERATOR></HEAD>
+<BODY>
+<DIV class=fixedbanner><IMG height=32 alt="" 
+src="CP-M%20information%20archive%20%20BIOS_files/gem2ico.png" width=32 
+align=middle> CP/M pages <BR><A 
+href="http://www.seasip.demon.co.uk/index.html">Home</A> -&gt; <A 
+href="http://www.seasip.demon.co.uk/Cpm/index.html">CP/M</A> -&gt; BIOS </DIV>
+<DIV class=main>
+<H1>CP/M Basic Input/Output System</H1>
+<P>The BIOS is the machine-dependent part of CP/M. In theory, all you need to do 
+is change the BIOS and CP/M will work on a different machine. The same used to 
+be true of MSDOS...</P>
+<P>The BIOS begins with the following jumps to service routines:</P><PRE>	JMP	<A href="http://www.seasip.demon.co.uk/Cpm/bios.html#boot">BOOT</A>	;-3: Cold start routine
+	JMP	<A href="http://www.seasip.demon.co.uk/Cpm/bios.html#wboot">WBOOT</A>	; 0: Warm boot - reload command processor
+	JMP	<A href="http://www.seasip.demon.co.uk/Cpm/bios.html#const">CONST</A>	; 3: Console status
+	JMP	<A href="http://www.seasip.demon.co.uk/Cpm/bios.html#const">CONIN</A>	; 6: Console input
+	JMP	<A href="http://www.seasip.demon.co.uk/Cpm/bios.html#conout">CONOUT</A>	; 9: Console output
+	JMP	<A href="http://www.seasip.demon.co.uk/Cpm/bios.html#list">LIST</A>	;12: Printer output
+	JMP	<A href="http://www.seasip.demon.co.uk/Cpm/bios.html#punch">PUNCH</A>	;15: Paper tape punch output
+        JMP     <A href="http://www.seasip.demon.co.uk/Cpm/bios.html#reader">READER</A>	;18: Paper tape reader input
+	JMP	<A href="http://www.seasip.demon.co.uk/Cpm/bios.html#home">HOME</A>	;21: Move disc head to track 0
+	JMP	<A href="http://www.seasip.demon.co.uk/Cpm/bios.html#seldsk">SELDSK</A>	;24: Select disc drive
+	JMP	<A href="http://www.seasip.demon.co.uk/Cpm/bios.html#settrk">SETTRK</A>	;27: Set track number
+	JMP	<A href="http://www.seasip.demon.co.uk/Cpm/bios.html#setsec">SETSEC</A>	;30: Set sector number
+	JMP	<A href="http://www.seasip.demon.co.uk/Cpm/bios.html#setdma">SETDMA</A>	;33: Set DMA address
+	JMP	<A href="http://www.seasip.demon.co.uk/Cpm/bios.html#read">READ</A>	;36: Read a sector
+	JMP	<A href="http://www.seasip.demon.co.uk/Cpm/bios.html#write">WRITE</A>	;39: Write a sector
+</PRE>
+<P>In CP/M 2 and later, the following extra jumps appear:</P><PRE>	JMP	<A href="http://www.seasip.demon.co.uk/Cpm/bios.html#listst">LISTST</A>	;42: Status of list device
+	JMP	<A href="http://www.seasip.demon.co.uk/Cpm/bios.html#sectran">SECTRAN</A>	;45: Sector translation for skewing
+</PRE>
+<P>In CP/M 3, a further set of jumps is present:</P><PRE>	JMP	<A href="http://www.seasip.demon.co.uk/Cpm/bios.html#conost">CONOST</A>	;48: Status of console output
+	JMP	<A href="http://www.seasip.demon.co.uk/Cpm/bios.html#auxist">AUXIST</A>	;51: Status of auxiliary input
+	JMP	<A href="http://www.seasip.demon.co.uk/Cpm/bios.html#auxost">AUXOST</A>	;54: Status of auxiliary output
+	JMP	<A href="http://www.seasip.demon.co.uk/Cpm/bios.html#devtbl">DEVTBL</A>	;57: Address of devices table
+	JMP	<A href="http://www.seasip.demon.co.uk/Cpm/bios.html#devini">DEVINI</A>	;60: Initialise a device
+	JMP	<A href="http://www.seasip.demon.co.uk/Cpm/bios.html#drvtbl">DRVTBL</A>	;63: Address of discs table
+	JMP	<A href="http://www.seasip.demon.co.uk/Cpm/bios.html#multio">MULTIO</A>	;66: Read/write multiple sectors
+	JMP	<A href="http://www.seasip.demon.co.uk/Cpm/bios.html#flush">FLUSH</A>	;69: Flush host buffers
+	JMP	<A href="http://www.seasip.demon.co.uk/Cpm/bios.html#move">MOVE</A>	;72: Move a block of memory
+	JMP	<A href="http://www.seasip.demon.co.uk/Cpm/bios.html#time">TIME</A>	;75: Real time clock
+	JMP	<A href="http://www.seasip.demon.co.uk/Cpm/bios.html#selmem">SELMEM</A>	;78: Select memory bank
+	JMP	<A href="http://www.seasip.demon.co.uk/Cpm/bios.html#setbnk">SETBNK</A>	;81: Select bank for DMA operation
+	JMP	<A href="http://www.seasip.demon.co.uk/Cpm/bios.html#xmove">XMOVE</A>	;84: Preload banks for MOVE
+	JMP	<A href="http://www.seasip.demon.co.uk/Cpm/bios.html#userf">USERF</A>	;87: System-depedent functions
+	JMP	<A href="http://www.seasip.demon.co.uk/Cpm/bios.html#reserv">RESERV1</A>	;90: Reserved
+	JMP	<A href="http://www.seasip.demon.co.uk/Cpm/bios.html#reserv">RESERV2</A>	;93: Reserved
+</PRE>
+<H3><A name=boot>BOOT</A> (function 0)</H3>
+<P>This function is completely implementation-dependent and should never be 
+called from user code.</P>
+<H3><A name=wboot>WBOOT</A> (function 1)</H3>
+<P>Reloads the command processor and (on some systems) the BDOS as well. How it 
+does this is implementation-dependent; it may use the reserved tracks of a 
+floppy disc or extra memory.</P>
+<H3><A name=const>CONST</A> (function 2)</H3>
+<P>Returns its status in A; 0 if no character is ready, 0FFh if one is.</P>
+<H3><A name=conin>CONIN</A> (function 3)</H3>
+<P>Wait until the keyboard is ready to provide a character, and return it in A. 
+</P>
+<H3><A name=conout>CONOUT</A> (function 4)</H3>
+<P>Write the character in C to the screen.</P>
+<H3><A name=list>LIST</A> (function 5)</H3>
+<P>Write the character in C to the printer. If the printer isn't ready, wait 
+until it is.</P>
+<H3><A name=punch>PUNCH / AUXOUT (function 6)</A></H3>
+<P>Write the character in C to the "paper tape punch" - or whatever the current 
+auxiliary device is. If the device isn't ready, wait until it is.</P>
+<P>This function is called PUNCH in CP/M 2.x, AUXOUT in CP/M 3.</P>
+<H3><A name=reader>READER (function 7)</A></H3>
+<P>Read a character from the "paper tape reader" - or whatever the current 
+auxiliary device is. If the device isn't ready, wait until it is. The character 
+will be returned in A. If this device isn't implemented, return character 26 
+(^Z).</P>
+<P>This function is called READER in CP/M 2.x, AUXIN in CP/M 3.</P>
+<H3><A name=home>HOME</A> (function 8)</H3>
+<P>Move the current drive to track 0.</P>
+<H3><A name=seldsk>SELDSK</A> (function 9)</H3>
+<P>Select the disc drive in register C (0=A:, 1=B: ...). Called with E=0 or 
+0FFFFh.</P>
+<P>If bit 0 of E is 0, then the disc is logged in as if new; if the format has 
+to be determined from the boot sector, for example, this will be done.</P>
+<P>If bit 0 if E is 1, then the disc has been logged in before. The disc is not 
+accessed; the <A href="http://www.seasip.demon.co.uk/Cpm/dph.html">DPH</A> 
+address (or zero) is returned immediately.</P>
+<P><STRONG>SELDSK</STRONG> returns the address of a <A 
+href="http://www.seasip.demon.co.uk/Cpm/dph.html">Disc Parameter Header</A> in 
+HL. The exact format of a DPH varies between CP/M versions; note that under CP/M 
+3, the DPH is in memory bank 0 and probably not visible to programs. If the disc 
+could not be selected it returns HL=0.</P>
+<H3><A name=settrk>SETTRK</A> (function 10)</H3>
+<P>Set the track in BC - 0 based.</P>
+<H3><A name=setsec>SETSEC</A> (function 11)</H3>
+<P>Set the sector in BC. Under CP/M 1 and 2 a sector is 128 bytes. Under CP/M 3 
+the sector size is given in the Disk Parameter Block.</P>
+<P>There has been discussion in <A href="news:comp.os.cpm">comp.os.cpm</A> about 
+whether the parameter to this function is a byte or a word. The conclusion 
+(based on examining the BDOS source) was that it is a word.</P>
+<H3><A name=setdma>SETDMA</A> (function 12)</H3>
+<P>The next disc operation will read its data from (or write its data to) the 
+address given in BC.</P>
+<H3><A name=read>READ</A> (function 13)</H3>
+<P>Read the currently set track and sector at the current DMA address. Returns 
+A=0 for OK, 1 for unrecoverable error, 0FFh if media changed.</P>
+<H3><A name=write>WRITE</A> (function 14)</H3>
+<P>Write the currently set track and sector. C contains a deblocking code:</P><PRE>C=0 - Write can be deferred
+C=1 - Write must be immediate
+C=2 - Write can be deferred, no pre-read is necessary.
+</PRE>
+<P>Returns A=0 for OK, 1 for unrecoverable error, 2 if disc is readonly, 0FFh if 
+media changed.</P>
+<H3><A name=listst>LISTST (function 15)</A></H3>
+<P>Return status of current printer device.</P>
+<P>Returns A=0 (not ready) or A=0FFh (ready).</P>
+<H3><A name=sectran>SECTRAN</A> (function 16)</H3>
+<P>Translate sector numbers to take account of skewing.</P>
+<P>On entry, BC=logical sector number (zero based) and DE=address of translation 
+table. On exit, HL contains physical sector number. On a system with hardware 
+skewing, this would normally ignore DE and return either BC or BC+1.</P>
+<H3><A name=conost>CONOST (function 17)</A></H3>
+<P>Return status of current screen output device.</P>
+<P>Returns A=0 (not ready) or A=0FFh (ready).</P>
+<H3><A name=auxist>AUXIST (function 18)</A></H3>
+<P>Return status of current auxiliary input device.</P>
+<P>Returns A=0 (not ready) or A=0FFh (ready).</P>
+<H3><A name=auxost>AUXOST (function 19)</A></H3>
+<P>Return status of current auxiliary output device.</P>
+<P>Returns A=0 (not ready) or A=0FFh (ready).</P>
+<H3><A name=devtbl>DEVTBL</A> (function 20)</H3>
+<P>Return in HL the address of the devices table, or 0 if the devices table 
+isn't implemented. </P>
+<P>The devices table will be visible to programs without the need for bank 
+switching, ie. it will be in common memory.</P>
+<P>The device table contains one entry for each character device. Each entry is 
+formed:</P><PRE>	DEFB	'NAME  '	;Name, 6 bytes. If the first byte is zero,
+				;this is the end of the table.
+	DEFB	mode		;Bitmapped value:
+				;Bit 0 set =&gt; can input from this device
+				;Bit 1 set =&gt; can output to this device
+				;Bit 2 set =&gt; can change the baud rate
+				;Bit 3 set =&gt; supports XON/XOFF
+				;Bit 4 set =&gt; is using XON/XOFF
+				;Bits 5,6,7 set to 0.
+				; Amstrad extension: If bit 7 is set, output
+				;to the device does not time out. 
+	DEFB	baudrate	;Coded speed, 1-15 or 0 if speed can't be
+				;changed.
+				;Rates are 50,75,110,134.5,150,300,600,1200,
+				;         1800,2400,3600,4800,7200,9600,19200.
+</PRE>
+<P>The maximum number of devices allowed in CP/M Plus is unclear. The 
+documentation variously says there can be 12 or 13, while the DEVICE.COM source 
+code suggests 15.</P>
+<H3><A name=devini>DEVINI</A> (function 21)</H3>
+<P>Reinitialise character device number C - called when the device's settings 
+(baud rate, mode etc.) are changed.</P>
+<H3><A name=drvtbl>DRVTBL</A> (function 22)</H3>
+<P>Return in HL the address of the drive table, or 0 (or 0FFFFh, or 0FFFEh) if 
+the drive table isn't implemented. The drive table contains 16 pointers to the 
+Disc Parameter Headers of the 16 disc drives A-P; if a pointer is 0 it means 
+that the corresponding drive does not exist.</P>
+<P>The drive table is usually (but not always) in common memory (ie accessible 
+by user programs).</P>
+<H3><A name=multio>MULTIO (function 23)</A></H3>
+<P>Notify the BIOS that the BDOS is intending to transfer a number of 
+consecutive disc sectors with <A 
+href="http://www.seasip.demon.co.uk/Cpm/bios.html#read">READ</A> or <A 
+href="http://www.seasip.demon.co.uk/Cpm/bios.html#write">WRITE</A>. Entered with 
+C = number of calls that will be made; up to 16k of data will be 
+transferred.</P>
+<P>The idea is that after the MULTIO call, the BIOS can choose to transfer all 
+the data in the first READ/WRITE operation, and then not to do anything on the 
+subsequent (<VAR>n</VAR>-1) operations.</P>
+<H3><A name=flush>FLUSH</A> (function 24)</H3>
+<P>Write any pending data to disc.</P>
+<P>Returns A=0 if successful, 1 for physical disc error, 2 for drive R/O.</P>
+<P>This function is only useful when the BIOS is doing the deblocking - ie, the 
+physical sector size is not the size that the BIOS reports to the BDOS.</P>
+<H3><A name=move>MOVE</A> (function 25)</H3>
+<P>Move BC bytes of memory, from the address in DE to the address in HL (the 
+other way round from the Z80's LDIR instruction). Should return HL and DE 
+pointing to the first addresses not copied. If <A 
+href="http://www.seasip.demon.co.uk/Cpm/bios.html#xmove">XMOVE</A> is used 
+before this function, data are moved between two memory banks.</P>
+<H3><A name=time>TIME</A> (function 26)</H3>
+<P>Get the current date and time into the SCB (at BOOT-0Ch). HL and DE must be 
+preserved. If C=0FFh, then set the time from the SCB instead.</P>
+<P>The format of the 5-byte buffer is:</P><PRE>	DW	day	;Day 1 is 1 Jan 1978
+	DB	hour	;packed BCD
+	DB	minute	;packed BCD
+	DB	second	;packed BCD
+</PRE>
+<H3><A name=selmem>SELMEM</A> (function 27)</H3>
+<P>Set the current bank to the number in A. Bank 1 is the bank in which user 
+programs run (the TPA); Bank 0 and any other banks are used by CP/M for disc 
+buffers or as a RAMdisc.</P>
+<P>According to the DRI documentation, this function must preserve all registers 
+except A.</P>
+<H3><A name=setbnk>SETBNK</A> (function 28)</H3>
+<P>Set the bank to be used for the next read/write sector operation. The bank 
+number is passed in A. Note that the BDOS will call SETBNK 
+<STRONG>after</STRONG> calling SETDMA; some BIOSes insist on this order, so it's 
+safest if your programs do the same.</P>
+<H3><A name=xmove>XMOVE</A> (function 29)</H3>
+<P>After <B>XMOVE</B>, the next call to <A 
+href="http://www.seasip.demon.co.uk/Cpm/bios.html#move">MOVE</A> will move data 
+between different memory banks. Call <B>XMOVE</B> with C=source bank and 
+B=destination bank. According to the CP/M Plus System Guide, the BDOS will only 
+ever use this function to move 128 or fewer bytes in one go; some BIOSes may not 
+support bigger moves between banks.</P>
+<H3><A name=userf>USERF</A> (function 30)</H3>
+<P>This function is reserved for the author of the BIOS to add any extra 
+features. On Amstrad computers, for example, this call accesses the <A 
+href="http://www.seasip.demon.co.uk/Cpm/xbios.html">extended BIOS 
+functions</A>.</P>
+<H3><A name=reserv>RESERV1 and RESERV2</A> (functions 31, 32)</H3>
+<P>These calls are reserved and contain <CODE>JMP 0</CODE> instructions.</P>
+<HR>
+
+<P><A href="http://www.seasip.demon.co.uk/Cpm/index.html#archive">Return to 
+archive listing</A></P></DIV></BODY></HTML>

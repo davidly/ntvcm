@@ -1,0 +1,71 @@
+            GETTING DOWNLOADED FILES TO WORK UNDER C128 CP/M
+
+So you want to get started using the OTHER cpu in your 128: the Z80 chip.  
+You've heard, from the manuals and elsewhere, that there is loads of CP/M 
+software available, the vast majority of which you could use on your 128.
+
+So let's say you find a source of CP/M software.  Library #27 on GEnie's
+C64/128 Flagship, where this file was located, as well as the CP/M RoundTable
+on GEnie, is probably a good place to look.  But your terminal program
+downloads files in the 128's native mode, producing commdore (C=) PRG or SEQ
+disk files- which are not directly readable by CP/M.  So how do you get these
+files into CP/M format?
+
+To start, you will find the program CrossLink2.1b quite helpful.  This program
+runs in the 128's native mode- meaning you aren't stuck with the catch-22 of
+having to convert a file conversion utility.  It will read and write C= 5.25"
+disks (with a 1541 or 1571) as well as CP/M single sided and double sided
+disks.  (It claims to read and write MS-DOS disks as well, although I have not
+tried this myself.)  This way, if you have a disk you have formatted under
+CP/M (using the utility FORMAT.COM included on your CP/M system disk), you can
+translate files on CBM disks to a format readable by CP/M.
+
+Eventually, you will probably want the CP/M program RDCBM.COM (version 2.1).
+This CP/M program reads C= disks.  It has one major advantage over Crosslink:
+there is no limit to the size of files it can read.  Crosslink can only
+read/write files up to about 45K in size.  RDCBM.COM also supports the CP/M
+RAMdisk, if you have a 1750 REU (which I heartily recommend if you use either
+CP/M or GEOS much).
+
+So now you have the files readable by CP/M.  But wait!  All of these files
+have funny extentions like .LBR and .ARK, or .CZM instead of .COM.  And you
+try to run them- and nothing happens!  That is because these are compressed or
+archived files, which need to be uncompressed or dearchived before they can be
+used.
+ 
+But how do you convert them to a usable format?  The standard commodore 
+utilities in general won't work on CP/M files.
+
+The first file you will need is UNARC16.ARK (perhaps called UNARC16.SDA).  This 
+program will dearchive .ARK files.  It is a self dissolving archiver itself 
+(i.e. you don't need it to get it).  Rename it to UNARC16.COM, and run it like 
+any other CP/M program.  This finished, you will have a DeARKiving utility.
+
+Next, you will probably want to get ahold of some library and uncompressing
+utilities.  I would recommend for most uses LT31, a utility that will extract
+files from libraries and decompress all of the common compression formats
+seen in CP/M.  With just LT31 and UNARC16 you should be able to dissolve all
+CP/M archives you find.
+
+If your tastes don't run that way, there are individual library and
+decompression utilities you can use.  DELBR12.ARK is a must, if for no other
+reason simply because you will need it to dissolve LT31.LBR.  You can use
+UNARC16 to dissolve the DELBR12.ARK.  NULU152A is a more powerful library
+managing utility, which will allow you to create as well as dissolve
+libraries.  Also, there are individually compacted files.  Files with
+extentions .?Z? (the ? meaning any character) are "crunched," and files with
+extentions .?Q? are "squeezed," and files with extentions .?Y? are "lharced."
+Sometimes you will find compacted files inside a library (.LBR file).  In
+order to unsqueeze and uncrunch files, you will want the utilities USQ120.COM
+and UNCR-Z80.COM.  LT31 is probably your best bet for dealing with lharc'ed
+files.
+
+Once you have these files, you have everything you will need to get started
+taking advantage of the large amount of public domain software available for
+CP/M.  And at this stage you might want to look into the wonders of ZPM and
+ZCCP... I won't distract you by discussing that here, but will rather refer
+you to the text file which introduces all that.  Meanwhile, enjoy!
+
+Robert Knop (R.KNOP1)
+
+

@@ -1,0 +1,89 @@
+A Brief History of CP/M on the Commodore 128 (C128)
+
+The following is a condensed and abridged summary of the history of CP/M on
+the C128. For the original article that this was condensed from visit the
+following (Canadian) link:
+
+http://www.commodore.ca/products/128/Commodore_128.htm
+
+In the summer of 1984 Commodore decided that they needed a replacement for the
+amazingly successful C64. Customer reaction to Commodore's failure to provide
+native CP/M support in the C64 taught Commodore engineers some hard lessons.
+
+Bil Herd got the top job as 128 lead Engineer presumably because of his vocal
+criticism of the new management team's lack of vision. (Type SYS
+32800,123,45,6 on a C128 and you will see an "Easter Egg" with small list of
+development credits. Note the spelling of the word Hardware as Herdware.)
+
+http://www.commodore.ca/products/128/commodore_128_credits.gif
+
+Bil Herd stated that a number of "odd engineering fixes", often conceived
+after consuming a few beer at the bar beside the MOS factory, resulted in
+seemingly insurmountable problems being quickly resolved. The most important
+of these 'fixes' was the integration of a Z-80 CPU into the main board, which
+elevated the C128 into the realm of the business computer.
+
+This new machine would act as three completely separate computers in one:
+
+1. Commodore 128 Mode 2Mhz Speed (8502 CPU), 128K Memory, very nice 80x25 RGB
+display, advanced Basic 7.0
+
+2. Commodore 64 Mode 1Mhz Speed (6510 emulation in the 8502 CPU), 99.8%
+compatible with 64 hardware and software, accessed by booting the machine
+while holding down the Commodore key or typing GO 64
+
+3. Commodore CP/M Mode 1-4Mhz Speed (Zilog Z-80 CPU), 100% compatible with the
+huge volume of CP/M business applications such as WordStar (an excellent
+combination word processing and text editor program many of us used for
+years).  Note that the Z-80 processor was originally spec'd by Commodore
+management to be the same external expansion cartridge used on the C64.
+However, to resolve several other engineering problems, Bil Herd designed the
+Z-80 into the main board. This mode required CP/M software disks to be loaded
+on boot up.
+
+Von Ertwine (a consultant) was developing CP/M at home. Von had wisely chosen
+not to try to follow all of the current Revs of the 8563 Video Chip, instead
+he latched onto a somewhat working Rev4 and kept it for software development.
+To make the 8563 work properly, Von was taking the little metal butter cup
+that came with his hot air popcorn popper and would put an ice cube in it and
+set it on the 8563. He got about 1/2 hour of operation per cube
+
+In January of 1985 when Von Ertwine tried to make his CP/M work with the other
+(newer) 8563 Video Chips on the C128 demo machines at the C128's premiere, the
+Consumer Electronics Show (CES), he was at first unable to do so. He had
+stopped upgrading 8563s on his development machine somewhere around Rev 4 and
+a problem (bug) had appeared somewhere around Rev 6. As Von didn't carry all
+the machinery to do a CPM rebuild to fix the bug in software, it looked like
+CPM might not be showable. One third of the booth's design and advertising was
+based on showing CPM.
+
+In "TRUE Animal fashion" Von sat down with a disk editor and found every
+occurrence of bad writes to the 8563 and hand patched them. Bear in mind that
+CPM is stored with the bytes backwards in sectors that are stored themselves
+in reverse order. Also bear in mind that he could neither increase or decrease
+the number of instructions, he could only exchange them for different ones. He
+even hand calculated the new checksums for the sectors. All this with a Disk
+Editor.
+
+Production of the C128 started in June 1985 and stopped in 1989.
+
+In the End, the 128 went on to be a notable success for Commodore but not
+because of its new power.  Unfortunately most software developers ignored the
+new and advanced C128 Mode functionality.  Why develop software for a new,
+relatively small product like 128's native mode when you can write software
+for the wildly successful C64 and know that your code will function on a 128
+operating in 64 mode?
+
+On a sad note, the 128's CP/M Mode was almost never used because CP/M was
+quickly losing ground to Microsoft Disk Operating System (MS DOS) by then
+running at version 2.  MS-DOS was of course popularized by the IBM PC and
+seemingly endless line of IBM clone machines. Business developers had all but
+abandoned the old standby CP/M in favour of the new and  rapidly expanding DOS
+market.  The Commodore 128 was CP/M's last big play, but the 128 just did not
+have the market penetration to keep CP/M alive.
+
+Bill Buckels
+bbuckels@escape.ca
+March 2008
+
+

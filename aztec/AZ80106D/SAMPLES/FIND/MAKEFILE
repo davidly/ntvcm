@@ -1,0 +1,25 @@
+# ------------------------------------------------------------
+# makefile(C) Copyright Bill Buckels 2008. All rights reserved.
+# ------------------------------------------------------------
+CC=ccz
+AS=as80
+LN=ln80
+PRG=find
+
+$(PRG).com: $(PRG).rel 
+        copy $(CROOT)lib\c.lib . 
+        copy $(CROOT)lib\t.lib .
+	$(LN) -o $(PRG).com $(PRG).rel t.lib c.lib
+	del $(PRG).rel
+	del c.lib
+	del t.lib
+		
+$(PRG).rel: $(PRG).c 
+      copy $(CROOT)include\stdio.h . 
+      $(CC) -a -dTINY $(PRG).c
+      $(AS) $(PRG).asm
+      del $(PRG).asm
+      del stdio.h
+           
+
+      

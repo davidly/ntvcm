@@ -1,0 +1,66 @@
+
+
+
+CFORMAT(1)					       CFORMAT(1)
+
+
+NAME
+       cformat - create empty c64/c128 CP/M disk images
+
+SYNOPSIS
+       cformat [-h012] [--help] [--c64] [--ss] [--ds] image
+
+DESCRIPTION
+       cformat creates a new CP/M disk image image.
+
+OPTIONS
+       -0, --c64
+	      create a c64 disk image.
+
+       -1, --ds
+	      create  a single sided c128 disk image. This is the
+	      default option.
+
+       -2, --ds
+	      create a double sided c128 disk image.
+
+       -h, --help
+	      print a help message on standard	output	and  exit
+	      successfully.
+
+SEE ALSO
+       d64dump(1), biosdump(1), ctools(1), d64(5)
+
+AUTHOR
+       Jochen Metzinger<1metzing@informatik.uni-hamburg.de>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Version 0.4		    1996-02-20				1
+
+

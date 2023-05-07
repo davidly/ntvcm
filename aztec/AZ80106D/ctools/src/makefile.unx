@@ -1,0 +1,51 @@
+#
+# $Id: makefile.unx,v 1.1 1997/02/20 23:21:23 jochen Rel $
+# Makefile for Linux
+#
+# $Log: makefile.unx,v $
+# Revision 1.1  1997/02/20 23:21:23  jochen
+# from ctools 3.0
+#
+
+VERSION=0.4
+
+CXX=g++
+#CXXFLAGS=-g -pedantic -Wall
+CXXFLAGS=-O -Wall
+CPPFLAGS=-DVERSION=\"V$(VERSION)\"
+
+CMDS = d64dump biosdump cformat ctools
+
+.PHONY: all install clean
+
+all: $(CMDS)
+
+install: $(CMDS) 
+	install -d ../bin
+	install -s $(CMDS) ../bin
+
+clean:
+	-rm *.o core $(CMDS)
+
+d64dump:  dump.o misc.o err.o d64.o d64dump.o 
+biosdump: dump.o misc.o err.o d64.o bios.o biosdump.o
+cformat:  err.o misc.o d64.o bios.o cformat.o 
+ctools:   dump.o err.o misc.o d64.o bios.o bitstr.o fcb.o dir.o \
+           file.o tools.o ctools.o
+
+bios.o: bios.cc err.h bios.h global.h d64.h
+biosdump.o: biosdump.cc err.h bios.h global.h d64.h dump.h
+bitstr.o: bitstr.cc bitstr.h
+cformat.o: cformat.cc global.h misc.h err.h d64.h bios.h
+ctools.o: ctools.cc err.h fcb.h global.h tools.h
+d64.o: d64.cc misc.h global.h err.h d64.h
+d64dump.o: d64dump.cc err.h d64.h global.h dump.h
+dir.o: dir.cc err.h dir.h global.h bitstr.h bios.h d64.h fcb.h
+dump.o: dump.cc dump.h
+err.o: err.cc err.h
+fcb.o: fcb.cc err.h fcb.h global.h
+file.o: file.cc err.h file.h bios.h global.h d64.h dir.h bitstr.h \
+ fcb.h
+misc.o: misc.cc misc.h global.h
+tools.o: tools.cc err.h misc.h global.h dump.h dir.h bitstr.h bios.h \
+ d64.h fcb.h file.h tools.h

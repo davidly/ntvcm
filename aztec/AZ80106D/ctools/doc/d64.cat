@@ -1,0 +1,66 @@
+
+
+
+D64(5)							   D64(5)
+
+
+NAME
+       d64 - c64/c128 disk images
+
+DESCRIPTION
+       The disk image that is used by ctools(1) is a raw image of
+       a c1541/c1571 disk. It has a extension of .d64 by default.
+
+       The sectors have a size of 256 byte. In the image they are
+       ordered by the track number 1 to 35 (to 70 in  the  double
+       sided  version)	and  the  sector number (0 to 16, 17, 18,
+       20).
+
+       Disk images can be transferred via transfer programs  like
+       X1541.  You have to transfer the whole disk to use it with
+       ctools(1).
+
+SEE ALSO
+       d64dump(1), biosdump(1), cformat(1), ctools(1),
+
+AUTHOR
+       Jochen Metzinger<1metzing@informatik.uni-hamburg.de>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Version 0.4		    1996-02-20				1
+
+

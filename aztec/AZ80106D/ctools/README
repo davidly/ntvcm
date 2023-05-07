@@ -1,0 +1,135 @@
+
+ctools version 0.4
+
+Copyright (c) 1995-1997 Jochen Metzinger, Schrammsweg 33 D,
+20249 Hamburg/Germany <1metzing@informatik.uni-hamburg.de>
+All rights reserved
+
+
+This archive contains ctools, programs for accessing C64 and C128
+CP/M disk images (*.D64).
+
+
+Copyright
+---------
+
+ctools is free software; you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation; either version 2, or (at your option)
+any later version.
+
+ctools is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License in COPYING for more details.
+
+You should have received a copy of the GNU General Public License
+along with this program; if not, write to the Free Software
+Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+
+
+How to start?
+-------------
+
+Read INSTALL for more information on compiling. In the directory bin
+I have put MSDOS-binary files *.exe and Linux-ELF-binaries that are
+compiled for libc.so.5.4.7. In the directory doc there are the man
+pages for all commands. For MSDOS I have included plain cat pages. All
+commands understand the option  "--help"  which output a help text.
+
+
+Files
+-----
+
+COPYING		GNU General Public License
+README		this file
+INSTALL		hints for compiling ctools
+
+bin/		binaries
+  d64dump	view c64 disk images -- Linux/ELF
+  biosdump	view c64/c128 CP/M disk images -- Linux/ELF
+  cformat	create empty c64/c128 CP/M disk images -- Linux/ELF
+  ctools	manipulate c64/c128 CP/M disk images -- Linux/ELF
+  d64dump.exe	view c64 disk images -- MSDOS
+  biosdump.exe	view c64/c128 CP/M disk images -- MSDOS
+  cformat.exe	create empty c64/c128 CP/M disk images -- MSDOS
+  ctools.exe	manipulate c64/c128 CP/M disk images -- MSDOS
+
+doc/		documents
+  d64dump.1	man page of d64dump(1)
+  biosdump.1	man page of biosdump(1)
+  cformat.1	man page of cformat(1)
+  ctools.1	man page of ctools(1)
+  d64.5		man page of d64(5)
+  d64dump.cat	cat page of d64dump(1) -- MSDOS
+  biosdump.cat	cat page of biosdump(1) -- MSDOS
+  cformat.cat	cat page of cformat(1) -- MSDOS
+  ctools.cat	cat page of ctools(1) -- MSDOS
+  d64.cat	cat page of d64(5) -- MSDOS
+
+src/		sources
+  build.bat	build and install batch file -- MSDOS
+  makefile.dos	Makefile for Symantec C compiler -- MSDOS
+  makefile.unx	Makefile for G++ -- Linux
+  d64dump.cc	simple disk image viewer
+  biosdump.cc	simple CP/M disk image viewer
+  cformat.cc	create empty disk images
+  ctools.cc	main programm of ctools
+  bios.h	bios interface (like CP/M BIOS)
+  bios.cc	-"-
+  bitstr.h	dynamic array of bits
+  bitstr.cc	-"-
+  d64.h		access (c1541 and c1571) disk images
+  d64.cc	-"-
+  dir.h		the directory
+  dir.cc	-"-
+  dump.h	output memory dumps
+  dump.cc	-"-
+  err.h		handle errors
+  err.cc	-"-
+  fcb.h		handle file control blocks
+  fcb.cc	-"-
+  file.h	file usage
+  file.cc	-"-
+  global.h	global definitions
+  misc.h	misc routines
+  misc.cc	-"-
+  tools.h	user tools
+  tools.cc	-"-
+
+src/getopt	sources of getopt() -- MSDOS
+  getopt.h	GNU's getopt() from glibc -- MSDOS
+  getopt.c	-"-
+  getopt1.c	-"-
+  getopt.cat	cat page of getopt(3) -- MSDOS
+
+
+Version History
+---------------
+
+Version 0.1 -- July 1995
+* First (unpublished) work for C128 singel sided CP/M disk images
+* written in TURBO PASCAL under MS-DOS
+
+Version 0.2 -- February 1996
+* test programs
+* BAM manipulation program for C128 (BASIC) and PC
+* support of C64 CP/M disk images
+
+Version 0.2.1 -- July 1996
+* enable reading of read-only files
+
+Version 0.3 -- August 1996
+* remove BAM support and .BAT files
+* support of c128 double sided CP/M disk images
+* cformat (create empty disk images)
+* ctools: Dump and Initdir command
+
+Version 0.4 -- March 1997
+* rewritten in C++ under Linux and MS-DOS
+
+To-Do
+-----
+* Full test of double sided images and initdir
+
+### $Id: README,v 1.1 1997/02/23 22:31:59 jochen Rel $ ###

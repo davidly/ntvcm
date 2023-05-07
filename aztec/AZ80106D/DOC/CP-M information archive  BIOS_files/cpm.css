@@ -1,0 +1,36 @@
+BODY {
+	FONT-FAMILY: tahoma, helvetica, sans-serif
+}
+H1 {
+	COLOR: #000080; FONT-FAMILY: tahoma, helvetica, sans-serif
+}
+H2 {
+	COLOR: #000080; FONT-FAMILY: tahoma, helvetica, sans-serif
+}
+H3 {
+	COLOR: #000080; FONT-FAMILY: tahoma, helvetica, sans-serif
+}
+H4 {
+	COLOR: #000080; FONT-FAMILY: tahoma, helvetica, sans-serif
+}
+H5 {
+	COLOR: #000080; FONT-FAMILY: tahoma, helvetica, sans-serif
+}
+H6 {
+	COLOR: #000080; FONT-FAMILY: tahoma, helvetica, sans-serif
+}
+DT {
+	FONT-WEIGHT: bold
+}
+.banner {
+	FONT-FAMILY: tahoma, Helvetica, Arial, sans-serif; BACKGROUND-COLOR: #e0e0ff
+}
+.fixedbanner {
+	Z-INDEX: 100; RIGHT: 0px; LEFT: 0px; WIDTH: 100%; BOTTOM: auto; BORDER-BOTTOM: black 1px solid; FONT-FAMILY: tahoma, Helvetica, Arial, sans-serif; POSITION: fixed; TOP: 0px; HEIGHT: 4em; BACKGROUND-COLOR: #e0e0ff; text-color: #000000
+}
+.main {
+	PADDING-RIGHT: 4em; PADDING-LEFT: 0em; RIGHT: 0px; LEFT: 0px; PADDING-BOTTOM: 4em; WIDTH: auto; BOTTOM: 0px; PADDING-TOP: 4em; POSITION: relative; TOP: 0em; HEIGHT: auto
+}
+.imgp {
+	TEXT-ALIGN: center
+}

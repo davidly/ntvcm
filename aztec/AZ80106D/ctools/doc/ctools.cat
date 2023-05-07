@@ -1,0 +1,132 @@
+
+
+
+CTOOLS(1)						CTOOLS(1)
+
+
+NAME
+       ctools - manipulate c64/c128 CP/M disk images
+
+SYNOPSIS
+       ctools  [-hi] [-u user] [--help] [--initdir] [--user=user]
+       image command [parameter]
+
+DESCRIPTION
+       ctools is a public domain program to allow Unix and  MSDOS
+       systems to read, write and manipulate files on an c64/c128
+       CP/M disk image.
+
+CP/M FILE NAMES
+       ctools' CP/M file have the format
+
+	    [user:]name[.[type]]
+
+       where user is a letter from A to P, name a string of up to
+       8 and type a string of up to 3 character.  The character ?
+       is a joker for one character and * for  the  rest  of  the
+       part (user, name or type).
+
+OPTIONS
+       -i, --initdir
+	      If  you  have  passwords,	 directory labels or time
+	      stamps on your image you will not be able	 to  work
+	      with ctools.  You have to use this option to remove
+	      this entries.
+
+       -u user, --user=user
+	      Set the default user array to user.  If you do  not
+	      use this option the default user array will be 0.
+
+       -h, --help
+	      print  a	help  message on standard output and exit
+	      successfully.
+
+COMMANDS
+       c      check the directory of the image.	 If the option -i
+	      is given the cleared directory will be saved to the
+	      image.
+
+       d [file]
+	      output the directory of file.  The default file  is
+	      ?:*.*.
+
+       e [file]
+	      delete each file.
+
+       g [file]
+	      copy each file from the image to the current direc-
+	      tory.
+
+       h, ?   print a help message on standard	output	and  exit
+
+
+
+version 0.4		    1996-02-20				1
+
+
+
+
+
+CTOOLS(1)						CTOOLS(1)
+
+
+	      successfully.
+
+       m [file]
+	      output a dump for each file.
+
+       p [file]
+	      copy each file to the user array user of the image.
+
+       r old new
+	      renames old to new.
+
+       t [file]
+	      output each file matching file.
+
+       u      undelete deleted files.
+
+SEE ALSO
+       d64dump(1), biosdump(1), cformat(1), d64(5)
+
+AUTHOR
+       Jochen Metzinger<1metzing@informatik.uni-hamburg.de>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+version 0.4		    1996-02-20				2
+
+

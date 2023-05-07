@@ -1,0 +1,66 @@
+
+
+
+D64DUMP(1)					       D64DUMP(1)
+
+
+NAME
+       d64dump - view c64 disk images
+
+SYNOPSIS
+       d64dump [-h] [--help] image
+
+DESCRIPTION
+       d64dump	is  an interactive program that show sectors of a
+       c64 disk image image.
+
+       You input the address (track/sector) of	the  sector  that
+       you want to exame.  d64dump show you a dump of this sector
+       and expect you to input the next address.
+
+       You exit d64dump when you input a negative track number.
+
+       With the track number 0 the adress is taken from the first
+       two byte of the last sector.
+
+OPTIONS
+       -h, --help
+	      print  a	help  message on standard output and exit
+	      successfully.
+
+SEE ALSO
+       biosdump(1), cformat(1), ctools(1), d64(5)
+
+AUTHOR
+       Jochen Metzinger<1metzing@informatik.uni-hamburg.de>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Version 0.4		    1996-02-20				1
+
+

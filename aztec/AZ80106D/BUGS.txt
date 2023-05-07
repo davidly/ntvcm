@@ -1,0 +1,142 @@
+BUGS and Annoyances
+
+Manx Aztec C80
+Version 1.06d
+Developer System
+for CP/M-80
+Target: Z80 and 8080 Native Code
+
+CP/M-80 development environment for Z80 and compatible computers
+Preconfigured for cross-development under MS-DOS or Windows XP.
+
+DISCLAIMER
+
+I am not responsible for anything. I am not lazy and careless either.
+
+But you are on your own here. This document is provided as-is with no
+claims of merchantibility or fitness of use and without any warranty
+whatsoever.
+
+You must further agree that I, Bill Buckels, am not liable or responsible
+in any way for the results of said use or distribution. You are solely and
+100 percent responsible for your use and distribution of any of this. If
+you do not agree with all of the conditions stated in this document and
+others it came with that I wrote, or if your use is not Fair then remove
+all of this from your computer now.
+
+CONFLICTS IN WINDOWS XP: 
+
+Despite the fact that Windows XP is an extremely robust environment and
+fun for playing with old stuff, its locks sometimes become confused when
+running MS-DOS applications. Its multi-tasking multi-threading model and
+security model (or whatever they call all this) is complicated to fix when
+that happens.
+
+Until one fixes these types of problems, MS-DOS applications that have been
+prevented from running will fail, and files that are reported "in-use"
+cannot be deleted or moved individually. Of course I am generalizing since I
+am sure I have not experienced every problem that can occur in such a
+complicated environment. But I have seen more than my fair share and have
+noted below some that you are likely to need to know about to work
+effectively in this environment,
+
+I have worked extensively with MS-DOS applications under XP for several
+years as I have encountered and fixed many resulting problems. Since I have
+also developed XP Applications extensively as well I have the benefit of
+seeing many sides to all of this.
+
+The good news is that I still continue to work in the XP cmd window or XP
+Explorer with most MS-DOS applications on one of my computers and the other
+one has problems in MS-DOS's older graphics modes so I use the DOSBox
+emulator for these types of MS-DOS applications, mostly as a last resort,
+but with good results when all-else fails. Both computers have 64 bit AMD
+processors and one runs XP 16 bit Professional and one runs Windows 16 bit
+XP Home edition. In either case tenacity has always paid-off and things have
+always worked-out for either the XP cmd window or DOSBox with the exception
+of very obscure problems that have no relevance here.
+
+However, in either case, if you cannot run CZ80 on your computer you will
+need to either fix the problem yourself, try a different computer, ask
+someone else, or give-up. In the event that you are successful in fixing
+such a problem and wish to share your success, I will need to leave it to
+you to do so but apologize in advance that I am unable to provide that
+service and have gone as far as I will go with any of this.
+
+KNOWN ISSUES IN WINDOWS XP AND PROBABLE FIXES
+
+Repeat as necessary. Even a brick will break if you keep smashing it on your
+head and your head doesn't break first. Some bricks are weaker than others
+and some heads are harder so depending on how hard your head is, or how weak
+your brick is, results may vary.
+
+1. MS-DOS Application Common Problem - If you are unable to delete a file
+either in Windows XP explorer or from the XP cmd window, shut-down all cmd
+windows and Windows XP explorer. Then open a fresh cmd window and try
+deleting the offending file again from the cmd prompt. This should always
+work. If not, reboot your computer and try again.
+
+If that fails, move the directory itself in Windows XP explorer to a
+temporary directory without opening it and then, replace the directory with
+a fresh empty one, and move or copy the other files back. This usually
+leaves bad files which you may need to get rid of by the first method that I
+have suggested, and sometimes running the program again will remove XP's
+locks which are causing the problem.
+
+2. MS-DOS Graphics Problems - Some newer machines for whatever reason don't
+like MS-DOS and BIOS calls used by MS-DOS applications. These can be for a
+variety of reasons, from mouse drivers that look for ports that don't exist
+to old graphics modes that are no longer recognized by your computer. DosBOX
+can be used under Windows XP to solve most of these types of problems that I
+have found.
+
+3. Other Problems - I have documented all the problems that I have
+recognized as problems while preparing and using all of this. That doesn't
+mean I haven't missed something that is important to you or may be a problem
+for you.
+
+COMPILER ISSUES
+
+I have arranged the compiler into directories. It never came that way and
+the compiler doesn't know about directories. I am sure that you will sort
+all this out when you review the MAKEFILEs.
+
+This document officially ends here, but for those who aren't really paying
+attention I have added the lines below to wake them up.
+
+The best general advice that I could give doesn't apply to XP but just to
+everything. The Irish Proverbs, Murphy's Laws, and all the cliches and
+adages that some of us olde-scool programmers love so much are often truisms
+and much helpful self-talk advice can be gained by stopping oneself in the
+middle of a problem, "walking-away" for a moment or a year or two and
+finding a pattern from some olde quip or something else that describes the
+problem and provides a possible solution.
+
+However, don't pick the first one unless it is perfect. It's a little like a
+first marriage. "Possible solution" is the keyphrase here. Running away is a
+perfectly valid solution. Don't immediately run away, but don't stand and
+fight with your arms and legs missing either. As Monty Python suggests, try
+catapulting a cow or whatever is handy at it and see what happens. There is
+no Holy Grail either or perhaps there are several, or just several instances
+of a Grail object with one instance of Grail having also inherited an
+instance of a Holy object. But not according to the DaVinci code. I rather
+enjoy that definition since it fits into a view of life that I hold which
+hasn't much to do with programming so as a gentleman I won't even go there
+in this rant.
+
+Sometimes cooking with code can be fun. Measure Ingredients unless you have
+made the dish before. Stir occasionally. Bring to a boil. Put the lid on.
+Let simmer for several days. Remove lid and skim and stir, Taste frequently.
+Don't over-cook. Don't under-cook. Turn the stove off when you are done.
+Fast food is generally bad for you.
+
+And be sure to duck all the stray magic silver bullets ricocheting out there.
+Programming is only 110% inspiration and 200% perspiration.
+
+Have Fun!
+
+Bill Buckels
+bbuckels@mts.net
+April 2008
+
+(C) Copyright Bill Buckels 2008
+All Rights Reserved.

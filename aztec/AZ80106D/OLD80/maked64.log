@@ -1,0 +1,18 @@
+========================
+Log File for Maked64.bat
+06/04/2008 - 10:02:24.41 
+Contents of az80105.d64 
+========================
+  Name         Bytes  Recs    Attributes
+-------------- ----- ------- ------------
+A:AS      .COM    26k    201 Dir RW      
+A:CC      .SUB     1k      1 Dir RW      
+A:CII     .COM    41k    322 Dir RW      
+A:EXMPL   .C       1k      2 Dir RW      
+A:LIBC    .H       3k     17 Dir RW      
+A:LIBC    .LIB    43k    344 Dir RW      
+A:LN      .COM    24k    188 Dir RW      
+A:XDIR    .COM     3k     18 Dir RW      
+-------------- ----- ------- ------------
+   8 file(s)      26k free
+========================

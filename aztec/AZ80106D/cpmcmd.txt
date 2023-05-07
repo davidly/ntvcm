@@ -1,0 +1,375 @@
+         A BRIEF OUTLINE OF CP/M AND CP/M COMMANDS
+
+                          Eli Freedman
+                           ABC Br, IBD
+
+These  notes are necessarily sketchy.   Not every CP/M utility is 
+mentioned; of those that are, not every ramification is covered.
+
+CP/M  stands  for Control Program for Microcomputers.   It  is  a 
+collection of computer programs for the Intel 8080 and the  Zilog 
+Z80  chips.   CP/M  handles  all of the sometimes  intricate  and 
+always tedious details of input/output (I/O),  including communi-
+cation among processor,  disks,  console,  and printer, including 
+disk-file maintenance.
+
+For the North Star Advantage,  CP/M is furnished on a 5-1/4  inch 
+floppy  disk where the system occupies the first 3 tracks;  these 
+are called the system tracks.   When you press the red button  on 
+the back of an Advantage and then the RETURN key, the CP/M system 
+is loaded into the computer.   This operation is called "booting" 
+the computer;  note that it is not done with the foot!   When the 
+computer  is booted,  CP/M loads itself into the computer's  core 
+memory.   It  occupies approximately 6000 (decimal) bytes at  (or 
+near)  the  top of the memory,  and also the first 256  (decimal) 
+bytes starting at 0.
+
+There are two kinds of "booting":
+
+      Alternate       How                   
+Name    Name       Accomplished                  Why
+----- --------    -------------        --------------------------
+cold    hard     turn machine on        start-up
+                 press red button       resume after crash
+                 special program
+
+warm    soft     press ^C               read disk directory
+
+After  booting,  the  screen displays A>,  meaning that  you  are 
+"logged  in" on drive A.   If you type B:,  the screen shows  B>, 
+meaning that the logged drive is now B.   WordStar and many other 
+programs require that you know which drive is the logged one.  
+
+The  principal  components  of CP/M are  the  Basic  Input/Output 
+System (BIOS),  the Basic Disk Operating System (BDOS),  and  the 
+Console Command Processor (CCP).   These programs are all located 
+in  the  "high memory" part of CP/M.   The largest amount of  the 
+computer's  random-access  memory lies between the two  parts  of 
+CP/M and is referred to as the Transient Program Area (TPA).  All 
+of the TPA is available to the user;  some CP/M programs also use 
+it. 
+
+
+
+
+
+
+                                1
+
+
+
+
+
+
+
+CP/M  has two kinds of commands,  built-in  and  transient.   The 
+built-in commands (ERA, TYPE, SAVE, REN, and DIR) are in the CCP, 
+and do not change anything in the TPA.  Also, they do not show up 
+in the directory listing of the disk.   The transient commands do 
+show  up in the directory (unless you go to the extra trouble  of 
+hiding them--it can be done) and they are loaded into the TPA for 
+execution.
+
+FILE NAMES.  Almost all CP/M commands work on file names.  A file 
+name  is 1 to 8 letters or numbers,  plus an optional  extension, 
+which  is a period and 1 to 3 letters or numbers.   Some  special 
+characters  can  be  used in file names.   The drive  letter  may 
+appear in front of the name,  followed by a colon.   If the drive 
+letter  is not used explicitly,  the logged drive is  assumed  by 
+default.
+
+Examples: MYFILE.EXT    URFILE     B:afile.for      A:CPNOTES.TXT
+
+Note   that  A:MYFILE  is  different  from  B:MYFILE;   likewise, 
+MYFILE.TXT is not the same as MYFILE.BAK.
+
+Certain extensions have special meanings:
+
+             .FOR  A FORTRAN source file.
+             .BAS  A BASIC language file.
+             .REL  Relocatable code produced by various 
+compilers.
+             .ASM  Assembly language source file.
+             .HEX  The output from certain assemblers.
+             .PRN  A print listing produced by some compilers.
+             .COM  A command file (executable program).
+             .SUB  A SUBMIT file (similar to a CCL procedure).
+             .BAK  A backup file; produced by WordStar and some 
+other programs.
+             .MAC  A file for the Microsoft M80 macro assembler.
+
+These uses are required in most cases.   For example:  the Micro-
+soft  FORTRAN compiler will not compile a program without a  .FOR 
+extension; you cannot execute a program that does not have a .COM 
+extension.  I recommend that you use extensions only to designate 
+the  kind of file;  don't rely on the extension alone (except for 
+
+WILD-CARD  DESIGNATORS.   In many cases one wants to refer  to  a 
+class of files,  not just one.   This is done with the "wild-card 
+designators,"  * and ?.   The ?  matches any letter;  the * means 
+"any."
+
+
+
+
+
+
+
+
+
+
+                                2
+
+
+
+
+
+
+
+Examples:
+
+          *.FOR means any file with the extension FOR.
+
+          AB??????.* means any file whose name starts with AB and 
+has any extension.
+
+          AB??????.TXT  means any file whose name starts with  AB 
+and has extension TXT.
+
+SOME  SPECIAL  CONTROL CODES.   Control codes  are  generated  by 
+holding  down  the key marked CNTRL (or CONTROL)  while  pressing 
+another.   In  text,  the up arrow,  ^,  is used to designate the 
+CNTRL key.  In CP/M, certain control codes have special meanings:
+
+             ^C   Interrupt a command or program (may not  always 
+work);  perform  a "soft boot" (read the directory on  each  disk 
+drive).
+
+             ^S  Stop/start the screen display.
+
+             ^P  Start/stop the printer; when "on", any text that 
+appears on the screen will also be printed.   
+             
+             ^X  Erase command line, return to col. 1
+
+BUILT-IN COMMANDS.
+
+          DIR [A:URFILE.EXT]
+Display the directory for a file or a disk.  
+
+Examples: DIR 
+Shows the directory for the logged disk.
+
+          DIR B:  
+Shows the directory for disk B no matter which disk is the logged 
+one.
+
+          DIR A:*.COM
+Shows  the  directory for all files on the disk on drive  A  that 
+have the extension COM.
+
+          DIR B:MYFILE.*
+Shows  the directory for all files on drive B that have the  name 
+MYFILE, no matter what their extension is.
+
+          REN NEWFILE.EX2=OLDFILE.EXT1
+Rename a file. The old file name is replaced by the new file name 
+in the directory; the contents of the file are not disturbed.
+
+          ERA FILENAME
+Erase  the name of the file from the directory.   The contents of 
+the  file  are not disturbed,  and can be  retrieved  by  special 
+programs. 
+
+
+                                3
+
+
+
+
+
+
+
+Examples: ERA B:*.BAK
+Erases on all files on drive B with the extension BAK.
+
+          ERA A:MYFILE.TXT
+Erases only MYFILE.TXT on drive A.
+
+          ERA *.*
+Careful!  This command will erase on files on the logged disk.
+
+SOME CP/M TRANSIENT PROGRAMS
+
+All  programs that run under CP/M have the extension  .COM.   The 
+program  is  executed by typing the name without  the  extension.  
+Generally  either lower- or upper-case letters may be  used,  but 
+there are exceptions (e.g., in FORMAT).
+
+          STAT
+
+Display  size and attributes of a file or files or a disk;  also, 
+change  the  designations of I/O units.   STAT by  itself  merely 
+tells  you how much space is left on the logged drive.   STAT  B: 
+tells you how much space is left on the disk on drive B:.
+
+STAT  A:*.* tells you the name of every file on the disk  now  on 
+drive  A:,  and its attributes.  There are two  attributes:  R/W, 
+meaning both reading and writing are permitted;  and R/O, meaning 
+the file is read-only.
+
+STAT  B:*.COM gives this information for every .COM file on drive 
+B:.   STAT also permits you to change device assignments; see the 
+references.
+
+             COPY
+Copy  the contents of one disk onto another  entirely,  including 
+the system tracks.   COPY is self-guiding;  just type the command 
+and follow the instructions.  Note that COPY refers to the drives 
+by number, not by letter.  
+
+             FORMAT
+A new disk cannot be used until it has been formatted.   For CP/M 
+systems,  this  means that all of the tracks are filled with  the 
+format character (E5 HEX).  This is accomplished by typing FORMAT 
+and then following the directions that appear.   A disk does  not 
+have  to  be formatted if the very next thing you do to it is  to 
+COPY something onto it,  since this automatically initializes the 
+disk.
+
+             PIP
+Copy one or more files to other files;  the new files do not have 
+to be on the same drive, but they may be.
+
+
+
+
+
+
+                                4
+
+
+
+
+
+
+
+Examples:  PIP B:NEWFILE.EX2 = A:OLDFILE.EX1
+           PIP NEWFILE = B:OLDFILE
+           PIP  A:*.* = B:*.*  Copies every file from B:  to  A:; 
+the  names  remain  the same,  except for  the  change  in  drive 
+designation.
+
+           PIP  B:=A:*.FOR  Copies every FORTRAN file on drive A: 
+onto drive B:
+
+PIP  can be invoked alone;  it then responds *.   You  then  name 
+files two by two (i.e., new and old) for copying.  Terminate with 
+a CR.
+
+           SUBMIT FILE.SUB PAR1 PAR2 PAR3 ...
+
+A  great  program that permits you to operate in almost  a  batch 
+mode.  The quantities PARi replace dummy arguments.  You build up 
+a  sequence  of CP/M commands in a file whose extension  must  be 
+you place the dummy arguments,  $1,  $2,  etc.   When the file is 
+then  submmitted,  CP/M  will make the substitutions,  print  the 
+command, and then execute it.
+
+Example: Suppose you create a file TEST.SUB whose contents are
+             
+           PIP $1:$2.TXT=B:$3.TXT
+Then you type
+           SUBMIT TEST A GOOD BAD
+
+The screen will show the complete command
+
+           PIP A:GOOD.TXT=B:BAD.TXT
+
+and then the program will execute.
+
+           SAVE n FILENAME
+This  command transfers n*256 bytes from memory starting  at  256 
+(decimal)  to the named file on disk.   It is used after  working 
+with  DDT (see references).   Also,  some communication  packages 
+(e.g.,  CMOD)  transfer  data from an external computer  to  your 
+computer's memory; SAVE is then used to store the data on a disk.
+
+           SYSGEN
+
+It is very convenient to be able to boot your computer from every 
+disk you use.  This means that every disk must have a CP/M system 
+on it.   (I also recommend that every disk have PIP,  FORMAT, and 
+COPY on it.)  
+
+There are two ways in which you can put a CP/M saystem on a disk.  
+You  can  use  COPY,  which copies everything from  one  disk  to 
+another,  track for track.  This method has the disadvantage that 
+you then have to remove all of the files that were also copied.
+
+
+
+
+                                5
+
+
+
+
+
+
+
+                         SOME REFERENCES
+
+In my opinion, the best reference on CP/M is:
+ 
+Rodnay Zaks, "The CP/M Handbook," Sybex; 1980.
+
+J.  N.  Fernandez & R.  Ashley, "Using CP/M," John Wiley; 1980 is 
+written   in   a  "programmed  learning"  style  that   I   found 
+infuriating.  It  is  a  good  self-teaching  text,  but  a  poor 
+reference book.
+
+CP/M  is  a product of Digital Research.   This company  supplies 
+Manuals  with  the system when you buy it.   They  have  a  well-
+deserved reputation for denseness and incomprehensibility.  
+
+An interesting book is
+
+Jack D.  Dennon, "CP/M Revealed," Hayden; 1982.  It gives some of 
+the details of how CP/M does its stuff.
+
+                         ACKNOWLEDGMENT
+
+Many  thanks  to George E.  Keller for invaluable assistance  and 
+advice.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+                                              version  2.01/9-I-84
+

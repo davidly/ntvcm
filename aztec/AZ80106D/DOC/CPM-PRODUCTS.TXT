@@ -1,0 +1,130 @@
+ ------------
+Category 16,  Topic 4
+Message 1         Tue Feb 21, 1989
+MIKLOS.G                     at 07:29 EST
+ 
+  SCRAMB'LER-128 High security disk/data encryption system for C-128 CP/M
+
+Herne Data Systems Ltd. is pleased to announce the release of version 2.0 of
+Scramb'ler-128.  Scramb'ler is a user transparent, high security disk
+encryption system for the Commodore C-128 (in CP/M mode) which protects your
+vital and confidential data from un-authorized access.  Scramb'ler uses a
+specially created, encoded floppy disk format (compatible with the 1571 and
+1581 drives, but NOT the 1541) with 4 to 24 character personal password based
+data encryption.
+
+With Scramb'ler, the entire disk is encrypted.  In fact, YOU CANNOT EVEN
+DISPLAY A DISK DIRECTORY OR MAKE ANY SENSE OF A SECTOR EDITOR OUTPUT WITHOUT
+KNOWING THE CORRECT PASSWORD.  Once Scramb'ler has been installed with your
+correct password, any standard CP/M program, such as WordStar, dBase, MBASIC,
+etc., can fully access the Scramb'led disks.  Without the correct password,
+the Scramb'led disks are locked up tighter than the proverbial Fort Knox!
+
+Scramb'ler is fully compatible with all versions of C-1228 CP/M and does not
+interfere with normal (i.e. non-scramb'led) disk access.  SCRAMB'LER DOES NOT
+WORK UNDER GENERIC CP/M BECAUSE IT RELIES ON HARDWARE FEATURES OF THE C-128.
+
+The retail price of Scramb'ler is $19.95 US or $22.95 CDN.  For more
+information, contact:
+
+Herne Data Systems Ltd., PO Box 714, Stn C, Toronto, Ont., Canada, M6J 3S1.
+tel (416) 535-9335
+
+ ------------
+Message 1         Sat Oct 28, 1989
+POWERSOFT                    at 16:12 EDT
+ 
+FORMAT EXECUTIVE runs on the C128 in CP/M mode.  It is the most powerful file
+conversion program ever written for Commodore computers.  It allows you to do
+file transfers between over 150 3.5 and 5.25 disk formats. It supports MSDOS
+to CP/M to CBM file conversions.  It can also be used to transfer files
+to/from Commodore Amiga, Atari ST, and Apple Macintosh. All Commodore Drive
+Devices are supported: (154x,157x,158x, 17xx RAMdisks). Will transfer any file
+type: ASCII (text) or OBJECT (program) files. Supports wildcard type transfers
+too for multiple file copying. Download fe-v40.inf and fe-fmts.txt for further
+information. Check cat 17 in CP/M BB area for additional information also. Has
+received rave reviews from everyone who has used it.  FE is the choice of many
+of the SYSOPS on GEnie and QLink.  Available as follows: Send $59.95 plus
+$3.50 S&H ($7.50 Foreign) COD add $3 to: Powersoft, Inc., P.O. Box 7333,
+Bradenton, FL 34210. Contact POWERSOFT on GEnie or QLink.
+ ------------
+MIKLOS.G                     at 07:47 EDT
+Sub: Non-Volatile CP/M RAM disk             
+
+  This topic descibes the use of the Quick Brown Boxu   battery backed RA[  
+cartridge in C-128 CP/M m   ode.  
+8 message(s) total.
+ ************
+ ------------
+Category 16,  Topic 29
+Message 1         Tue Aug 02, 1988
+MIKLOS.G                     at 07:49 EDT
+ 
+QDisk from Herne Data Systems Ltd. of Toronto is a user transparent device
+driver that allows the Quick Brown Box battery backed CMOS RAM cartridge to be
+used as a non-volatile RAM disk on the C-128 in CP/M mode.
+
+It works with all versions of C-128 CP/M and with all CP/M programs and
+utilities by defining the QBB as a CP/M disk drive.  You get the speed 
+  of a RAM disk with the security of not losing data when the power is 
+switched off.  QDisk works with either the 32k byte QBB or the 64k QBB. With
+the 64k size, the QBB can even be partitioned into separate 32k areas, one of
+which can be used in C-128 native mode or C-64 mode.
+
+QDisk is available for $9.95 (US) or $10.95 (CDN) plus $2.00 P&H from:
+
+Herne Data Systems Ltd. P.O. Box 714
+  Station 'C' Toronto  Ontario  M6J 3S1
+
+  *s
+ ------------
+Category 16,  Topic 29
+Message 2         Wed Aug 03, 1988
+D.SCHMOLDT [Dave/SysOp]      at 00:34 EDT
+ 
+Does QDisk only work in CP/M mode?  It seems if they can use it for CP/M mode
+it would be fairly easy to do the same in 128 or even 64 mode.
+ ------------
+Category 16,  Topic 29
+Message 3         Wed Aug 03, 1988
+MIKLOS.G                     at 07:43 EDT
+ 
+Dave: the QBB is supplied with RAM disk software for use in C-128/64 mode  . Q
+Disk is a new program which allows it to be used in CP/M mode.      
+ ------------
+Category 16,  Topic 29
+Message 4         Wed Aug 10, 1988
+CARL.H [CP/M-SySop]          at 20:42 EDT
+ 
+Can it be used in tandem with a 1700 or 1750 REU ???
+
+Carl....
+ ------------
+Category 16,  Topic 29
+Message 5         Thu Aug 11, 1988
+MIKLOS.G                     at 07:22 EDT
+ 
+carl: of course it can, but you will need a cartridge port expander. the QBB
+can be assigned as drive B, C, or D (your choice) (the QBB itself is supplied
+with RAMdisk software for C-64 and C-128 native modes)  See review in latest
+INFO for more iinfo on QBB. miklos g.
+ ------------
+Category 16,  Topic 29
+Message 6         Thu Aug 11, 1988
+C128.CPM                     at 21:41 EDT
+ 
+Miklos, you mean I can have the REU as M:, AND QBB as C:, all working at the
+same time?  Bill J.
+ ------------
+Category 16,  Topic 29
+Message 7         Fri Aug 12, 1988
+MIKLOS.G                     at 07:26 EDT
+ 
+bill: absolutely correct!! you can even partition the 64k qbb into two 32k
+drives c: and d: it is interesting to note that the qbb drive appears to be
+FASTER than the REU.  (The QBB drivers work entirely in Z80 mode, while the
+REU does a round about method using the 8502.  both use a 'sector' size of 256
+bytes so the added speed of the REU DMA is lost becuase of the obstruse code
+used to access it. thus the QBB ends up being faster.) miklos g.
+ ------------
+

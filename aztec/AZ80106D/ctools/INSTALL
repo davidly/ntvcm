@@ -1,0 +1,37 @@
+$Id: INSTALL,v 1.1 1997/02/23 21:53:31 jochen Rel $
+
+Copyright (c) 1995-1997 Jochen Metzinger, Schrammsweg 33 D,
+20249 Hamburg/Germany <1metzing@informatik.uni-hamburg.de>
+All rights reserved
+
+Unzip
+=====
+To unzip this archiv you should use the -a option to get the text
+files with the correct line end characters (CRLF or LF).
+
+Compiling under Linux
+=====================
+To create new binaries you enter
+
+  $ cd src
+  $ make -f makefile.unx install
+
+Compiling under other UNIX
+==========================
+You have to edit src/err.c and change the variables in makefile.unx.
+
+Compiling under Symantec C compiler/MS-DOS
+==========================================
+To create new binaries you enter
+
+  c> cd src
+  c> make -fmakefile.dos install
+
+or
+
+  c> cd src
+  c> build 
+
+Compiling under other MS-DOS C compiler
+=======================================
+You have to change the variables in build.bat or makefile.dos

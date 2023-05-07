@@ -1,0 +1,140 @@
+OK, so I got these CP/M Disks, now what do I do with them?
+     (or the VERY BEGINNER'S STARTING POINT FOR CP/M)
+              Bill Juliani  <C128.CPM>  GEnie
+
+ Tonight, as you know, is the first CP/M Help Desk Held in the
+FlagShip (625;2).  I want to thank all who have dropped in, and
+also a big thanx to DEB and Keith, for allowing me this time.
+     THE BIGGEST problem that I have seen is new owners of C-128's
+and C-128D's opening up there Digital Research Disks and try to copy
+them, as specified in their manuals.  What usually happens is the
+user FORMATS the original disk, destroying the contents. <You ask
+'did this ever happen to me, a SYSOP?'  Question ignored.>   If this 
+has happened to you, do NOT write or read to that disk, and send
+it to me, along with a dollar for postage.  I will try to restore the
+disk to the original condition, and mail it back to you, using the
+dollar  for postage. I can't guarentee that I can restore all  of  the 
+info,  but its better than sending in $19.95 to CBM, and  waiting  3-4 
+months.
+
+     Tonight, we are going to start at the beginning!!  First we will
+boot  the  CP/M  disk, then FORMAT a blank one,  then  copy  the  CP/M 
+Systems disk over to the blank disk.                             
+Items needed:  128 CP/M SYSTEMS DISK, one disk drive as device #8
+(called 'A' drive in CP/M lingo), a C128, monitor, 2 blank disks, and
+a copy of this file (items not needed: any knowledge of CP/M!!)
+At this time, please open your Term BUFFER to capture this info.
+
+The Digital Disk with the CP/M System on it is titled '128 CP/M
+SYSTEM DISK, and just below it CP/M PLUS VERSION 3.0'  above that is
+a serial number starting with 622-xxxxxx.  Turn on your 'puter and
+drive, have it in 128 mode, and have the 80 column (or 40) monitor
+hooked up.  Its also a good idea to disconnect your phone line from
+your modem, as an incomming call sometimes messes CP/M up!!
+Just slap the CP/M SYSTEM disk in your 1571 (or'81) device #8.  Hit
+the reset switch on the C128 and the CP/M disk will boot.  If you see
+a message that say, 'No CPM+.SYS hit return to re-try, or.....'
+then you have tried the wrong disk.
+You will now see the CP/M disk load. It's about 27K long, and the
+two CPU's in the C-128 are swapping information.  If everything goes
+right, then you will see a date like 6 DEC 85, 8 DEC 85, or 27 MAY 87.
+If your date is earlier than these dates, then you should get a newer
+version  (or  at least update it with file #796 in Library 34  in  the 
+CP/M  RT on GEnie). If you have more than one version, use the  LATEST 
+DATE!
+Just ignore all that TPA lingo that appears!  Not needed!!!!!
+ Now the magical A> will appear.  If it doesn't and you
+get garbage, or the 'puter resets, or you see 'break' or whatever,
+then your CP/M disk is trashed!  <AARRRGGGHHHHH>
+
+Now hit F3 (the 'Function key #3') and just after the A> prompt, it
+will say 'dir' and the disk contents will appear.  See the file 
+'FORMAT.COM'?  That's the baby that we are going to use. 
+Now type   
+ FORMAT<RET> 
+   That's it, nuthin else. Use either caps (FORMAT)  or the
+little guys like; format.  The opening screen will display after the
+FORMAT program has loaded into memory. FORMAT will even tell what
+kind of drive it thinks you have (notice I said thinks)!  Remove your
+CP/M Plus SYSTEM DISK at this time...............................
+TO repeat, take out the CP/M SYSTEMS DISK........................
+
+Put in in the blank disk, ........................................
+ Now insert a blank disk into drive 8 (its now called A) and select
+from the menu format select C128 double sided, just under where it
+says 'Please select disk type to format'. Use the C128 (upper) curser
+control keys for other types of format.  This program varies from
+issue to issue, but they are about the same. It will not ask you for
+a disk name.
+ Hitting '$' should  satisfy  that all is in order,
+and the program will begin formatting your (hopefully) blank disk.
+ After the program is done it will ask you if you want to format
+another.  Entering an 'N' will return you to the A> prompt, but lets
+go for broke and format another blank disk.  Just type 'Y'!!
+
+Remove the new, just formatted disk, and insert the original 
+CP/M SYSTEM disk.  Hit F3 to verify that 'PIP.COM' is on that disk.
+We will now use PIP.COM to copy our original CP/M SYSTEM disk to the
+just formatted one.    Enter at the A>PIP E:=A:CPM+.SYS  then hit
+return.  You can use the delete key for editing this 'command line'.
+The program 'PIP' will now load, and instruct you to insert the other
+disk, etc.  Follow all of the directions on the screen. The PIP  
+program will now call the freshly formatted disk 'E', and will know
+when disk 'E' is in the drive.
+Note:  for  extra  high IQ users see below, for all the  rest  of  us, 
+continue.
+  After this file is copied, you will get another A>.  Now type:
+A>PIP E:=A:CCP.COM, follow the same directions and this will complete
+copying the SYSTEM FILES to the new disk.
+Now, again at the A> type:
+ A>PIP E:=A:*.*                                    
+Make sure that you have your original SYSTEMS disk in your 'A' (or #8)
+drive before you type this command, or it will return 'PIP?'.
+Again follow the directions, and swap the disks when prompted.
+What we are doing is first copying the CPM+.SYS file so that is
+auto boots!!  The *.* is a wildcard for all other files.
+When your all done, you will have an exact copy of your original
+systems  disk. No need to flip the SYSTEMS disk over, its all  on  one 
+side!  Now put the original away, in a real safe place.
+
+ You should only use it in an emergency.  Now make a copy of the copy.
+That will give you a back-up SYStems disk, and a working copy for us
+to fool around with next week.  See why 2 drives are easier?    
+If you are lucky enough to have two drives, the pip command is:
+PIP B:=A:*.*     B is your destination (#9) disk, and A (#8) is
+your source.  Be warned, though, CP/M will NOT boot from device 9!! 
+For those lucky enough to have an REU: PIP M:=B:*.*.  Now insert
+a blank disk in drive 'A' and type M: (return) This is how you 'log'
+onto a different drive, just type a:<RET> or B:<RET>>
+ and then PIP A:=M:*.*        Yes, for now you must be 'logged' onto
+whatever drive the PIP.COM is in.
+
+Now go out for a coffee while it 'cooks'.
+For 2 drives: an '81 disk won't fit in a '71 drive <GRIN>, so unless
+you have 2 '71 drives (A and B, or 8 and 9) you must either copy
+the files back to A drive, or switch device numbers.  
+
+For those REAL LUCKY users of the '81 drive, that have the extra 19.95
+28MAY87 SYSTEMS DISK from Commodore, and are using the '71 as A and
+the '81 as B, then just copy the 3 1/2" disk (User Area 1) over to the
+1571 drive (A) and bingo!  It boots the 28MAY from the '71!!
+
+We  have  learned  the following:  To  distinguish  between  the  CP/M 
+SYSTEMS disk and the BOULDERDASH disk, how to 'pull' a DIR with the F-3 
+key (switch Jiffy F key off for this), how to copy disks (one of the most
+favorite pass-times in the CP/M world), and of course,
+how to boot CP/M from device #8 (A)!
+
+Remember: device 8 is drive A; device 9 is drive B, and the REU is M.
+
+ **  NOTE:   For advanced MENSA Users: just type 'PIP', and at  
+the  * prompt
+type in your commands:  *B:=A:CCP.COM <RETURN>.
+
+Sorry this took so long, but we need to start somewhere, now back to
+Questions and Answers...................................
+
+This was a portion of the GEnie CP/M Help Desk held on Sat. nights,
+Page 625;2 FlagShip RTC at 9:00PM eastern.  
+
+ 

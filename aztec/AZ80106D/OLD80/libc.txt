@@ -1,0 +1,7 @@
+**DIR**     supp8080    fprintf     fscanf      scan        fltlib      
+fopen       fread       **DIR**     fseek       fgets       fputs       
+getc        putc        ungetc      getbuff     setbuf      alloc       
+format      callcpm     croot       open        read        write       
+lseek       posit       **DIR**     blkio       rename      unlink      
+atof        atol        atoi        block       atol        atoi        
+block       string      toupper     closall     lsubs       fstub       

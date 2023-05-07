@@ -1,0 +1,42 @@
+.TH D64 5 "1996\-02\-20" "Version 0.4"
+.\" $Id: d64.5,v 1.1 1997/02/20 23:29:31 jochen Rel $
+.\" Copyright (c) 1995-1996  Jochen Metzinger.
+.\"
+.\" Permission is granted to make and distribute verbatim copies of
+.\" this manual provided the copyright notice and this permission notice
+.\" are preserved on all copies.
+.\"
+.\" Permission is granted to copy and distribute modified versions of this
+.\" manual under the conditions for verbatim copying, provided that the
+.\" entire resulting derived work is distributed under the terms of a
+.\" permission notice identical to this one.
+.\"
+.\" Permission is granted to copy and distribute translations of this
+.\" manual into another language, under the above conditions for modified
+.\" versions, except that this permission notice may be included in
+.\" translations instead of in the original English.
+.\"
+.SH NAME
+d64 \- c64/c128 disk images
+.SH DESCRIPTION
+The disk image that is used by
+.BR ctools (1)
+is a raw image of a c1541/c1571 disk. It has a extension of
+.B .d64
+by default.
+.PP
+The sectors have a size of 256 byte. In the image they are ordered by the
+track number 1 to 35 (to 70 in the double sided version) and the sector
+number (0 to 16, 17, 18, 20).
+.PP
+Disk images can be transferred via transfer programs like
+.BR X1541 .
+You have to transfer the whole disk to use it with
+.BR ctools (1).
+.SH "SEE ALSO"
+.BR d64dump (1),
+.BR biosdump (1),
+.BR cformat (1),
+.BR ctools (1),
+.SH AUTHOR
+Jochen Metzinger<1metzing@informatik.uni\-hamburg.de>

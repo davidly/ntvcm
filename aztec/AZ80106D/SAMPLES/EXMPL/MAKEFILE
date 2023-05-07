@@ -1,0 +1,21 @@
+# ------------------------------------------------------------
+# makefile(C) Copyright Bill Buckels 2008. All rights reserved.
+# ------------------------------------------------------------
+CC=ccz
+AS=as80
+LN=ln80
+PRG=exmpl
+
+$(PRG).com: $(PRG).rel 
+        copy $(CROOT)lib\c.lib . 
+	$(LN) -o $(PRG).com $(PRG).rel -lc
+	del $(PRG).rel
+	del c.lib	
+		
+$(PRG).rel: $(PRG).c 
+      $(CC) -a $(PRG).c
+      $(AS) $(PRG).asm
+      del $(PRG).asm
+           
+
+      

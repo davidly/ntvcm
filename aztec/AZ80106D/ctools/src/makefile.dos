@@ -1,0 +1,63 @@
+#
+# $Id: makefile.dos,v 1.1 1997/02/20 23:21:23 jochen Rel $
+# Makefile for MSDOS (Symantec compiler)
+#
+# $Log: makefile.dos,v $
+# Revision 1.1  1997/02/20 23:21:23  jochen
+# from ctools 3.0
+#
+
+VERSION=0.4
+
+CXX=sc -cpp
+CXXFLAGS=
+CPPFLAGS=-Igetopt -DVERSION="V$(VERSION)"
+CC=sc
+AR=lib
+LOADLIBS=local.lib
+
+.cc.obj:
+	$(CXX) $(CXXFLAGS) $(CPPFLAGS) -c $<
+
+all: $(LOADLIBS) d64dump.exe biosdump.exe cformat.exe ctools.exe
+
+install: $(LOADLIBS) d64dump.exe biosdump.exe cformat.exe ctools.exe
+	-mkdir ..\bin
+	copy /b *.exe ..\bin /v
+
+clean:
+	-del *.obj
+	-del getopt\*.obj
+	-del *.lib
+	-del *.exe
+
+getopt\getopt.obj: getopt\getopt.c getopt\getopt.h
+	$(CC) -Igetopt -c -ogetopt\getopt getopt\getopt.c
+getopt\getopt1.obj: getopt\getopt1.c getopt\getopt.h
+	$(CC) -Igetopt -c -ogetopt\getopt1 getopt\getopt1.c
+local.lib: getopt\getopt.obj getopt\getopt1.obj
+	$(AR) local.lib /c /noi +getopt\getopt.obj+getopt\getopt1.obj,,
+
+d64dump.exe: d64dump.obj dump.obj misc.obj err.obj d64.obj
+	$(CXX) $(LDFLAGS) -o$* d64dump.obj dump.obj misc.obj err.obj d64.obj $(LOADLIBS)
+biosdump.exe: biosdump.obj dump.obj misc.obj err.obj d64.obj bios.obj
+	$(CXX) $(LDFLAGS) -o$* biosdump.obj dump.obj misc.obj err.obj d64.obj bios.obj $(LOADLIBS)
+cformat.exe: cformat.obj err.obj misc.obj d64.obj bios.obj
+	$(CXX) $(LDFLAGS) -o$* cformat.obj err.obj misc.obj d64.obj bios.obj $(LOADLIBS)
+ctools.exe: ctools.obj dump.obj err.obj misc.obj d64.obj bios.obj bitstr.obj fcb.obj dir.obj file.obj tools.obj
+	$(CXX) $(LDFLAGS) -o$* ctools.obj dump.obj err.obj misc.obj d64.obj bios.obj bitstr.obj fcb.obj dir.obj file.obj tools.obj $(LOADLIBS)
+
+bios.obj: err.h bios.h global.h d64.h bios.cc
+biosdump.obj: err.h bios.h global.h d64.h dump.h biosdump.cc
+bitstr.obj: bitstr.h bitstr.cc
+cformat.obj: global.h misc.h err.h d64.h bios.h cformat.cc
+ctools.obj: err.h fcb.h global.h tools.h ctools.cc
+d64.obj: misc.h global.h err.h d64.h d64.cc
+d64dump.obj: err.h d64.h global.h dump.h d64dump.cc
+dir.obj: err.h dir.h global.h bitstr.h bios.h d64.h fcb.h dir.cc
+dump.obj: dump.h dump.cc
+err.obj: err.h err.cc
+fcb.obj: err.h fcb.h global.h fcb.cc
+file.obj: err.h file.h bios.h global.h d64.h dir.h bitstr.h fcb.h file.cc
+misc.obj: misc.h global.h misc.cc
+tools.obj: err.h misc.h global.h dump.h dir.h bitstr.h bios.h d64.h fcb.h file.h tools.h tools.cc

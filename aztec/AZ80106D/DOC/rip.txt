@@ -1,0 +1,100 @@
+Date   : Sat, 22 Oct 1988 21:22:08 GMT
+From   : asuvax!anasaz!chad@noao.edu (Chad R. Larson)
+Subject: C Compilers - Followup (long)
+
+In article <8810201631.AA23751@ucbvax.Berkeley.EDU> gonzalez@VAX.BBN.COM
+writes:
+>So, it looks like I've exhausted all potential commercial sources of a C
+>compiler...
+
+I have 2 CP/M C compilers.   The first one I is QCX, the other is
+Aztec C from MANX.
+
+QCX is was an upgrade to a compiler called Q/C.  The upgrade was mostly
+compatability and portability changes.  QCX is a reasonably full
+featured compiler that is almost completely K&R compatable (lacks bit
+fields and doubles, and any of the ANSI or SysIII extensions like void
+and enum).  It's biggest advantage is that it comes with full source
+code, not just for the libraries, but the compiler too!  It will compile
+itself.
+
+Looking at the source, it appears the person who wrote it was not a
+compiler specialist, but it is well commented and maintainable.  Local
+changes made here were to add voids, and unsigned characters as types
+handled specially by the compiler (unsigned chars are not promoted to
+ints in operations only involving other unsigned chars, since they can
+fit in the accumulator and results in a major speed win).  The point of
+that digression is you can fix up anything you want if you have the
+source.
+
+I ported it to UNIX to be able to do cross development for CP/M.  The
+compiler output is Z80 assembler source, so if you want to do cross
+development, you need a cross assembler (and possibly a linker).  When I
+bought QCX several years ago, it cost less than $150.  Also, it was sold
+with MS-DOS executables for cross support (I think that's what the X
+stood for), Q/C was the native CP/M product.  BTW, on the cross support
+front, The Code Works also sold (in source) a Z80 assembler/linker.  I
+bought it, but unless it has been substantially enhanced, don't bother.
+It probably works OK native on CP/M, but took *MAJOR* rework to build on
+UNIX!  Repeat after me, "Pointers are not integers".
+
+QCX was written by Jim Colvin at:
+    Quality Computer Systems
+    3394 East Stiles Avenue
+    Camarillo, CA 93010
+
+It was published by:
+    The Code Works
+    Box 62136
+    Santa Barbara, CA 93160
+    (805) 684-9534
+
+This information is several years old, so you may have to hunt a bit
+to find them. 
+
+If you are not looking for something you can hack around with, but
+just something you can run, the other compiler I use is Aztec C
+release 1.06D from Manx Software Systems, Inc.  It is basically the
+same C compiler they sell to the IBM PC world and the Apple MAC folks,
+so it is quite full featured.  The difference is just in the code
+generation portion, I'm led to believe.  They used to sell several
+packages (called commercial, developers, etc.) that differed in
+whether you got library source and some of the utilities; I'm a little
+hazy about that.  The set I bought came with library source, compilers
+for both Z80 and 8080 output (the big difference is the Z80 allows one
+extra "register" specification), an assembler and linker (although
+you can also use Microsoft M80 and L80 or Digital Research RMAC and
+LINK if you like), a librarian and some other utilities.  The supplied
+assembler/linker/librarian are quite good and faster than the
+Microsoft and Digital Research counterparts because they are tailored
+to deal with the compiler output (no macro's, for example).  They also
+support overlays and there is an overlay manager supplied in source.
+Since this is a port of the standard Aztec C, the library is quite
+complete.  I regularly move programs from UNIX to CP/M with little
+effort as long as the programs don't require impossible system
+functions like fork(2).
+
+Manx advertizes regularly in most of the computer magazines.  They
+quit mentioning the CP/M version in the ads about a year ago, but when
+I called and asked for it they were willing to sell it to me with the
+caution "there will be no further development on this product, what
+you get is what you get".  That was fine with me.  They wanted about
+$250 for the whole enchilada (sources for libraries and all), I didn't
+ask about other configurations and the price seemed somewhat
+negotiable as they were just unloading inventory, I gathered.
+
+Summary: Q/C and/or QCX; you get ALL the source, reasonably cheap
+         Aztec C; more robust and full featured ("commercial", even!)
+
+Of course, I am not affiliated with any of these people; they probably
+don't even know I exist.  If you have any specific questions not
+addressed in the lengthy ramblings above, send me e-mail at the
+address below.  Don't give up!  C lives and works in the CP/M world.
+"I read the news today, oh boy!"  --John Lennon
+=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
+| DCF, Inc.               | UUCP: ...ncar!noao!nud!anasaz!dcfinc!chad   |
+| 14623 North 49th Place  | Ma Bell: (602) 953-1392                     |
+| Scottsdale, AZ 85254    | Loran: N-33deg37min20sec W-111deg58min26sec |
+=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
+|         Disclaimer: These ARE the opinions of my employer!            |
+=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-

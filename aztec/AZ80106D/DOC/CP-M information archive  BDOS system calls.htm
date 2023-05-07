@@ -1,0 +1,2088 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN" "http://www.w3c.org/TR/1999/REC-html401-19991224/loose.dtd">
+<!-- saved from url=(0043)http://www.seasip.demon.co.uk/Cpm/bdos.html -->
+<HTML xmlns="http://www.w3.org/1999/xhtml"><HEAD><TITLE>CP/M information archive : BDOS system calls</TITLE>
+<META http-equiv=Content-Type content="text/html; charset=windows-1252">
+<META content="MSHTML 6.00.6000.16608" name=GENERATOR><LINK 
+href="CP-M%20information%20archive%20%20BDOS%20system%20calls_files/cpm.css" 
+type=text/css rel=stylesheet></HEAD>
+<BODY>
+<DIV class=fixedbanner><IMG height=32 alt="" 
+src="CP-M%20information%20archive%20%20BDOS%20system%20calls_files/gem2ico.png" 
+width=32 align=middle> CP/M pages<BR><A 
+href="http://www.seasip.demon.co.uk/index.html">Home</A> -&gt; <A 
+href="http://www.seasip.demon.co.uk/Cpm/index.html">CP/M</A> -&gt; BDOS calls 
+</DIV>
+<DIV class=main>
+<H1>BDOS system calls</H1>
+<P>So far, this list covers CP/M 1, 2 and 3, with partial MP/M and DOSPLUS 
+details. Some groupings I use are:</P>
+<DL>
+  <DT>CP/M 1.3 
+  <DD>The 1975 version of CP/M available as source from the Unofficial CP/M 
+  Website. The version number of 1.3 isn't given in the source. 
+  <DT>CP/M 2.2 
+  <DD>In addition to CP/M-80 version 2.2, this also includes CP/M-86 1.x, 
+  CP/M-68000 1.x and CP/M-Z8000 1.x. 
+  <DT>MP/M II and above 
+  <DD>
+  <UL>
+    <LI>MP/M II 
+    <LI>CP/M 3 (CP/M Plus) 
+    <LI>multiuser 16-bit systems such as DR-MDOS and REAL/32 
+    <LI>single-user 16-bit systems <STRONG>after</STRONG> CP/M-86 1.1 and 
+    <STRONG>before</STRONG> DRDOS 3.41. This covers DOSPLUS and "Personal 
+    CP/M-86 v2.0/2". </LI></UL>
+  <DT>CP/M 3 and above 
+  <DD>All the above systems except MP/M II 
+  <DT>CP/Net redirector 
+  <DD>Any CP/Net client that allows access to drives on an MP/M server. </DD></DL>
+<P>The system calls for REAL/32 (a descendent of Concurrent CP/M) used to be 
+online at <A 
+href="http://development.imsltd.com/calls/allcalls.htm">http://development.imsltd.com/calls/allcalls.htm</A>. 
+This site appears to be offline but some parts of its content can be retrieved 
+by entering the above URL into the <A 
+href="http://www.archive.org/">archive.org</A> wayback machine.</P>
+<H2>How to make a call</H2>
+<P>To make a BDOS call in an 8-bit CP/M, use:</P><PRE>    LD  DE,parameter
+    LD  C,function
+    CALL    5
+</PRE>and in a 16-bit CP/M, use: <PRE>    MOV DX,parameter
+    MOV CL,function
+    INT 0E0h
+</PRE>In CP/M 1.x, 8-bit values are returned in A and 16-bit values in BA. In 
+later 8-bit versions, they are also returned in L and HL respectively. 
+<P>16-bit systems return 8-bit values in AL = BL and 16-bit in AX = BX.</P>
+<P>The information in this list overlaps with the Interrupt List section on INT 
+E0h to some extent.</P>
+<H2>DOSPLUS and DOS+</H2>
+<P>Note that DOS + is a CP/M extended BDOS. For information on "DOSPLUS 1.2" and 
+"Personal CP/M-86 v2.0/2" see sections applicable to CP/M-86 v4; the underlying 
+BDOS is version 4.1 in both cases.</P>
+<HR>
+
+<H2>The calls</H2>
+<H3><A id=0 name=0>BDOS function 0 (P_TERMCPM) - System Reset</A></H3>
+<H6>Supported by: CP/M 1, 2, 3; MP/M; Concurrent CP/M.</H6>
+<P><I>Entered with C=0. Does not return.</I></P>
+<P>Quit the current program, return to command prompt. This call is hardly ever 
+used in 8-bit CP/M since the <CODE>RST 0</CODE> instruction does the same thing 
+and saves four bytes.</P>
+<H3><A id=0d name=0d>BDOS function 0 (P_TERMCPM) - System Reset</A></H3>
+<H6>Supported by: Single-user CP/M-86.</H6>
+<P><I>Entered with CL=0, DL=0 or 1. Does not return.</I></P>
+<P>Quit the current program, return to command prompt. If DL is 0, the memory 
+used by the program is deallocated; if DL is 1, it remains resident.</P>
+<HR>
+
+<H3><A id=1 name=1>BDOS function 1 (C_READ) - Console input</A></H3>
+<H6>Supported by: All versions</H6>
+<P><I>Entered with C=1. Returns A=L=character.</I></P>
+<P>Wait for a character from the keyboard; then echo it to the screen and return 
+it.</P>
+<HR>
+
+<H3><A id=2 name=2>BDOS function 2 (C_WRITE) - Console output</A></H3>
+<H6>Supported by: All versions</H6>
+<P><I>Entered with C=2, E=ASCII character.</I></P>
+<P>Send the character in E to the screen. Tabs are expanded to spaces. Output 
+can be paused with ^S and restarted with ^Q (or any key under versions prior to 
+CP/M 3). While the output is paused, the program can be terminated with ^C.</P>
+<HR>
+
+<H3><A id=3 name=3>BDOS function 3 (A_READ) - Auxiliary (Reader) input</A></H3>
+<H6>Supported by: All CP/M versions except MP/M and Concurrent CP/M</H6>
+<P><I>Entered with C=3. Returns A=L=ASCII character</I></P>
+<P>Note that this call can hang if the auxiliary input never sends data.</P>
+<H3><A id=3m name=3m>BDOS function 3 - Raw console input</A></H3>
+<H6>Supported by: MP/M.</H6>
+<P><I>Entered with C=3. Returns A=L=ASCII character</I></P>
+<P>Reads a character from the console without checking for ^S / ^Q.</P>
+<HR>
+
+<H3><A id=4 name=4>BDOS function 4 (A_WRITE) - Auxiliary (Punch) output</A></H3>
+<H6>Supported by: All versions except MP/M and Concurrent CP/M.</H6>
+<P><I>Entered with C=4, E=ASCII character.</I></P>
+<P>If the device is permanently not ready, this call can hang.</P>
+<H3><A id=4m name=4m>BDOS function 4 - Raw console output</A></H3>
+<H6>Supported by: MP/M.</H6>
+<P><I>Entered with C=4, E=ASCII character.</I></P>
+<P>Outputs the character, without expanding tabs or checking for ^S / ^Q.</P>
+<HR>
+
+<H3><A id=5 name=5>BDOS function 5 (L_WRITE) - Printer output</A></H3>
+<H6>Supported by: All versions</H6>
+<P><I>Entered with C=2, E=ASCII character.</I></P>
+<P>If the printer is permanently offline or busy, this call can hang.</P>
+<HR>
+
+<H3><A id=6a name=6a>BDOS function 6 - Detect memory size</A></H3>
+<H6>Supported by: CP/M 1.3 only</H6>
+<P><I>Entered with C=6. Returns the base address of the CCP.</I></P>
+<H3><A id=6 name=6>BDOS function 6 (C_RAWIO) - Direct console I/O</A></H3>
+<H6>Supported by: CP/M 1.4 and later, with variations</H6>
+<P><I>Entered with C=6, E=code. Returned values (in A) vary.</I></P>
+<DL>
+  <DT>E=0FFh 
+  <DD>Return a character without echoing if one is waiting; zero if none is 
+  available. In MP/M 1, this works like E=0FDh below and waits for a character. 
+  <DT>E=0FEh 
+  <DD>[CP/M3, NovaDOS, Z80DOS, DOS+] Return console input status. Zero if no 
+  character is waiting, nonzero otherwise. 
+  <DT>E=0FDh 
+  <DD>[CP/M3, DOS+] Wait until a character is ready, return it without echoing. 
+  <DT>E=0FCh 
+  <DD>[DOS+] One-character lookahead - return the next character waiting but 
+  leave it in the buffer. </DD></DL>
+<P>Values of E not supported on a particular system will output the character. 
+<B>Under CP/M 2 and lower, direct console functions may interact undesirably 
+with non-direct ones, since certain buffers may be bypassed. Do not mix 
+them.</B></P>
+<HR>
+
+<H3><A id=7 name=7>BDOS function 7 - Get I/O byte</A></H3>
+<H6>Supported by: CP/M 2 and lookalikes. Not supported in MP/M.</H6>
+<P><I>Entered with C=7. Returns I/O byte.</I></P>
+<P><A href="http://www.seasip.demon.co.uk/Cpm/iobyte.html">Here</A>'s a 
+description of how the IOBYTE works.</P>
+<H3><A id=7c name=7c>BDOS function 7 (A_STATIN) - Auxiliary Input 
+status</A></H3>
+<H6>Supported by: CP/M 3 and above. Not supported in MP/M.</H6>
+<P><I>Entered with C=7. Returns A=0 or 0FFh.</I></P>
+<P>0FFh is returned if the Auxiliary Input device has a character ready; 
+otherwise 0 is returned.</P>
+<HR>
+
+<H3><A id=8 name=8>BDOS function 8 - Set I/O byte</A></H3>
+<H6>Supported by: CP/M 2 and lookalikes. Not supported in MP/M.</H6>
+<P><I>Entered with C=8, E=I/O byte.</I></P>
+<P><A href="http://www.seasip.demon.co.uk/Cpm/iobyte.html">Here</A>'s a 
+description of how the IOBYTE works.</P>
+<H3><A id=8c name=8c>BDOS function 8 (A_STATOUT) - Auxiliary Output 
+status</A></H3>
+<H6>Supported by: CP/M 3 and above. Not supported in MP/M.</H6>
+<P><I>Entered with C=8. Returns A=0 or 0FFh.</I></P>
+<P>0FFh is returned if the Auxiliary Output device is ready for characters; 
+otherwise 0 is returned.</P>
+<HR>
+
+<H3><A id=9 name=9>BDOS function 9 (C_WRITESTR) - Output string</A></H3>
+<H6>Supported by: All versions</H6>
+<P><I>Entered with C=9, DE=address of string.</I></P>
+<P>Display a string of ASCII characters, terminated with the $ character. Thus 
+the string may not contain $ characters - so, for example, the VT52 cursor 
+positioning command <CODE>ESC Y y+32 x+32</CODE> will not be able to use row 
+4.</P>
+<P>Under CP/M 3 and above, the terminating character can be changed using BDOS 
+function <A href="http://www.seasip.demon.co.uk/Cpm/bdos.html#110">110</A>.</P>
+<HR>
+
+<H3><A id=10 name=10>BDOS function 10 (C_READSTR) - Buffered console 
+input</A></H3>
+<H6>Supported by: All versions, with variations</H6>
+<P><I>Entered with C=0Ah, DE=address or zero.</I></P>
+<P>This function reads characters from the keyboard into a memory buffer until 
+RETURN is pressed. The Delete key is handled correctly. In later versions, more 
+features can be used at this point; ZPM3 includes a full line editor with recall 
+of previous lines typed.</P>
+<P>On entry, DE is the address of a buffer. If DE=0 (in CP/M-86 versions 
+DX=0FFFFh), the <A href="http://www.seasip.demon.co.uk/Cpm/bdos.html#26">DMA 
+address</A> is used (CP/M 3 and later) and the buffer already contains data:</P><PRE>DE=address:                 DE=0 / DX=0FFFFh:
+buffer: DEFB    size        buffer: DEFB    size
+        DEFB    ?                   DEFB    len
+        DEFB    bytes               DEFB    bytes
+</PRE>The value at buffer+0 is the amount of bytes available in the buffer. Once 
+the limit has been reached, no more can be added, although the line editor can 
+still be used. 
+<P>If DE=0 (in 16-bit versions, DX=0FFFFh) the next byte contains the number of 
+bytes already in the buffer; otherwise this is ignored. On return from the 
+function, it contains the number of bytes present in the buffer.</P>
+<P>The bytes typed then follow. There is no end marker.</P>
+<HR>
+
+<H3><A id=11 name=11>BDOS function 11 (C_STAT) - Console status</A></H3>
+<H6>Supported by: All versions</H6>
+<P><I>Entered with C=0Bh. Returns A=L=status</I></P>
+<P>Returns A=0 if no characters are waiting, nonzero if a character is 
+waiting.</P>
+<HR>
+
+<H3><A id=12a name=12a>BDOS function 12 - Lift head</A></H3>
+<H6>Supported by: Version 1</H6>
+<P><I>Entered with C=0Ch. Returns HL=0</I></P>
+<P>Has no effect except to return HL=0.</P>
+<H3><A id=12 name=12>BDOS function 12 (S_BDOSVER) - Return version 
+number</A></H3>
+<H6>Supported by: Versions 2.0 and later</H6>
+<P><I>Entered with C=0Ch. Returns B=H=system type, A=L=version number.</I></P>
+<P>The system type is subdivided into a machine type and a CP/M type. The 
+machine type occupies the high nibble of the byte; the CP/M type is a bitmapped 
+field stored in the low nibble.</P><PRE>Machine types:   CP/M types:         Version numbers:
+0 - 8080         Bit 0 set for MP/M        00h - Version 1 (see Lift Head above)
+1 - 8086         Bit 1 set for CP/Net      20h - Version 2.0
+2 - 68000/Z8000     (ie:network present)   21h - Version 2.1
+                 Bit 2 set in 16-bit       22h - Version 2.2 
+                    multi-user OSes        25h - Version 2.5 (DOS +)
+                                           28h - Version 2.8 (Personal CP/M-80)
+                 For plain CP/M,           30h - Version 3.0 (MP/M II, MP/M-86)
+                 the CP/M type is 0.       31h - Version 3.1 (CP/M Plus)
+                                           33h - Version 3.3 (Apricot PCP/M-86)
+                                           41h - Version 4.1 (DOSPLUS 1)
+                                           50h - Version 5.0 (DOSPLUS 2)
+</PRE>
+<P>Sources differ on the value returned by DOSPLUS 2. Most sources follow the 
+Interrupt List and say 60h; my experiments on the real thing say 50h.</P>
+<P>Confusingly, CP/M-86 v1.1 returns 0022h (ie, "8080 CP/M v2.2").</P>
+<P>It is interesting to note that the version numbers returned by DRDOS and 
+Novell DOS follow this system; DRDOS 3, 5 and 6 are version 6.<VAR>x</VAR>, 
+Novell DOS 7 is version 7.2 and DR-OpenDOS is version 7.3. However these systems 
+rather unsportingly fail to provide an INT 0E0h call to get the version number; 
+you have to use INT 21h with AX=4452h.</P>
+<HR>
+
+<H3><A id=13 name=13>BDOS function 13 (DRV_ALLRESET) - Reset discs</A></H3>
+<H6>Supported by: All versions.</H6>
+<P><I>Entered with C=0Dh. Returned values vary.</I></P>
+<P>Resets disc drives. Logs out all discs and empties disc buffers. Sets the 
+currently selected drive to A:. Any drives set to Read-Only in software become 
+Read-Write; replacement BDOSses tend to leave them Read-Only.</P>
+<P>In versions 1 and 2, logs in drive A: and returns 0FFh if there is a file 
+present whose name begins with a $, otherwise 0. Replacement BDOSses may modify 
+this behaviour.</P>
+<P>In multitasking versions, returns 0 if succeeded, or 0FFh if other processes 
+have files open on removable or read-only drives.</P>
+<HR>
+
+<H3><A id=14 name=14>BDOS function 14 (DRV_SET) - Select disc</A></H3>
+<H6>Supported by: All versions</H6>
+<P><I>Entered with C=0Eh, E=drive number. Returns L=A=0 or 0FFh.</I></P>
+<P>The drive number passed to this routine is 0 for A:, 1 for B: up to 15 for 
+P:.</P>
+<P>Sets the currently selected drive to the drive in A; logs in the disc. 
+Returns 0 if successful or 0FFh if error. Under MP/M II and later versions, H 
+can contain a physical error number.</P>
+<HR>
+
+<H3><A id=15 name=15>BDOS function 15 (F_OPEN) - Open file</A></H3>
+<H6>Supported by: All versions</H6>
+<P><I>Entered with C=0Fh, DE=FCB address. Returns error codes in BA and 
+HL.</I></P>
+<P>This function opens a file to read or read/write. The FCB is a 36-byte data 
+structure, most of which is maintained by CP/M. <A 
+href="http://www.seasip.demon.co.uk/Cpm/fcb.html">Look here</A> for details.</P>
+<P>The FCB should have its DR, Fn and Tn fields filled in, and the four fields 
+EX, S1, S2 and RC set to zero. Under CP/M 3 and later, if CR is set to 0FFh then 
+on return CR will contain the <A 
+href="http://www.seasip.demon.co.uk/Cpm/bytelen.html#lrbc">last record byte 
+count</A>. Note that CR should normally be reset to zero if sequential access is 
+to be used.</P>
+<P>Under MP/M II, the file is normally opened exclusively - no other process can 
+access it. Two bits in the FCB control the mode the file is opened in:</P>
+<UL>
+  <LI>F5' - set to 1 for "unlocked" mode - other programs can use the file. 
+  <LI>F6' - set to 1 to open the file in read-only mode - other programs can use 
+  the file read-only. If both F6' and F5' are set, F6' wins. </LI></UL>
+<P>If the file is opened in "unlocked" mode, the file's identifier (used for 
+record locking) will be returned at FCB+21h.</P>
+<P>Under MP/M II and later versions, a password can be supplied to this function 
+by pointing the <A href="http://www.seasip.demon.co.uk/Cpm/bdos.html#26">DMA 
+address</A> at the password.</P>
+<P>On return from this function, A is 0FFh for error, or 0-3 for success. Some 
+versions (including CP/M 3) always return zero; others return 0-3 to indicate 
+that an image of the directory entry is to be found at (80h+20h*A).</P>
+<P>If A=0FFh, CP/M 3 returns a <A 
+href="http://www.seasip.demon.co.uk/Cpm/errors3.html">hardware error</A> in H 
+and B. It also sets some bits in the FCB:</P>
+<UL>
+  <LI>F7' is set if the file is read-only because writing is password protected 
+  and no password was supplied; 
+  <LI>F8' is set if the file is read-only because it is a User 0 system file 
+  opened from another user area. </LI></UL>
+<H3><A id=15d name=15d>BDOS function 15 - Open directory</A></H3>
+<H6>Supported by: CP/M-86 v4.</H6>
+<P><I>Entered with C=0Fh, DE=FCB address. Returns error codes in BA and 
+HL.</I></P>
+<P>This function is called with bit 7 of the <A 
+href="http://www.seasip.demon.co.uk/Cpm/fcb.html">FCB</A> drive byte set, to 
+distinguish it from a normal Open File call.</P>
+<P>Byte 0Ch (Extent) of the FCB holds a subfunction code, 0-3:</P>
+<UL>
+  <LI>0 - Change current directory 
+  <LI>1 - Assign floating drive N: to specified directory 
+  <LI>2 - Assign floating drive O: to specified directory 
+  <LI>3 - Assign floating drive P: to specified directory </LI></UL>
+<P>Each floating drive maps to a directory on an existing drive. I refer to the 
+existing drive as the 'host' drive.</P>
+<HR>
+
+<H3><A id=16 name=16>BDOS function 16 (F_CLOSE) - Close file</A></H3>
+<H6>Supported by: All versions</H6>
+<P><I>Entered with C=10h, DE=FCB address. Returns error codes in BA and 
+HL.</I></P>
+<P>This function closes a file, and writes any pending data. This function 
+should always be used when a file has been written to.</P>
+<P>On return from this function, A is 0FFh for error, or 0-3 for success. Some 
+versions always return zero; others return 0-3 to indicate that an image of the 
+directory entry is to be found at (80h+20h*A).</P>
+<P>Under CP/M 3, if F5' is set to 1 then the pending data are written and the 
+file is made consistent, but it remains open.</P><!-- CCP/M and extended locks -->
+<P>If A=0FFh, CP/M 3 returns a <A 
+href="http://www.seasip.demon.co.uk/Cpm/errors3.html">hardware error</A> in H 
+and B.</P>
+<H3><A id=16d name=16d>BDOS function 16 - Close directory</A></H3>
+<H6>Supported by: CP/M-86 v4.</H6>
+<P><I>Entered with C=10h, DE=FCB address. Returns error codes in BA and 
+HL.</I></P>
+<P>This function is called with bit 7 of the <A 
+href="http://www.seasip.demon.co.uk/Cpm/fcb.html">FCB</A> drive byte set, to 
+distinguish it from a normal Close File call.</P>
+<P>This sets the current directory on the specified drive to the root 
+directory.</P>
+<HR>
+
+<H3><A id=17 name=17>BDOS function 17 (F_SFIRST) - search for first</A></H3>
+<H6>Supported by: All versions</H6>
+<P><I>Entered with C=11h, DE=address of FCB. Returns error codes in BA and 
+HL.</I></P>
+<P>Search for the first occurrence of the specified file; the filename should be 
+stored in the supplied FCB. The filename can include ? marks, which match 
+anything on disc. If the first byte of the FCB is ?, then any directory entry 
+(including disc labels, date stamps etc.) will match. The EX byte is also 
+checked; normally it should be set to zero, but if it is set to ? then all 
+suitable extents are matched.</P>
+<P>Returns A=0FFh if error (CP/M 3 returns a <A 
+href="http://www.seasip.demon.co.uk/Cpm/errors3.html">hardware error</A> in H 
+and B), or A=0-3 if successful. The value returned can be used to calculate the 
+address of a memory image of the directory entry; it is to be found at <A 
+href="http://www.seasip.demon.co.uk/Cpm/bdos.html#26">DMA</A>+A*32.</P>
+<P>Under CP/M-86 v4, if the first byte of the FCB is '?' or bit 7 of the byte is 
+set, subdirectories as well as files will be returned by this search.</P>
+<HR>
+
+<H3><A id=18 name=18>BDOS function 18 (F_SNEXT) - search for next</A></H3>
+<H6>Supported by: All versions</H6>
+<P><I>Entered with C=12h, (DE=address of FCB)?. Returns error codes in BA and 
+HL.</I></P>
+<P>This function should only be executed immediately after function 17 or 
+another invocation of function 18. No other disc access functions should have 
+been used.</P>
+<P>Function 18 behaves exactly as number 17, but finds the next occurrence of 
+the specified file after the one returned last time. The FCB parameter is not 
+documented, but Jim Lopushinsky states in LD301.DOC:</P>
+<BLOCKQUOTE>In none of the official Programmer's Guides for any version of 
+  CP/M does it say that an FCB is required for Search Next (function 18). 
+  However, if the FCB passed to Search First contains an unambiguous file 
+  reference (i.e. no question marks), then the Search Next function requires an 
+  FCB passed in reg DE (for CP/M-80) or DX (for CP/M-86).</BLOCKQUOTE>
+<HR>
+
+<H3><A id=19 name=19>BDOS function 19 (F_DELETE) - delete file</A></H3>
+<H6>Supported by: All versions</H6>
+<P><I>Entered with C=13h, DE=address of FCB. Returns error codes in BA and 
+HL.</I></P>
+<P>Deletes all directory entries matching the specified filename. The name can 
+contain ? marks. Returns A=0FFh if error, otherwise 0-3 (CP/M 3 returns a <A 
+href="http://www.seasip.demon.co.uk/Cpm/errors3.html">hardware error</A> in H 
+and B).</P>
+<P>Under CP/M 3, if bit F5' is set to 1, the file remains but any password 
+protection is removed. If the file has any password protection at all, the <A 
+href="http://www.seasip.demon.co.uk/Cpm/bdos.html#26">DMA address</A> must be 
+pointing at the password when this function is called.</P>
+<H3><A id=19d name=19d>BDOS function 19 - remove directory</A></H3>
+<H6>Supported by: CP/M-86 v4.</H6>
+<P><I>Entered with C=13h, DE=address of FCB. Returns error codes in BA and 
+HL.</I></P>
+<P>This function is called with bit 7 of the <A 
+href="http://www.seasip.demon.co.uk/Cpm/fcb.html">FCB</A> drive byte set, to 
+distinguish it from a normal Delete File call.</P>
+<P>If the specified subdirectory exists and is empty, removes it.</P>
+<HR>
+
+<H3><A id=20 name=20>BDOS function 20 (F_READ) - read next record</A></H3>
+<P><I>Entered with C=14h, DE=address of FCB. Returns error codes in BA and 
+HL.</I></P>
+<H6>Supported by: All versions</H6>
+<P>Load a record (normally 128 bytes, but under CP/M 3 this can be a multiple of 
+128 bytes) at the previously specified <A 
+href="http://www.seasip.demon.co.uk/Cpm/bdos.html#26">DMA address</A>. Values 
+returned in A are:</P>
+<DL>
+  <DT>0 
+  <DD>OK, 
+  <DT>1 
+  <DD>end of file, 
+  <DT>9 
+  <DD>invalid FCB, 
+  <DT>10 
+  <DD>(CP/M) media changed; (MP/M) FCB checksum error, 
+  <DT>11 
+  <DD>(MP/M) unlocked file verification error, 
+  <DT>0FFh 
+  <DD>hardware error. </DD></DL>If on return A is not 0FFh, H contains the number 
+of 128-byte records read before the error (MP/M II and later). 
+<HR>
+
+<H3><A id=21 name=21>BDOS function 21 (F_WRITE) - write next record</A></H3>
+<H6>Supported by: All versions</H6>
+<P><I>Entered with C=15h, DE=address of FCB. Returns error codes in BA and 
+HL.</I></P>
+<P>Write a record (normally 128 bytes, but can be a multiple of 128 bytes) to be 
+found at previously specified <A 
+href="http://www.seasip.demon.co.uk/Cpm/bdos.html#26">DMA address</A>. Values 
+returned in A are:</P>
+<DL>
+  <DT>0 
+  <DD>OK, 
+  <DT>1 
+  <DD>directory full, 
+  <DT>2 
+  <DD>disc full, 
+  <DT>8 
+  <DD>(MP/M) record locked by another process, 
+  <DT>9 
+  <DD>invalid FCB, 
+  <DT>10 
+  <DD>(CP/M) media changed; (MP/M) FCB checksum error, 
+  <DT>11 
+  <DD>(MP/M) unlocked file verification error, 
+  <DT>0FFh 
+  <DD>hardware error. </DD></DL>If on return A is not 0FFh, H contains the number 
+of 128-byte records written before the error (CP/M 3 only). 
+<HR>
+
+<H3><A id=22 name=22>BDOS function 22 (F_MAKE) - create file</A></H3>
+<H6>Supported by: All versions</H6>
+<P><I>Entered with C=16h, DE=address of FCB. Returns error codes in BA and 
+HL.</I></P>
+<P>Creates the file specified. Returns A=0FFh if the directory is full.</P>
+<P>If the file exists already, then the default action is to return to the 
+command prompt, but CP/M 3 may return a <A 
+href="http://www.seasip.demon.co.uk/Cpm/errors3.html">hardware error</A> 
+instead.</P>
+<P>Under MP/M II, set F5' to open the file in <A 
+href="http://www.seasip.demon.co.uk/Cpm/bdos.html#15">"unlocked" mode</A>.</P>
+<P>Under MP/M II and later versions, set F6' to create the file with a password; 
+the <A href="http://www.seasip.demon.co.uk/Cpm/bdos.html#26">DMA address</A> 
+should point at a 9-byte buffer:</P><PRE>    DEFS    8   ;Password
+    DEFB    1   ;<A href="http://www.seasip.demon.co.uk/Cpm/bdos.html#103">Password mode</A>
+</PRE>
+<H3><A id=22d name=22d>BDOS function 22 - create directory</A></H3>
+<H6>Supported by: CP/M-86 v4.</H6>
+<P><I>Entered with C=16h, DE=address of FCB. Returns error codes in BA and 
+HL.</I></P>
+<P>This function is called with bit 7 of the <A 
+href="http://www.seasip.demon.co.uk/Cpm/fcb.html">FCB</A> drive byte set, to 
+distinguish it from a normal Create File call.</P>
+<P>Creates a new subdirectory in the current directory, with the given name.</P>
+<HR>
+
+<H3><A id=23 name=23>BDOS function 23 (F_RENAME) - Rename file</A></H3>
+<H6>Supported by: All versions</H6>
+<P><I>Entered with C=17h, DE=address of FCB. Returns error codes in BA and 
+HL.</I></P>
+<P>Renames the file specified to the new name, stored at FCB+16. This function 
+cannot rename across drives so the "drive" bytes of both filenames should be 
+identical. Returns A=0-3 if successful; A=0FFh if error. Under CP/M 3, if H is 
+zero then the file could not be found; if it is nonzero it contains a <A 
+href="http://www.seasip.demon.co.uk/Cpm/errors3.html">hardware error</A> 
+number.</P>
+<P>Under Concurrent CP/M, set F5' if an extended lock on the file should be held 
+through the rename. Otherwise the lock will be released.</P>
+<HR>
+
+<H3><A id=24 name=24>BDOS function 24 (DRV_LOGINVEC) - Return bitmap of 
+logged-in drives</A></H3>
+<H6>Supported by: All versions</H6>
+<P><I>Entered with C=18h. Returns bitmap in HL.</I></P>
+<P>Bit 7 of H corresponds to P: while bit 0 of L corresponds to A:. A bit is set 
+if the corresponding drive is logged in.</P>
+<P>In DOSPLUS v2.1, the three top bits (for the floating drives) will mirror the 
+status of the corresponding host drives). This does not happen in earlier 
+DOSPLUS / Personal CP/M-86 systems.</P>
+<HR>
+
+<H3><A id=25 name=25>BDOS function 25 (DRV_GET) - Return current drive</A></H3>
+<H6>Supported by: All versions</H6>
+<P><I>Entered with C=19h. Returns drive in A.</I> Returns currently selected 
+drive. 0 =&gt; A:, 1 =&gt; B: etc.</P>
+<HR>
+
+<H3><A id=26 name=26>BDOS function 26 (F_DMAOFF) - Set DMA address</A></H3>
+<H6>Supported by: All versions</H6>
+<P><I>Entered with C=1Ah, DE=address.</I></P>
+<P>Set the Direct Memory Access address; a pointer to where CP/M should read or 
+write data. Initially used for the transfer of 128-byte records between memory 
+and disc, but over the years has gained many more functions.</P>
+<HR>
+
+<H3><A id=27 name=27>BDOS function 27 (DRV_ALLOCVEC) - Return address of 
+allocation map</A></H3>
+<H6>Supported by: All versions, but differs in banked versions.</H6>
+<P><I>Entered with C=1Bh. Returns address in HL (16-bit versions use 
+ES:BX).</I></P>
+<P>Return the address of the allocation bitmap (which blocks are used and which 
+are free) in HL. Under banked CP/M 3 and MP/M, this will be an address in bank 0 
+(the system bank) and not easily accessible.</P>
+<P>Under previous versions, the format of the bitmap is a sequence of bytes, 
+with bit 7 of the byte representing the lowest-numbered block on disc, and 
+counting starting at block 0 (the directory). A bit is set if the corresponding 
+block is in use.</P>
+<P>Under CP/M 3, the allocation vector may be of this form (single-bit) or 
+allocate two bits to each block (double-bit). This information is stored in the 
+<A href="http://www.seasip.demon.co.uk/Cpm/scb.html#f3">SCB</A>.</P>
+<HR>
+
+<H3><A id=28 name=28>BDOS function 28 (DRV_SETRO) - Software write-protect 
+current disc</A></H3>
+<H6>Supported by: All versions, with differences</H6>
+<P><I>Entered with C=1Ch.</I></P>
+<P>Temporarily set current drive to be read-only; attempts to write to it will 
+fail. Under genuine CP/M systems, this continues until either call <A 
+href="http://www.seasip.demon.co.uk/Cpm/bdos.html#13">13 (disc reset)</A> or 
+call <A href="http://www.seasip.demon.co.uk/Cpm/bdos.html#37">37 (selective disc 
+reset)</A> is called; in practice, this means that whenever a program returns to 
+the command prompt, all drives are reset to read/write. Newer BDOS replacements 
+only reset the drive when function <A 
+href="http://www.seasip.demon.co.uk/Cpm/bdos.html#37">37</A> is called.</P>
+<P>Under multitasking CP/Ms, this can fail (returning A=0FFh) if another process 
+has a file open on the drive.</P>
+<HR>
+
+<H3><A id=29 name=29>BDOS function 29 (DRV_ROVEC) - Return bitmap of read-only 
+drives</A></H3>
+<H6>Supported by: All versions</H6>
+<P><I>Entered with C=1Dh. Returns bitmap in HL.</I></P>
+<P>Bit 7 of H corresponds to P: while bit 0 of L corresponds to A:. A bit is set 
+if the corresponding drive is set to read-only in software.</P>
+<HR>
+
+<H3><A id=30a name=30a>BDOS function 30 - set echo mode for function 1</A></H3>
+<H6>Supported by: CP/M 1.3 only</H6>
+<P><I>Entered with C=1Eh, E=echo mode (0=no echo, else echo).</I></P>
+<H3><A id=30 name=30>BDOS function 30 (F_ATTRIB) - set file attributes</A></H3>
+<H6>Supported by: All versions</H6>
+<P><I>Entered with C=1Eh, DE=address of FCB. Returns error codes in BA and 
+HL.</I></P>
+<P>Set and reset the bits required. Standard CP/M versions allow the bits F1', 
+F2', F3', F4', T1' (read-only), T2' (system) and T3' (archive) to be changed. 
+Some alternative BDOSses allow F5', F6', F7' and F8' to be set, but this is not 
+to be encouraged since setting these bits can cause CP/M 3 to behave 
+differently.</P>
+<P>Under Concurrent CP/M, if the F5' bit is not set and the file has an extended 
+file lock, the lock will be released when the attributes are set. If F5' is set 
+the lock stays.</P>
+<P>Under CP/M 3, the <A 
+href="http://www.seasip.demon.co.uk/Cpm/bdos.html#lrbc">Last Record Byte 
+Count</A> is set by storing the required value at FCB+32 (FCB+20h) and setting 
+the F6' bit.</P>
+<P>The code returned in A is 0-3 if the operation was successful, or 0FFh if 
+there was an error. Under CP/M 3, if A is 0FFh and H is nonzero, H contains a <A 
+href="http://www.seasip.demon.co.uk/Cpm/errors3.html">hardware error</A>.</P>
+<HR>
+
+<H3><A id=31 name=31>BDOS function 31 (DRV_DPB) - get DPB address</A></H3>
+<H6>Supported by: CP/M 2 and later.</H6>
+<P><I>Entered with C=1Fh. Returns address in HL.</I></P>
+<P>Returns the address of the Disc Parameter Block for the current drive. See 
+the <A href="http://www.seasip.demon.co.uk/Cpm/formats.html">formats listing</A> 
+for details of the DPBs under various CP/M versions.</P>
+<HR>
+
+<H3><A id=32 name=32>BDOS function 32 (F_USERNUM) - get/set user number</A></H3>
+<H6>Supported by: CP/M 2 and later.</H6>
+<P><I>Entered with C=20h, E=number. If E=0FFh, returns number in A.</I></P>
+<P>Set current user number. E should be 0-15, or 255 to retrieve the current 
+user number into A. Some versions can use user areas 16-31, but these should be 
+avoided for compatibility reasons.</P>
+<P>DOS+ returns the number set in A.</P>
+<HR>
+
+<H3><A id=33 name=33>BDOS function 33 (F_READRAND) - Random access read 
+record</A></H3>
+<H6>Supported by: CP/M 2 and later.</H6>
+<P><I>Entered with C=21h, DE=FCB address. Returns error codes in BA and 
+HL.</I></P>
+<P>Read the record specified in the random record count area of the FCB, at the 
+<A href="http://www.seasip.demon.co.uk/Cpm/bdos.html#26">DMA address</A>. The 
+pointers in the FCB will be updated so that the next record to read using the 
+sequential I/O calls will be the record just read. Error numbers returned 
+are:</P>
+<DL>
+  <DT>0 
+  <DD>OK 
+  <DT>1 
+  <DD>Reading unwritten data 
+  <DT>4 
+  <DD>Reading unwritten extent (a 16k portion of file does not exist) 
+  <DT>6 
+  <DD>Record number out of range 
+  <DT>9 
+  <DD>Invalid FCB 
+  <DT>10 
+  <DD>Media changed (CP/M); FCB checksum error (MP/M), 
+  <DT>11 
+  <DD>Unlocked file verification error (MP/M), 
+  <DT>0FFh 
+  <DD>[MP/M II, CP/M 3] <A 
+  href="http://www.seasip.demon.co.uk/Cpm/errors3.html">hardware error</A> in H. 
+  </DD></DL>
+<HR>
+
+<H3><A id=34 name=34>BDOS function 34 (F_WRITERAND) - Random access write 
+record</A></H3>
+<H6>Supported by: CP/M 2 and later.</H6>
+<P><I>Entered with C=22h, DE=FCB address. Returns error codes in BA and 
+HL.</I></P>
+<P>Write the record specified in the random record count area of the FCB, at the 
+<A href="http://www.seasip.demon.co.uk/Cpm/bdos.html#26">DMA address</A>. The 
+pointers in the FCB will be updated so that the next record to write using the 
+sequential I/O calls will be the record just written. Error numbers returned 
+are:</P>
+<DL>
+  <DT>0 
+  <DD>OK 
+  <DT>2 
+  <DD>Disc full 
+  <DT>3 
+  <DD>Cannot close extent 
+  <DT>5 
+  <DD>Directory full 
+  <DT>6 
+  <DD>Record number out of range 
+  <DT>8 
+  <DD>Record is locked by another process (MP/M) 
+  <DT>9 
+  <DD>Invalid FCB 
+  <DT>10 
+  <DD>Media changed (CP/M); FCB checksum error (MP/M) 
+  <DT>11 
+  <DD>Unlocked file verification error (MP/M) 
+  <DT>0FFh 
+  <DD>[MP/M II, CP/M 3] <A 
+  href="http://www.seasip.demon.co.uk/Cpm/errors3.html">hardware error</A> in H. 
+  </DD></DL>If the record indicated is beyond the end of the file, the record will 
+be written and the file may contain a gap; attempting to read this gap may give 
+"reading unwritten data" errors, or nonsense. 
+<HR>
+
+<H3><A id=35 name=35>BDOS function 35 (F_SIZE) - Compute file size</A></H3>
+<H6>Supported by: CP/M 2 and later.</H6>
+<P><I>Entered with C=23h, DE=FCB address. Returns error codes in BA and 
+HL.</I></P>
+<P>Set the random record count bytes of the FCB to the number of 128-byte 
+records in the file. Returns A=0FFh if error (file not found, or CP/M 3 <A 
+href="http://www.seasip.demon.co.uk/Cpm/errors3.html">hardware error</A>); 
+otherwise A=0.</P>
+<HR>
+
+<H3><A id=36 name=36>BDOS function 36 (F_RANDREC) - Update random access 
+pointer</A></H3>
+<H6>Supported by: CP/M 2 and later.</H6>
+<P><I>Entered with C=24h, DE=FCB address.</I></P>
+<P>Set the random record count bytes of the FCB to the number of the last record 
+read/written by the sequential I/O calls.</P>
+<HR>
+
+<H3><A id=37 name=37>BDOS function 37 (DRV_RESET) - Selectively reset disc 
+drives</A></H3>
+<H6>Supported by: CP/M 2 and later.</H6>
+<P><I>Entered with C=25h, DE=bitmap of drives to reset. Returns A=0 if OK, 0FFh 
+if error.</I></P>
+<P>Bit 7 of D corresponds to P: while bit 0 of E corresponds to A:. A bit is set 
+if the corresponding drive should be reset. Resetting a drive removes its 
+software read-only status.</P>
+<HR>
+
+<H3><A id=38 name=38>BDOS function 38 (DRV_ACCESS) - Access drives</A></H3>
+<H6>Supported by: MP/M, Concurrent CP/M, CP/Net redirector.</H6>
+<P><I>Entered with C=26h, DE=drive bitmap.</I></P>
+<P>Locks one or more disc drives. Processes will not be able to reset these 
+drives; the effect is the same as if there were open files on the drives.</P>
+<P>Returns A=0 if OK, and 0FFh if there is an error. If there is, H will contain 
+the <A href="http://www.seasip.demon.co.uk/Cpm/errors3.html">error code</A>.</P>
+<HR>
+
+<H3><A id=39 name=39>BDOS function 39 (DRV_FREE) - Free drive</A></H3>
+<H6>Supported by: MP/M, Concurrent CP/M, CP/Net redirector.</H6>
+<P>Releases locks on disc drives.</P>
+<P><I>Entered with C=27h, DE = bitmap of drives to free</I>.</P>
+<P>Open files on the drives in question must be closed before this call is made, 
+or data may be corrupted.</P>
+<HR>
+
+<H3><A id=40 name=40>BDOS function 40 (F_WRITEZF) - Write random with zero 
+fill</A></H3>
+<H6>Supported by: CP/M 2.2 and later.</H6>
+<P><I>Entered with C=28h, DE=FCB address. Returns error codes in BA and 
+HL.</I></P>
+<P>As <A href="http://www.seasip.demon.co.uk/Cpm/bdos.html#34">function 34</A>, 
+but if the write is to a newly allocated disc block the remainder of the block 
+is filled with zeroes.</P>
+<HR>
+
+<H3><A id=41 name=41>BDOS function 41 - Test and write record</A></H3>
+<H6>Supported by: MP/M, Concurrent CP/M.</H6>
+<P><I>Entered with C=29h, DE=FCB address. Returns error codes in BA and 
+HL.</I></P>
+<P>This function compares the contents of the file with the record at the <A 
+href="http://www.seasip.demon.co.uk/Cpm/bdos.html#26">DMA address</A>. If the 
+comparison is successful, the data at (DMA + record size) are written to the 
+file.</P>
+<P>For example, if the <A 
+href="http://www.seasip.demon.co.uk/Cpm/bdos.html#44">multisector count</A> is 
+set to 4 records, the DMA address will have 512 bytes (4x128) to compare with 
+the file, and then another 512 to write to the file. On return, A is:</P>
+<DL>
+  <DT>0 
+  <DD>OK 
+  <DT>1 
+  <DD>Reading unwritten data 
+  <DT>3 
+  <DD>Cannot close current extent 
+  <DT>4 
+  <DD>Seek to unwritten extent (a 16k portion of file does not exist) 
+  <DT>6 
+  <DD>Record number out of range 
+  <DT>7 
+  <DD>Records did not match 
+  <DT>8 
+  <DD>Record is locked by another process 
+  <DT>10 
+  <DD>FCB checksum error 
+  <DT>11 
+  <DD>Unlocked file verification error 
+  <DT>0FFh 
+  <DD><A href="http://www.seasip.demon.co.uk/Cpm/errors3.html">hardware 
+  error</A> in H. </DD></DL>
+<HR>
+
+<H3><A id=42 name=42>BDOS function 42 (F_LOCK) - Lock record</A></H3>
+<H6>Supported by: MP/M, Concurrent CP/M, CP/Net redirector.</H6>
+<P><I>Entered with C=2Ah, DE=FCB address. Returns error codes in BA and 
+HL.</I></P><!-- CCP/M-86 and interface attributes -->
+<P>This function locks the number of records specified by function <A 
+href="http://www.seasip.demon.co.uk/Cpm/bdos.html#44">44</A>, starting at the 
+record number at FCB+21h. The DMA address should point to the file ID returned 
+by function <A href="http://www.seasip.demon.co.uk/Cpm/bdos.html#15">15</A>. On 
+return, A is:</P>
+<DL>
+  <DT>0 
+  <DD>OK 
+  <DT>1 
+  <DD>Reading unwritten data 
+  <DT>3 
+  <DD>Cannot close current extent 
+  <DT>4 
+  <DD>Seek to unwritten extent (a 16k portion of file does not exist) 
+  <DT>6 
+  <DD>Record number out of range 
+  <DT>8 
+  <DD>Record is locked by another process 
+  <DT>10 
+  <DD>FCB checksum error 
+  <DT>11 
+  <DD>Unlocked file verification error 
+  <DT>12 
+  <DD>No more locks available for this process 
+  <DT>13 
+  <DD>Invalid file ID 
+  <DT>14 
+  <DD>No room in the system lock list 
+  <DT>0FFh 
+  <DD><A href="http://www.seasip.demon.co.uk/Cpm/errors3.html">hardware 
+  error</A> in H. </DD></DL>
+<HR>
+
+<H3><A id=43 name=43>BDOS function 43 (F_UNLOCK) - Unlock record</A></H3>
+<H6>Supported by: MP/M, Concurrent CP/M, CP/Net redirector.</H6>
+<P><I>Entered with C=2Bh, DE=FCB address. Returns error codes in BA and 
+HL.</I></P>
+<P>This function behaves as function <A 
+href="http://www.seasip.demon.co.uk/Cpm/bdos.html#42">42</A> above, but unlocks 
+records rather than locking them. If a record is locked by a different process, 
+it remains locked; but no error is returned.</P>
+<P>Set F5' to 1 to unlock all records rather than just the ones the FCB refers 
+to.</P>
+<HR>
+
+<H3><A id=44 name=44>BDOS function 44 (F_MULTISEC) - Set number of records to 
+read/write at once</A></H3>
+<H6>Supported by: MP/M II and later.</H6>
+<P><I>Entered with C=2Ch, E=number of records. Returns A=0 or 0FFh.</I></P>
+<P>Sets the number of records that functions 14, 15, 31, 32 and 40 should 
+attempt to read at once. E should be 1-16 in MP/M II; 1-127 in CP/M 3 and later. 
+Returns A=0 if E was valid, 0FFh otherwise. The random access counters still 
+operate with 128 bytes/record.</P>
+<HR>
+
+<H3><A id=45 name=45>BDOS function 45 (F_ERRMODE) - Set action on hardware 
+error</A></H3>
+<H6>Supported by: Personal CP/M, MP/M II and later, CP/Net redirector.</H6>
+<P><I>Entered with C=2Dh, E=action.</I></P>
+<P>Instructs CP/M what action to take if there is a <A 
+href="http://www.seasip.demon.co.uk/Cpm/errors3.html">hardware error</A>:</P>
+<DL>
+  <DT>E &lt; 254 
+  <DD>Compatibility mode; program is terminated and an error message printed. 
+  <DT>E = 254 
+  <DD>Error code is returned in H, error message is printed. 
+  <DT>E = 255 
+  <DD>Error code is returned in H, no error message is printed. </DD></DL>
+<P>Note that the messages (if printed) are not followed by a carriage return or 
+linefeed.</P>
+<P>If this function is being provided by CP/Net, then it only affects network 
+errors.</P>
+<HR>
+
+<H3><A id=46 name=46>BDOS function 46 (DRV_SPACE) - Find free space on a 
+drive</A></H3>
+<H6>Supported by: MP/M II and later.</H6>
+<P><I>Entered with C=2Eh, E=drive. Returns error codes in BA and HL.</I></P>
+<P>Sets the three bytes at the <A 
+href="http://www.seasip.demon.co.uk/Cpm/bdos.html#26">DMA address</A> to the 
+number of free 128-byte records on the disc, low byte first. E is the drive (0 
+for A:, 1 for B: etc.). If on return A=0FFh, there is a <A 
+href="http://www.seasip.demon.co.uk/Cpm/errors3.html">hardware error</A> in 
+H.</P>
+<HR>
+
+<H3><A id=47 name=47>BDOS function 47 (P_CHAIN) - Chain to program</A></H3>
+<H6>Supported by: MP/M II and later; CP/M-86 v1.1</H6>
+<P><I>Entered with C=2Fh, E=chain flag. Only returns if it fails.</I></P>
+<P>Execute the command line at 80h. The <A 
+href="http://www.seasip.demon.co.uk/Cpm/bdos.html#108">error return code</A> is 
+not changed, so the new program can discover the status returned by the previous 
+one.</P>
+<P>If E=255, then the currently set drive and user (as set by calls <A 
+href="http://www.seasip.demon.co.uk/Cpm/bdos.html#25">25</A> and <A 
+href="http://www.seasip.demon.co.uk/Cpm/bdos.html#32">32</A>) become those used 
+by the CCP; otherwise the CCP drive and user remain the same.</P>
+<P>In MP/M II, there is no chain flag; and this call will return if the process 
+is not attached to the screen.</P>
+<HR>
+
+<H3><A id=48 name=48>BDOS function 48 (DRV_FLUSH) - Empty disc buffers</A></H3>
+<H6>Supported by: Personal CP/M; MP/M II and later; CP/M-86 v1.1</H6>
+<P><I>Entered with C=30h, E=flag. Returns error codes in BA and HL.</I></P>
+<P>Forces all pending disc writes to be executed. If E=255, then all disc read 
+buffers are emptied as well (so that information must be read from the disc - 
+used by file verification programs).</P>
+<P>Returns A=0FFh if there is a <A 
+href="http://www.seasip.demon.co.uk/Cpm/errors3.html">hardware error</A> in 
+H.</P>
+<HR>
+
+<H3><A id=49 name=49>BDOS function 49 - Access the System Control Block</A></H3>
+<H6>Supported by: CP/M 3.</H6>
+<P><I>Entered with C=31h, DE=address of parameter area. Returned values 
+vary.</I></P>
+<P>The <A href="http://www.seasip.demon.co.uk/Cpm/scb.html">SCB</A> is a 
+100-byte area of memory (officially) used for storing system settings. The 
+parameter area is formed:</P><PRE>pb+0:   DB  offset      ;0-99
+pb+1:   DB  command     ;0    =&gt; Read byte at <I>offset</I> into A, 
+                        ;        and word at <I>offset</I> into HL.
+                        ;0FEh =&gt; Write word at pb+2 to SCB at 
+                        ;        <I>offset</I> and <I>offset</I>+1
+                        ;0FFh =&gt; Write byte at pb+2 to SCB at <I>offset</I>
+</PRE>
+<H3><A id=49c name=49c>BDOS function 49 - Return address of system 
+variables</A></H3>
+<H6>Supported by: CP/M-86 v1.1</H6>
+<P><I>Entered with CL=31h. Returns address in ES:BX.</I></P>
+<P>More information on the <A 
+href="http://www.seasip.demon.co.uk/Cpm/scb86.html">System variables area in 
+CP/M-86</A>.</P>
+<H3><A id=49d name=49d>BDOS function 49 (S_SYSVAR) - Access the system 
+variables</A></H3>
+<H6>Supported by: CP/M-86 v4.</H6>
+<P><I>Entered with CL=31h, DX=address of parameter area. Returns AX=BX=0 if 
+variable is valid, 0FFFFh if invalid.</I></P>
+<P>The BDOS 4.1 system variables contain various system settings. The parameter 
+area is formed:</P><PRE>pb+0:   DB  system variable     ;0-5
+pb+1:   DB  command             ;0    =&gt; Read the specified variable into 
+                                ;           buffer at pb+2.
+                                ;0FFh =&gt; Write data at pb+2 to specified 
+                                ;           variable.
+</PRE>Variables are: <PRE>Number  Length  Description
+0   1   screen width-1
+1   1   screen height-1
+2   1   page mode - 0 if programs like TYPE should give paged output
+3   1   system clock speed in Hz. Cannot be changed.
+4   1   temporary file drive, 0 for current or 1-16 for A: to P:
+5   5   date and time
+            DW  day count, day 1 is 1/1/78
+            DB  BCD hours
+            DB  BCD minutes
+            DB  BCD seconds
+</PRE>
+<P>There are also some undocumented variables with numbers between 80h and 
+92h.</P><PRE>80h 1   If nonzero, an 8087 CPU is present; otherwise it is not.
+81h 1   Current process ID
+82h 26  Data area for current process:
+            DB  drive
+            DB  user
+            DD  DMA
+            DB  current BDOS disc function
+            DB  ?
+            DD  FCB from the last BDOS search call
+            DD  ?
+            DB  Error mode (set by <A href="http://www.seasip.demon.co.uk/Cpm/bdos.html#45">function 45</A>).
+            DB  Multi-record count (set by <A href="http://www.seasip.demon.co.uk/Cpm/bdos.html#44">function 44</A>).
+            DB  Default password (8 bytes)
+83h 1   Length of previous command (recalled by Control-W)
+84h 255 Previous command (recalled by Control-W)
+85h 2   Either the address of the CCP data segment, or a linked list
+        of memory allocations. I'm not sure which.
+86h 255 CCP settings area:
+            DB  CCP drive
+            DB  CCP user
+            DB  Cold start flag (0 if CCP has not run yet)
+            DW  Address of next command in CCP data segment
+            DB  Chained command flag (nonzero if a command
+                    is waiting)
+            DB  ?
+            DB  Search order (0=CMD 1=CMD,SUB 2=SUB,CMD)
+            DB  Program name display flag (1=yes 2=no)
+            DS  7   ;?
+            DB  pending command?
+87h 4   List of drives to search, set by SETDEF.
+88h 1   Set if process is running in the background.
+89h 1   Number of processes in system, 1-4.
+8Ah 1   Value set by SLICE - time slice to give to foreground program.
+8Bh 2   BDOS flags. Bit 7 set if ^S is in operation. Bit 9 set if ^P
+        is in operation.
+8Ch 1   Nonzero if a process is using the 8087; else zero.
+8Dh 4   Address of code to run in task switch?
+8Eh 2   Pointer to array of 16 near pointers in CP/M data segment -
+        addresses of current directory structures for each drive.
+8Fh 5   Multitasker settings
+            DW  comsize ;Memory to give to COM files
+            DW  addmem  ;Memory to give to EXE files
+            DB  f8087   ;8087 enabled or disabled?
+90h 1   Drive containing COMMAND.COM?
+91h 32  DOS 2.x Country Info (see the Interrupt List, INT 21h AH=38h)
+92h 1   SwitChar (see the Interrupt List, INT 21h AH=37h). The SwitChar
+        can only be changed this way.
+
+</PRE>
+<HR>
+
+<H3><A id=50 name=50>BDOS function 50 (S_BIOS) - Use the BIOS</A></H3>
+<H6>Supported by: CP/M 3 and later; CP/M-86 v1.1</H6>
+<P><I>Entered with C=32h, DE=address of parameter area. Returned values 
+vary.</I></P>
+<P>Under CP/M 3, the BIOS should not be directly called, except possibly the 
+character I/O and <A 
+href="http://www.seasip.demon.co.uk/Cpm/bios.html#userf">USERF</A> calls. 
+Instead, this function should be used. The parameter area is formed:</P><PRE>pb+0:   DB  bios-function   ;0-32
+pb+1:   DB  bios-a      ;Value for A register
+pb+2:   DB  bios-c      ;Value for C register
+pb+3:   DB  bios-b      ;Value for B register
+pb+4:   DB  bios-e      ;Value for E register
+pb+5:   DB  bios-d      ;Value for D register
+pb+6:   DB  bios-l      ;Value for L register
+pb+7:   DB  bios-h      ;Value for H register
+</PRE>Under 16-bit versions, this function should be used for all BIOS calls; 
+only character I/O BIOS calls are permitted. The parameter area is formed: <PRE>pb+0:   DB  bios-function
+pb+1:   DB  bios-cl
+pb+2:   DB  bios-ch
+pb+3:   DB  bios-dl
+pb+4:   DB  bios-dh
+</PRE>
+<HR>
+
+<H3><A id=51 name=51>BDOS function 51 (F_DMASEG) - Set DMA segment</A></H3>
+<H6>Supported by: CP/M-86 v1.1 and later.</H6>
+<P><I>Entered with CL=33h, DX=segment value.</I></P>
+<HR>
+
+<H3><A id=52 name=52>BDOS function 52 (F_DMAGET) - Get DMA address</A></H3>
+<H6>Supported by: CP/M-86 v3+, CCP/M-86.</H6>
+<P><I>Entered with CL=34h. Returns address in ES:BX.</I></P>
+<HR>
+
+<H3><A id=53 name=53>BDOS function 53 (MC_MAX) - Allocate maximum 
+memory</A></H3>
+<H6>Supported by: CP/M-86 v1.1 and later.</H6>
+<P><I>Entered with CL=35h, DX=address of <A 
+href="http://www.seasip.demon.co.uk/Cpm/MCB.html">MCB</A></I></P>
+<P>Set MCB_EXT to 2 if the memory should remain allocated after program 
+termination. Set MCB_LENGTH to maximum required length.</P>
+<P>Returns MCB_EXT=0 if no additional memory is available, 1 if there is. Sets 
+MCB_SEGMENT and MCB_LENGTH to the values for the memory block allocated, which 
+will be less than or equal to the size requested. Returns AX=0 if OK, 0FFFFh if 
+error; <A id=53d name=53d>CX=error code</A>:</P><PRE> 0 OK
+ 2 Illegal call number
+ 3 Out of memory
+12 Out of descriptors
+43 Bad Parameter
+</PRE>
+<HR>
+
+<H3><A id=54 name=54>BDOS function 54 (MC_ABSMAX) - Allocate absolute maximum 
+memory</A></H3>
+<H6>Supported by: CP/M-86 v1.1 and later.</H6>
+<P><I>Entered with CL=36h, DX=address of <A 
+href="http://www.seasip.demon.co.uk/Cpm/MCB.html">MCB</A></I></P>
+<P>Set MCB_EXT to 2 if the memory should remain allocated after program 
+termination. Set MCB_LENGTH to maximum required length, and MCB_SEGMENT to the 
+required start paragraph.</P>
+<P>Returns MCB_EXT=0 if no additional memory is available, 1 if there is. Sets 
+MCB_SEGMENT and MCB_LENGTH to the values for the memory block allocated, which 
+will be less than or equal to the size requested. Returns AX=0 if OK, 0FFFFh if 
+error; <A href="http://www.seasip.demon.co.uk/Cpm/bdos.html#53d">CX=error 
+code</A>.</P>
+<H3><A id=54z name=54z>Z80DOS function 54 - Get file time stamps</A></H3>
+<H6>Supported by: Z80DOS, ZPM3</H6>
+<P><I>Entered with C=36h. Returns HL=address of stamp</I>.</P>
+<P>This returns the timestamp from the last file used by functions <A 
+href="http://www.seasip.demon.co.uk/Cpm/bdos.html#15">15</A>, <A 
+href="http://www.seasip.demon.co.uk/Cpm/bdos.html#17">17</A> or <A 
+href="http://www.seasip.demon.co.uk/Cpm/bdos.html#18">18</A>. The format of a 
+Z80DOS timestamp is:</P><PRE>    DW  creation date
+    DW  modification date
+    DB  modification time, hours,   BCD
+    DB  modification time, minutes, BCD
+    DW  last access date
+    DB  last access time, hours, BCD
+    DW  last access time, minutes, BCD
+</PRE>
+<P><A href="http://www.seasip.demon.co.uk/Cpm/dosses.html">More information on 
+Z80DOS and ZPM3</A>.</P>
+<HR>
+
+<H3><A id=55 name=55>BDOS function 55 (MC_ALLOC) - Allocate memory</A></H3>
+<H6>Supported by: CP/M-86 v1.1 and later.</H6>
+<P><I>Entered with CL=37h, DX=address of <A 
+href="http://www.seasip.demon.co.uk/Cpm/MCB.html">MCB</A></I></P>
+<P>Set MCB_EXT to 2 if the memory should remain allocated after program 
+termination. Set MCB_LENGTH to maximum required length.</P>
+<P>Returns MCB_EXT=0 if no additional memory is available, 1 if there is. Sets 
+MCB_SEGMENT and MCB_LENGTH to the values for the memory block allocated, which 
+will be exactly the size requested. Returns AX=0 if OK, 0FFFFh if error; <A 
+href="http://www.seasip.demon.co.uk/Cpm/bdos.html#53d">CX=error code</A>.</P>
+<H3><A id=54z name=54z>Z80DOS function 55 - Use file time stamps</A></H3>
+<H6>Supported by: Z80DOS, ZPM3</H6>
+<P><I>Entered with C=37h</I>.</P>
+<P>The next BDOS call will use the <A 
+href="http://www.seasip.demon.co.uk/Cpm/bdos.html#54z">timestamp buffer</A> 
+returned by function <A 
+href="http://www.seasip.demon.co.uk/Cpm/bdos.html#54z">54</A>, rather than the 
+current time. This would normally done before <A 
+href="http://www.seasip.demon.co.uk/Cpm/bdos.html#22">creating</A> or <A 
+href="http://www.seasip.demon.co.uk/Cpm/bdos.html#16">closing</A> the file.</P>
+<HR>
+
+<H3><A id=56 name=56>BDOS function 56 (MC_ABSALLOC) - Allocate absolute 
+memory</A></H3>
+<H6>Supported by: CP/M-86 v1.1 and later.</H6>
+<P><I>Entered with CL=38h, DX=address of <A 
+href="http://www.seasip.demon.co.uk/Cpm/MCB.html">MCB</A></I></P>
+<P>Set MCB_EXT to 2 if the memory should remain allocated after program 
+termination. Set MCB_LENGTH to maximum required length, and MCB_SEGMENT to the 
+required start paragraph.</P>
+<P>Returns MCB_EXT=0 if no additional memory is available, 1 if there is. Sets 
+MCB_SEGMENT and MCB_LENGTH to the values for the memory block allocated, which 
+will be exactly the size requested. Returns AX=0 if OK, 0FFFFh if error; <A 
+href="http://www.seasip.demon.co.uk/Cpm/bdos.html#53d">CX=error code</A>.</P>
+<P>In the 4.1 BDOS (and possibly earlier) it is possible to call this with 
+MCB_EXT set to 2 on a memory block that has already been allocated; this will 
+make the block remain after program termination if it didn't before.</P>
+<HR>
+
+<H3><A id=57 name=57>BDOS function 57 (MC_FREE) - Free memory</A></H3>
+<H6>Supported by: CP/M-86 v1.1 and later.</H6>
+<P><I>Entered with CL=39h, DX=address of <A 
+href="http://www.seasip.demon.co.uk/Cpm/MCB.html">MCB</A></I></P>
+<P>Set MCB_SEGMENT to start of area, MCB_LENGTH to length. It is not possible to 
+deallocate the middle or start of an area which was allocated as one piece. Set 
+MCB_EXT to 0 to free the specified MCB, or 0FFh to free all this program's 
+memory. Returns AX=0 if OK, 0FFFFh if error; <A 
+href="http://www.seasip.demon.co.uk/Cpm/bdos.html#53d">CX=error code</A>.</P>
+<HR>
+
+<H3><A id=58 name=58>BDOS function 58 (MC_ALLFREE) - Free all memory</A></H3>
+<H6>Supported by: CP/M-86 v1.1 and later.</H6>
+<P><I>Entered with CL=3Ah.</I> This function is obsolete in CP/M-86 v3.x+. In 
+CP/M-86 v1.1, it is called by the CCP to empty memory before a new program is 
+loaded. In Concurrent CP/M, it should not be called by user programs.</P>
+<HR>
+
+<H3><A id=59 name=59>BDOS function 59 (P_LOAD) - Load overlay</A></H3>
+<H6>Supported by: CP/M 3 and higher Loaders.</H6>
+<P><I>Entered with C=3Bh, DE=FCB address. Returns error code in A.</I></P>
+<P>Load a program or RSX. The FCB should have been opened before making this 
+call; the load address should be stored at FCB+21h. If the program is a PRL 
+(Paged Relocatable), the original CP/M loader will relocate it; some replacement 
+loaders, such as that in <A 
+href="http://www.seasip.demon.co.uk/Cpm/files.html#ccp105p">CCP+</A> need a 
+special flag set to indicate this.</P>
+<P>If DE=0, the Loader will not load anything, but it will remove from the RSX 
+chain any RSXs marked as due for deletion.</P>
+<P>Returns A=0 if OK, 0FEh if there was an error, or 0FFh if the Loader is not 
+present.</P>
+<P>In CP/M-86 operating systems, this will load the CMD file at the DMA address, 
+and returns the segment of the Zero Page allocated to the program in BX.</P>
+<HR>
+
+<H3><A id=60 name=60>BDOS function 60 - Call to RSX</A></H3>
+<H6>Supported by: CP/M 3 and later RSXs.</H6>
+<P><I>Entered with C=3Ch, DE=RSXPB address</I></P>
+<P>This call is provided for programs to communicate with Resident System 
+Extensions. There is a <A 
+href="http://www.seasip.demon.co.uk/Cpm/rsxcalls.html">separate list</A> of 
+functions provided by specific RSXs. The format of the RSXPB is:</P><PRE>    DEFB    function, 0-127 ;(128-255 used internally by CP/M)
+    DEFB    numwords    ;Number of parameter words passed to RSX.
+    DEFW    parameters
+</PRE>A popular convention is for the first parameter word to point to a copy 
+within the program of the name of the intended RSX; for example: <PRE>RSXPB:  DEFB    100     ;Function
+        DEFB    1       ;1 Parameter
+        DEFW    RNAME   ;RSX name
+RNAME:  DEFB    'GETERL  '
+</PRE>This call returns BA=HL=00FFh if the requested RSX is not resident; 
+otherwise, the values are those returned by the RSX. 
+<HR>
+
+<H3><A id=61 name=61>BDOS function 61 - Rename file</A></H3>
+<H6>Supported by: DOS Plus v2.1</H6>
+<P><I>Entered with C=3Dh, DE=address of FCB. Returns error codes in BA and 
+HL.</I></P>
+<P>This works the same way as the <A 
+href="http://www.seasip.demon.co.uk/Cpm/bdos.html#23">normal rename 
+function</A>, except that it can rename a file across drives if the two drives 
+are 'really' the same (that is, one is a floating drive and the other is its 
+host).</P>
+<HR>
+
+<H3><A id=62 name=62>BDOS function 62 - Unknown</A></H3>
+<H6>Supported by: DOS Plus v2.1</H6>
+<P>This is a function that was internal to DOS Plus 1.2 and earlier. It 
+allocates a new current directory structure for the active process.</P>
+<HR>
+
+<H3><A id=64 name=64>BDOS function 64 - Log in</A></H3>
+<H6>Supported by: CP/Net.</H6>
+<P><I>Enter with C=40h, DE=address of login record:</I></P><PRE>    DB  network ID of server
+    DS  8   ;Password
+</PRE>
+<P>Network IDs are 0-254. The server is normally number 0.</P>
+<P>Returns A=0 if successful or already logged in; 0FFh if failed. Logging in 
+can fail if the server does not exist, or the password was incorrect.</P>
+<HR>
+
+<H3><A id=65 name=65>BDOS function 65 - Log off</A></H3>
+<H6>Supported by: CP/Net.</H6>
+<P><I>Enter with C=41h, E=network ID of server</I></P>
+<P>Returns A=0 if OK, or 0FFh if not logged on to the server anyway.</P>
+<HR>
+
+<H3><A id=66 name=66>BDOS function 66 - Send message</A></H3>
+<H6>Supported by: CP/Net.</H6>
+<P><I>Enter with C=42h, DE=address of message.</I></P>
+<P>The format of a normal CP/Net message is:</P><PRE>    [--FMT--]  Format code, 1 byte. 0-7 are standard CP/Net message formats.
+    [--DID--]  Destination computer's network ID; normally 1 byte.
+    [--SID--]  Source computer's network ID; normally 1 byte. 
+    [--FNC--]  Function code; for standard messages, BDOS function number.
+               Always 1 bytes. 
+    [--SIZ--]  Message size - 1; normally 1 byte.
+    [--MSG--]  Message data; normally 1-256 bytes.
+</PRE>
+<P>The 8 standard message formats are treated as bitfields:</P><PRE>Bit 0: 0 for command, 1 for returned result.
+Bit 1: Message data is more than 256 bytes. The "siz" field is a word and
+       the data can be up to 64k.
+Bit 2: Destination ID and source ID are words, not bytes.
+</PRE>
+<P>Thus giving eight packet types:</P><PRE>0   Command    5 bytes header  1-256 bytes data   8-bit network IDs
+1   Result     5 bytes header  1-256 bytes data   8-bit network IDs
+2   Command    6 bytes header  1-64k data         8-bit network IDs
+3   Result     6 bytes header  1-64k data         8-bit network IDs
+4       Command    7 bytes header  1-256 bytes data  16-bit network IDs
+5       Result     7 bytes header  1-256 bytes data  16-bit network IDs
+6       Command    8 bytes header  1-64k data        16-bit network IDs
+7       Result     8 bytes header  1-64k data        16-bit network IDs
+</PRE>
+<P>In 8-bit systems, the NDOS only uses formats 0 and 1.</P>
+<P>If the normal format is not used, the computers sending and receiving the 
+message must have a modified NIOS (Network I/O system) so they can correctly 
+handle the nonstandard message.</P>
+<P>DRI also state that the format code should be greater than 128, so that the 
+message is not mistaken for a one sent by CP/Net itself. This seems to imply 
+that formats 128-135 should be used for messages in the 8 normal formats.</P>
+<P>This call does not wait for a reply. Use <A 
+href="http://www.seasip.demon.co.uk/Cpm/bdos.html#67">function 67</A> to get a 
+reply.</P>
+<P>Returns BA = HL = 0FFFFh if an error occurred; else 0.</P>
+<HR>
+
+<H3><A id=67 name=67>BDOS function 67 - Receive message</A></H3>
+<H6>Supported by: CP/Net.</H6>
+<P><I>Enter with C=43h, DE=address of buffer for message.</I></P>
+<P>Message format is as given above.</P>
+<HR>
+
+<H3><A id=68 name=68>BDOS function 68 - Get network status</A></H3>
+<H6>Supported by: CP/Net.</H6>
+<P><I>Enter with C=44h. Returns A=L=status byte.</I></P><PRE>    Bit 0 set if error transmitting data.
+    Bit 1 set if error in received data.
+    Bit 4 set if this computer is logged on to the network.
+</PRE>Bits 0 and 1 will be cleared after they have been read by this function. 
+<HR>
+
+<H3><A id=69 name=69>BDOS function 69 - Get configuration table address</A></H3>
+<H6>Supported by: CP/Net.</H6>
+<P><I>Enter with C=45h. Returns HL = address of table.</I></P>
+<P>Format of the table is:</P><PRE>    DB  <A href="http://www.seasip.demon.co.uk/Cpm/bdos.html#68">Network status byte</A>
+    DB  Computer's network ID
+    DS  32  ;Redirection status of 16 drives
+    DS  2   ;Redirection status of console
+    DS  2   ;Redirection status of printer
+    DB  no. of characters in printer buffer
+    DS  5   ;<A href="http://www.seasip.demon.co.uk/Cpm/bdos.html#66">Message header</A> for printer output
+    DB  printer device number
+    DS  128 ;Printer buffer
+</PRE>A redirection status entry is two bytes: <PRE>    DB  Bit 7 set if device is on a different machine.
+        Bit 6 set for "set up in disk".
+        Bits 0-3 = drive number / device number on its local machine.
+    DB  Network ID of the machine containing the device.
+</PRE>
+<HR>
+
+<H3><A id=70 name=70>BDOS function 70 - Set compatibility attributes</A></H3>
+<H6>Supported by: CP/Net-86, some 8-bit CP/Net versions.</H6>
+<P><I>Enter with C=46h, E=compatibility info. No return.</I></P>
+<P>The compatibility attributes are used to make a network server behave more 
+like a local drive on a single-user system, for compatibility with ill-behaved 
+programs. They are set from the "user attributes" F1'-F4' of the current .COM 
+file being run on the client machine.</P>
+<DL>
+  <DT>F1' 
+  <DD>Disable file locking. There is no protection against two programs writing 
+  to the same file at the same time. 
+  <DT>F2' 
+  <DD>File close operations write pending data and update the directory, but the 
+  file is not closed and can still be accessed. 
+  <DT>F3' 
+  <DD>Disable FCB checksumming for file close operations. 
+  <DT>F4' 
+  <DD>Disable FCB checksumming completely. This can cause filesystem damage. 
+  </DD></DL>
+<P>These attributes are passed in E:</P><PRE>Bit 7: F1', disable locking.
+Bit 6: F2', file close is partial.
+Bit 5: F3', disable checksum on close file.
+Bit 4: F4', disable checksum on all FCB operations (also set bits 5 &amp; 6).
+</PRE>
+<HR>
+
+<H3><A id=71 name=71>BDOS function 71 - Get server configuration</A></H3>
+<H6>Supported by: CP/Net-86, some 8-bit CP/Net versions.</H6>
+<P><I>Enter with C=47h, E=server ID. Returns HL = address of table.</I></P>
+<P>The table returned is:</P><PRE>    DB  server temporary file drive
+    DB  server network status
+    DB  server ID
+    DB  max clients on this server
+    DB  current no. of clients on this server
+    DW  bitmap of clients logged in to the server
+    DS  16  ;Requester ID table
+</PRE>
+<P>Each call to this function uses the same buffer, so take a copy of the data 
+if calling this repeatedly.</P>
+<HR>
+
+<H3><A id=98 name=98>BDOS function 98 - Clean up disc</A></H3>
+<H6>Supported by: CP/M 3 (Internal?).</H6>
+<P><I>Entered with C=62h. Returns A=0 if OK, 0FFh if current drive is 
+invalid</I></P>
+<P>This function is called by the CCP when a program terminates. Open files are 
+closed; buffered data are not written, so files opened for writing may be 
+destroyed if not properly closed.</P>
+<HR>
+
+<H3><A id=99 name=99>BDOS function 99 (F_TRUNCATE) - Truncate file</A></H3>
+<H6>Supported by: CP/M 3 and later.</H6>
+<P><I>Entered with C=63h, DE=FCB address. Returns error codes in BA and 
+HL.</I></P>
+<P>Set the random record count of the FCB to the required file size in records. 
+If the file is password protected, point the <A 
+href="http://www.seasip.demon.co.uk/Cpm/bdos.html#26">DMA</A> address at the 
+password. Returns A=0-3 for success, 0FFh for failure; H may contain a <A 
+href="http://www.seasip.demon.co.uk/Cpm/errors3.html">hardware error</A> 
+code.</P>
+<P>Under Concurrent CP/M, if the F5' bit is not set and the file has an extended 
+file lock, the lock will be released when the file is truncated. If F5' is set 
+the lock stays.</P>
+<P>This function can't be used to extend a file, only reduce it; and if the file 
+is sparse, then it must truncate it to a point where the last record contains 
+actual data.</P>
+<HR>
+
+<H3><A id=100 name=100>BDOS function 100 (DRV_SETLABEL) - Set directory 
+label</A></H3>
+<H6>Supported by: MP/M II and later.</H6>
+<P><I>Entered with C=64h, DE=FCB. Returns error codes in BA and HL.</I></P>
+<P>The EX byte (FCB+0Ch) of the FCB should contain a flags byte:</P><PRE>Bit   Meaning if set
+----------------------------------------
+7     Passwords enabled
+6     Stamp on access
+5     Stamp on update
+4     Stamp on creation
+0     Assign password at DMA+8 to label.
+</PRE>This function may need a password at the <A 
+href="http://www.seasip.demon.co.uk/Cpm/bdos.html#26">DMA</A> address, if there 
+is a label on the disc which has a password. 
+<P>This function returns A=0 if OK, 0FFh for failure. H may contain a <A 
+href="http://www.seasip.demon.co.uk/Cpm/errors3.html">hardware error</A> 
+code.</P>
+<HR>
+
+<H3><A id=101 name=101>BDOS function 101 (DRV_GETLABEL) - Get directory label 
+byte</A></H3>
+<H6>Supported by: MP/M II and later.</H6>
+<P><I>Entered with C=65h, E=drive. Returns A=byte</I></P>
+<P>The byte returned has the following bits set:</P><PRE>Bit   Meaning if set
+----------------------------------------
+7     Passwords enabled
+6     Stamp on access
+5     Stamp on update
+4     Stamp on creation
+0     Directory label exists
+</PRE>If bit 0 is zero, the other bits are meaningless. 
+<P>If a label does exist, it can be found using functions <A 
+href="http://www.seasip.demon.co.uk/Cpm/bdos.html#17">17</A> and <A 
+href="http://www.seasip.demon.co.uk/Cpm/bdos.html#18">18</A> with the first 13 
+bytes of the FCB set to "?", and checking for a file whose user number is 
+32.</P>
+<HR>
+
+<H3><A id=102 name=102>BDOS function 102 (F_TIMEDATE) - Get file date and 
+time</A></H3>
+<H6>Supported by: MP/M II and later.</H6>
+<P><I>Entered with C=66h, DE=FCB address. Returns error codes in BA and 
+HL.</I></P>
+<P>Gets the file date and time stamps, and the password mode. The stamps end up 
+at FCB+18h (create or access), FCB+1Ch (update); the password mode ends up at 
+FCB+0Ch. This returns A=0-3 for success, or 0FFh for failure. To tell whether a 
+stamp is for creation or access, check the <A 
+href="http://www.seasip.demon.co.uk/Cpm/bdos.html#101">directory label 
+byte</A>.</P>
+<P>For information on the format of date and time stamps, see <A 
+href="http://www.seasip.demon.co.uk/Cpm/bdos.html#104">the date and time 
+calls</A>. The password mode is documented in the next function.</P>
+<HR>
+
+<H3><A id=103 name=103>BDOS function 103 (F_WRITEXFCB) - Set file password and 
+protection</A></H3>
+<H6>Supported by: MP/M II and later.</H6>
+<P><I>Entered with C=67h, DE=FCB address. Returns error codes in BA and 
+HL.</I></P>
+<P>Sets file password and protection mode. Set FCB+0Ch to the required password 
+mode, and point the <A href="http://www.seasip.demon.co.uk/Cpm/bdos.html#26">DMA 
+address</A> at the current password. The password mode byte should have the 
+following bits set:</P><PRE>Bit   Meaning if set
+----------------------------------------
+7     Reading requires password
+6     Writing requires password
+5     Deletion requires password
+0     Assign password at DMA+8 to file.
+</PRE>
+<HR>
+
+<H3><A id=104 name=104>BDOS function 104 (T_SET) - Set date and time</A></H3>
+<H6>Supported by: MP/M II and later; Z80DOS, DOS+.</H6>
+<P><I>Entered with C=68h, DE=address of time stamp.</I></P>
+<P>The format of the time stamp is:</P><PRE>    DW  day ;Day 1 is 1 January 1978
+    DB  hour    ;Packed BCD
+    DB  minute  ;Packed BCD
+[   DB  second  ;Packed BCD; only on Z80DOS and DOS+ ]
+</PRE>Under MP/M II and CP/M 3, the "seconds" counter will be reset to zero when 
+this function is called. Under Z80DOS and DOS+, the "seconds" counter will be 
+set from the time stamp. 
+<HR>
+
+<H3><A id=105 name=105>BDOS function 105 (T_GET) - Get date and time</A></H3>
+<H6>Supported by: MP/M II and later; Z80DOS, DOS+.</H6>
+<P><I>Entered with C=69h, DE=address of time stamp. Returns A=seconds (packed 
+BCD).</I></P>
+<P>The format of the time stamp is:</P><PRE>    DW  day ;Day 1 is 1 January 1978
+    DB  hour    ;Packed BCD
+    DB  minute  ;Packed BCD
+[   DB  second  ;Packed BCD - only in Z80DOS and DOS+]
+</PRE>Under MP/M II and later versions, the "seconds" value will be returned in 
+A. 
+<HR>
+
+<H3><A id=106 name=106>BDOS function 106 (F_PASSWD) - Set default 
+password</A></H3>
+<H6>Supported by: MP/M II and above, CP/Net redirector.</H6>
+<P><I>Entered with C=6Ah, DE=address of password.</I></P>
+<P>Sets the default password, used for all file operations requiring passwords 
+when no password is given explicitly.</P>
+<HR>
+
+<H3><A id=107 name=107>BDOS function 107 (S_SERIAL) - Get serial number</A></H3>
+<H6>Supported by: MP/M II and above.</H6>
+<P><I>Entered with C=6Bh, DE=address of buffer.</I></P>
+<P>Stores a 6-byte serial number at the address given by DE. Usually this number 
+will be printable ASCII.</P>
+<HR>
+
+<H3><A id=108 name=108>BDOS function 108 (P_CODE) - Get/put program return 
+code</A></H3>
+<H6>Supported by: CP/M 3 and above.</H6>
+<P><I>Entered with C=6Ch, DE=code. Returns HL=code.</I></P>
+<P>If DE=0FFFFh, then the current code is returned in HL. Otherwise, it is set 
+to the value in DE. Allowable values are:</P>
+<DL>
+  <DT>00000h - 0FEFFh 
+  <DD>No fatal error 
+  <DT>0FF00h - 0FF7Fh 
+  <DD>Fatal error 
+  <DT>0FF80h - 0FFFCh 
+  <DD>Reserved 
+  <DT>0FFFDh 
+  <DD>Program terminated because of a <A 
+  href="http://www.seasip.demon.co.uk/Cpm/errors3.html">hardware error</A>. 
+  <DT>0FFFEh 
+  <DD>Program terminated by Control-C. </DD></DL>If a program was chained by <A 
+href="http://www.seasip.demon.co.uk/Cpm/bdos.html#47">function 47</A>, an error 
+code stored by the previous program will be available to it. Otherwise the CCP 
+sets the return code to zero when it executes a program (some replacement CCPs 
+do not do this). 
+<P>If the error code is 0FF00h or above, and the next command begins with the 
+character <CODE>:</CODE> then it will not be run.</P>
+<HR>
+
+<H3><A id=109 name=109>BDOS function 109 (C_MODE) - Set or get console 
+mode</A></H3>
+<H6>Supported by: Personal CP/M; CP/M 3 and above</H6>
+<P><I>Entered with C=6Dh, DE=mode or 0FFFFh. Returns HL=mode.</I></P>
+<P>The mode is a bitmapped value. Under CP/M 3, the significant bits are:</P><PRE>0  If set, function <A href="http://www.seasip.demon.co.uk/Cpm/bdos.html#11">11</A> detects only ^C.
+1  If set, ^S does not pause screen output.
+2  If set, output does not expand tabs, nor is it echoed to the printer even 
+   if ^P was pressed.
+3  If set, ^C does not cause the program to terminate.
+4  Behaves like bit 2. The BDOS source comments imply it also signifies 
+   "escape sequence decoding" but whatever this is, it is not implemented in 
+   the CP/M 3 BDOS.
+7  Under CCP/M, if set, ^O does not act as a byte bucket.
+
+8  } These form a 2-bit number controlling GET and SUBMIT:
+9  }
+    0  Return "conditional" status to function <A href="http://www.seasip.demon.co.uk/Cpm/bdos.html#11">11</A>.
+             Programs using function 11 to test for interruption (eg SID) are 
+             not interrupted, but those using it to test for input do get the
+             input. It does this by returning "false", then "true".
+        1  Function 11 always returns "true".
+        2  Function 11 always returns "false".
+        3  Temporarily disable GET/SUBMIT, input comes from keyboard.
+</PRE>Under Personal CP/M, only one bit is used: <PRE>4  If set, tab expansion, ^S and ^P are disabled during screen output.
+</PRE>
+<HR>
+
+<H3><A id=110 name=110>BDOS function 110 (C_DELIMIT) - Get/set string 
+delimiter</A></H3>
+<H6>Supported by: Personal CP/M; CP/M 3 and above</H6>
+<P><I>Entered with C=6Eh, DE=0FFFFh or ASCII value. Returns ASCII value in 
+A.</I></P>
+<P>This function gets or sets the string delimiter (used in function <A 
+href="http://www.seasip.demon.co.uk/Cpm/bdos.html#9">9</A> to mark the end of 
+the string to print). If DE=0FFFFh, this gets the current ASCII value into A; 
+otherwise it sets the delimiter to the value in E.</P>
+<HR>
+
+<H3><A id=111 name=111>BDOS function 111 (C_WRITEBLK) - Send block of text to 
+console</A></H3>
+<H6>Supported by: Personal CP/M; CP/M 3 and above</H6>
+<P><I>Entered with C=6Fh, DE=address of character control block.</I></P>
+<P><A id=CCB name=CCB>For 8-bit CP/M, the character control block is 
+formed:</A></P><PRE>    DW  text_begin
+    DW  text_length
+</PRE>For 16-bit CP/M, it is formed: <PRE>    DW  text_begin_offset
+    DW  text_begin_segment
+    DW  text_length
+</PRE>
+<HR>
+
+<H3><A id=112 name=112>BDOS function 112 (L_WRITEBLK) - Send block of text to 
+printer</A></H3>
+<H6>Supported by: Personal CP/M; CP/M 3 and above</H6>
+<P><I>Entered with C=70h, DE=address of character control block.</I></P>
+<P><A href="http://www.seasip.demon.co.uk/Cpm/bdos.html#CCB">Format of character 
+control block</A></P>
+<HR>
+
+<H3><A id=113 name=113>BDOS function 113 - Direct screen functions</A></H3>
+<H6>Supported by: Personal CP/M.</H6>
+<P><I>Entered with C=71h, DE=address of parameter block.</I></P>
+<P>This function is implemented by the PCP/M BIOS. The first byte of the 
+parameter block gives an operation code, 0-27.</P>
+<HR>
+
+<H3><A id=115 name=115>BDOS function 115 - Reserved for GSX</A></H3>
+<H6>Supported by: GSX (Graphics System Extension)</H6>
+<P><I>Entered with C=73h, DE=parameter block address.</I></P>
+<P><A href="http://www.seasip.demon.co.uk/Cpm/gsx.html">Follow this link</A> for 
+more information on the GSX calls.</P>
+<HR>
+
+<H3><A id=116 name=116>BDOS function 116 - Set file date &amp; time</A></H3>
+<H6>Supported by: CP/M-86 v4.</H6>
+<P><I>Entered with CL=74h, DX=FCB address. Returns AX=BX=error code.</I></P>
+<P>The required stamps should be put at the <A 
+href="http://www.seasip.demon.co.uk/Cpm/bdos.html#26">DMA address</A>. Returns 
+AL = 0-3 for success, or 0FFh for failure.</P>
+<HR>
+
+<H3><A id=117 name=117>BDOS function 117 - BDOS v4.x internal</A></H3>
+<H6>Supported by: CP/M-86 v4.</H6>
+<P><I>Entered with CL=75h, DX=PB address. Returns AX=BX=error code.</I></P>
+<P>This appears to make a call to the disc drivers; INT 13h calls are routed 
+through this function. The parameter block is:</P><PRE>    DB  0 to read, 1 to write (2 to verify?)
+    DB  drive
+    DB  no. of sectors
+    DB  head
+    DB  sector (0 based)
+    DB  cylinder
+    DD  address of data
+</PRE>
+<HR>
+
+<H3><A id=124 name=124>BDOS function 124 - Byte block copy</A></H3>
+<H6>Supported by: Personal CP/M.</H6>
+<P>This call is passed directly to the BIOS. On the Sharp MZ-800 version of 
+PCP/M, it has no effect and returns with A = 0FFh.</P>
+<HR>
+
+<H3><A id=125 name=125>BDOS function 125 - Byte block alter</A></H3>
+<H6>Supported by: Personal CP/M.</H6>
+<P>This call is passed directly to the BIOS. On the Sharp MZ-800 version of 
+PCP/M, it has no effect and returns with A = 0FFh.</P>
+<HR>
+
+<H3><A id=128 name=128>XDOS function 128 (M_ALLOC) - Absolute memory 
+request</A></H3>
+<H6>Supported by: MP/M, Concurrent CP/M</H6>
+<P><I>Entered with C=80h, DE=address of <A 
+href="http://www.seasip.demon.co.uk/Cpm/MPB.html">MPB</A>. Returns A=0 if memory 
+allocated, 0FFh if error.</I></P>
+<P>Allocates memory at the requested address. If successful sets the MIN and MAX 
+fields to the size allocated.</P>
+<P>In 16-bit operating systems, this function and the next are interchangeable; 
+they check the START field of the MPB to determine whether a fixed address is 
+requested or not.</P>
+<HR>
+
+<H3><A id=129 name=129>BDOS function 129 (M_ALLOC) - Relocatable memory 
+request</A></H3>
+<H6>Supported by: MP/M</H6>
+<P><I>Entered with C=81h, DE=address of <A 
+href="http://www.seasip.demon.co.uk/Cpm/MPB.html">MPB</A>. Returns A=0 if memory 
+allocated, 0FFh if error.</I></P>
+<P>Allocates memory. If successful sets the first word of the MPB to the 
+allocated address, and the MIN and MAX fields to the size allocated.</P>
+<HR>
+
+<H3><A id=130 name=130>BDOS function 130 (M_FREE) - Free memory</A></H3>
+<H6>Supported by: MP/M, Concurrent CP/M</H6>
+<P><I>Entered with C=82h, DE=address of Memory Free Parameter Block. Returns A=0 
+if memory freed, 0FFh if error.</I></P>
+<P>The MFPB is formed:</P><PRE>        DW      address ;of memory previously allocated with M_ALLOC
+        DW      0
+</PRE>
+<HR>
+
+<H3><A id=131 name=131>BDOS function 131 (DEV_POLL) - Poll I/O device</A></H3>
+<H6>Supported by: MP/M, Concurrent CP/M</H6>
+<P><I>Entered with C=83h, E=device number. Returns A=0 if OK, 0FFh if error. 
+</I></P>
+<P>Blocks until the device in question is ready, polling it on every interrupt. 
+The XIOS should call this if a process is waiting on a device that isn't 
+interrupt driven.</P>
+<HR>
+
+<H3><A id=132 name=132>BDOS function 132 (DEV_WAITFLAG) - Wait on system 
+flag</A></H3>
+<H6>Supported by: MP/M, Concurrent CP/M</H6>
+<P><I>Entered with C=84h, E=flag number. Returns A=0 if OK, 0FFh if error. 
+</I></P>
+<P>Blocks until <A 
+href="http://www.seasip.demon.co.uk/Cpm/bdos.html#133">DEV_SETFLAG</A> is called 
+on the flag in question. Flags 0-3 are reserved for the BDOS; others are system 
+dependent.</P>
+<HR>
+
+<H3><A id=133 name=133>BDOS function 133 (DEV_SETFLAG) - Set system 
+flag</A></H3>
+<H6>Supported by: MP/M, Concurrent CP/M</H6>
+<P><I>Entered with C=85h, E=flag number. Returns A=0 if OK, 0FFh if error. 
+</I></P>
+<P>Called by the XIOS interrupt handler to restart a process that's waiting on 
+the given system flag.</P>
+<HR>
+
+<H3><A id=134 name=134>BDOS function 134 (Q_MAKE) - Create message 
+queue</A></H3>
+<H6>Supported by: MP/M, Concurrent CP/M</H6>
+<P><I>Entered with C=86h, DE=address of queue descriptor. Returns A=0 if OK, 
+0FFh if error.</I></P>
+<P>The queue descriptor is formed:</P><PRE>	DW	0,0	;Reserved
+	DW	flags	;Bit 0: Mutual exclusion queue
+			;Bit 1: Cannot be deleted
+			;Bit 2: Restricted to system processes
+			;Bit 3: RSP message queue
+			;Bit 4: Reserved
+			;Bit 5: RPL address queue
+			;Bits 6,7: Reserved
+	DB	'  name  '
+	DW	msglen	;Number of bytes in a message 
+	DW	nmsg	;Number of messages in this queue
+	DW	0,0,0,0	;Reserved
+	DW	buffer	;Address of the queue buffer, which must be 
+			;at least msglen * nmsg bytes long.	
+</PRE>
+<HR>
+
+<H3><A id=135 name=135>BDOS function 135 (Q_OPEN) - Open message queue</A></H3>
+<H6>Supported by: MP/M, Concurrent CP/M</H6>
+<P><I>Entered with C=87h, DE=address of closed <A 
+href="http://www.seasip.demon.co.uk/Cpm/qpb.html">QPB</A>. Returns A=0 if OK, 
+0FFh if error.</I></P>
+<P>Opens the specified message queue. All 8 bits of the queue name are compared, 
+unlike filename matches.</P>
+<HR>
+
+<H3><A id=136 name=136>BDOS function 136 (Q_DELETE) - Delete message 
+queue</A></H3>
+<H6>Supported by: MP/M, Concurrent CP/M</H6>
+<P><I>Entered with C=88h, DE=address of open <A 
+href="http://www.seasip.demon.co.uk/Cpm/qpb.html">QPB</A>. Returns A=0 if OK, 
+0FFh if error.</I></P>
+<P>Deletes the specified message queue from the system.</P>
+<HR>
+
+<H3><A id=137 name=137>BDOS function 137 (Q_READ) - Read from message 
+queue</A></H3>
+<H6>Supported by: MP/M, Concurrent CP/M</H6>
+<P><I>Entered with C=89h, DE=address of open <A 
+href="http://www.seasip.demon.co.uk/Cpm/qpb.html">QPB</A>. Returns A=0 if OK, 
+0FFh if error.</I></P>
+<P>If there's nothing to read, then the call blocks until there is 
+something.</P>
+<HR>
+
+<H3><A id=138 name=138>BDOS function 138 (Q_CREAD) - Conditionally read from 
+message queue</A></H3>
+<H6>Supported by: MP/M, Concurrent CP/M</H6>
+<P><I>Entered with C=8Ah, DE=address of open <A 
+href="http://www.seasip.demon.co.uk/Cpm/qpb.html">QPB</A>. Returns A=0 if OK, 
+0FFh if error or there's nothing to read.</I></P>
+<P>As <A href="http://www.seasip.demon.co.uk/Cpm/bdos.html#137">Q_READ</A>, but 
+does not block.</P>
+<HR>
+
+<H3><A id=139 name=139>BDOS function 139 (Q_WRITE) - Write to message 
+queue</A></H3>
+<H6>Supported by: MP/M, Concurrent CP/M</H6>
+<P><I>Entered with C=8Bh, DE=address of open <A 
+href="http://www.seasip.demon.co.uk/Cpm/qpb.html">QPB</A>. Returns A=0 if OK, 
+0FFh if error.</I></P>
+<P>If there's no room in the message queue buffer, the call blocks until there 
+is.</P>
+<HR>
+
+<H3><A id=140 name=140>BDOS function 140 (Q_CWRITE) - Conditionally write to 
+message queue</A></H3>
+<H6>Supported by: MP/M, Concurrent CP/M</H6>
+<P><I>Entered with C=8Ch, DE=address of open <A 
+href="http://www.seasip.demon.co.uk/Cpm/qpb.html">QPB</A>. Returns A=0 if OK, 
+0FFh if error or the queue buffer is full.</I></P>
+<P>As <A href="http://www.seasip.demon.co.uk/Cpm/bdos.html#138">Q_WRITE</A>, but 
+does not block.</P>
+<HR>
+
+<H3><A id=141 name=141>BDOS function 141 (P_DELAY) - Delay</A></H3>
+<H6>Supported by: MP/M, Concurrent CP/M, CP/M-86 v4.</H6>
+<P><I>Entered with C=8Dh, DE=no. of ticks to wait.</I></P>
+<P>Blocks the calling process for at least DE ticks of the system clock (system 
+dependent; usually 50Hz or 60Hz). Returns A=0FFh if this function is 
+unsupported.</P>
+<HR>
+
+<H3><A id=142 name=142>BDOS function 142 (P_DISPATCH) - Call dispatcher</A></H3>
+<H6>Supported by: MP/M, Concurrent CP/M, CP/M-86 v4.</H6>
+<P><I>Entered with C=8Eh.</I></P>
+<P>Relinquishes the CPU. The process restarts when its next time slice falls 
+due. Returns A=0FFh if this function is unsupported.</P>
+<HR>
+
+<H3><A id=143 name=143>BDOS function 143 (P_TERM) - Terminate process</A></H3>
+<H6>Supported by: MP/M, Concurrent CP/M, CP/M-86 v4.</H6>
+<P><I>Entered with C=8Fh, DL=termination code.</I></P>
+<P>In single-user systems, behaves as <A 
+href="http://www.seasip.demon.co.uk/Cpm/bdos.html#0">function 0</A>.</P>
+<P>In multiuser systems, the termination code must be 0FFh to terminate a system 
+process, or 0-0FEh to terminate a user process.</P>
+<HR>
+
+<H3><A id=144 name=144>BDOS function 144 (P_CREATE) - Create a 
+subprocess</A></H3>
+<H6>Supported by: MP/M, Concurrent CP/M</H6>
+<P><I>Entered with C=90h, DE=address of initial process descriptor.</I></P>
+<P>Launches a subprocess of the current process.</P>
+<P>The process descriptor passed in DE can be a linked list (to launch several 
+processes at a time). If a descriptor is outside the system data segment, it 
+will be copied into the process table.</P>
+<P>Format of Concurrent CP/M process descriptor:</P><PRE>        DW      link    ; Address of next process descriptor. 
+        DW      thread  ; Initialise to 0
+        DB      stat    ; Initialise to 0 (runnable). Other values are 
+                        ; 1=Polling device, 2=Delaying, 6=Waiting to read
+                        ;  queue, 7=Waiting to write queue, 8=Waiting on
+                        ;  system flag, 9=Waiting to attach device
+        DB      prior   ; Priority. 200=normal, 255=worst. 1-63 are 
+                        ; used by system processes, 198 by the terminal
+                        ; message process.
+        DW      flags   ; Bit 0 set for system process. Only system processes
+                        ;       can launch system processes.
+                        ; Bit 1 set if process can't be terminated. Only 
+                        ;       system processes can launch interminable 
+                        ;       processes.
+                        ; Bit 2 set if process is part of the OS. The passed
+                        ;       descriptor must be inside the OS.  
+                        ; Bit 3 set if process descriptor is part of the 
+                        ;       system PD table.
+                        ; Bit 15 set if process uses the 8087.  
+        DB      '  name  ' ; 8-byte process name.
+        DW      uda     ; <A href="http://www.seasip.demon.co.uk/Cpm/bdos.html#uda">User data area</A> segment. Initialise to the number of 
+                        ; paragraphs from the beginning of the calling
+                        ; process's data segment. 
+        DB      disk    ; Current drive
+        DB      user    ; Current user ID
+        DW      0       ; Reserved
+        DW      mem     ; Memory Segment Descriptors owned by this process.
+                        ; Initialise to zero.
+        DW      0,0,0   ; Reserved
+        DW      parent  ; Parent process ID; initialise to 0.
+        DB      cns     ; Default console number
+        DB      0,0,0   ; Reserved
+        DB      list    ; Default printer number
+        DB      0       ; Reserved
+        DW      sflag   ; Bit 0 is set if the process should block when not
+                        ; in the foreground
+        DW      0,0,0,0 ; Reserved 
+</PRE>
+<P><A name=uda>The UDA is 256 bytes, or 352 bytes if the process uses the 8087, 
+and it must be paragraph-aligned.</A></P><PRE>        DW      0        ; Reserved
+        DW      DMA      ; Initial DMA offset in child process's DS.
+        DS      28       ; Reserved, set to 0
+        DW      ax       ; Initial AX value 
+        DW      bx       ; Initial BX value 
+        DW      cx       ; Initial CX value 
+        DW      dx       ; Initial DX value 
+        DW      si       ; Initial SI value 
+        DW      di       ; Initial DI value 
+        DW      bp       ; Initial BP value 
+        DW      0,0,0    ; Reserved
+        DW      sp       ; Initial SP value. The top of the stack must be set
+                         ; up IP, CS, flags (so that an IRET launches the 
+                         ; new process).
+        DW      0        ; Reserved
+        DD      int0     ; INT 0 handler; 0 to use the same as the calling
+                         ; process.
+        DD      int1     ; INT 1 handler; 0 to use the same as the calling
+                         ; process.
+        DD      0        ; Reserved
+        DD      int3     ; INT 3 handler; 0 to use the same as the calling
+                         ; process.
+        DD      int4     ; INT 4 handler; 0 to use the same as the calling
+                         ; process.
+        DD      0        ; Reserved
+        DW      cs       ; Initial CS value; 0 to use calling process's DS 
+        DW      ds       ; Initial DS value; 0 to use calling process's DS 
+        DW      es       ; Initial ES value; 0 to use calling process's DS 
+        DW      ss       ; Initial SS value; 0 to use calling process's DS 
+        DD      int224   ; INT 0E0h handler; 0 to use the same as the calling
+                         ; process. This allows a parent process to intercept
+                         ; BDOS calls made by its child.
+        DD      int225   ; INT 0E1h handler; 0 to use the same as the calling
+                         ; process.
+</PRE>
+<P>All other fields must be initialised to 0, with one exception. If the process 
+being launched uses the 8087, then the word at offset 100h must be set to 
+03FFh.</P>
+<HR>
+
+<H3><A id=145 name=145>BDOS function 145 (P_PRIORITY) - Set process 
+priority</A></H3>
+<H6>Supported by: MP/M, Concurrent CP/M</H6>
+<P><I>Entered with C=91h, E = priority.</I></P>
+<P>The highest priority is 0; the lowest is 0FFh. Transient programs start off 
+at priority 200.</P>
+<HR>
+
+<H3><A id=146 name=146>BDOS function 146 (C_ATTACH) - Attach console</A></H3>
+<H6>Supported by: MP/M, Concurrent CP/M</H6>
+<P><I>Entered with C=92h.</I></P>
+<P>Blocks the calling process until the process's default console is available. 
+This is automatically called if any console I/O function is used while the 
+current process is not attached to the console.</P>
+<HR>
+
+<H3><A id=147 name=147>BDOS function 147 (C_DETACH) - Detach console</A></H3>
+<H6>Supported by: MP/M, Concurrent CP/M, CP/M-86 v4.</H6>
+<P><I>Entered with C=93h.</I></P>
+<P>The program is disconnected from the screen and keyboard and must run in the 
+background.</P>
+<P>Under CP/M-86 v4, attempting to use the keyboard will cause the program to be 
+terminated. Note that backgrounded programs cannot use the <CODE>INT 
+2<I>n</I>h</CODE> DOS-like calls, only the <CODE>INT E0h</CODE> CP/M calls. 
+Limited screen output can be achieved using XIOS function 8 (write to status 
+line).</P>
+<P>Under MP/M and CCP/M, attempting to output to the screen will cause function 
+<A href="http://www.seasip.demon.co.uk/Cpm/bdos.html#146">146</A> to be 
+invoked.</P>
+<HR>
+
+<H3><A id=148 name=148>BDOS function 148 (C_SET) - Set console</A></H3>
+<H6>Supported by: MP/M, Concurrent CP/M</H6>
+<P><I>Entered with C=94h, E=console number.</I></P>
+<P>Sets the process's default console number. If the number is out of range, 
+returns A=0FFh; else returns 0.</P>
+<HR>
+
+<H3><A id=149 name=149>BDOS function 149 (C_ASSIGN) - Assign console</A></H3>
+<H6>Supported by: MP/M, Concurrent CP/M</H6>
+<P><I>Entered with C=95h, DE = address of assign control block. Returns A=0 if 
+OK, 0FFh if failed.</I></P>
+<P>Assigns a console device to another process. The assign control block is 
+formed:</P><PRE>        DB      cns             ;Which console to assign
+        DB      match           ;If 0FFh, the process must have console 
+                                ;'cns' as its default console. If 0, not.
+        DW      pd              ;Process ID of the process to be given the
+                                ;console. Set to 0 to use the name below.
+        DB      '  name  '
+</PRE>
+<HR>
+
+<H3><A id=150 name=150>BDOS function 150 (P_CLI) - Send CLI command</A></H3>
+<H6>Supported by: MP/M, Concurrent CP/M</H6>
+<P><I>Entered with C=96h, DE = address of command-line buffer. Returns A=0 if 
+OK, 0FFh if failed.</I></P>
+<P>This executes a command line, either by passing it to a loaded Resident 
+System Process or by launching a program. If the current process is attached to 
+its default console, it will be detached and the child process (or RSP) will be 
+given it. Before it takes the console back, it should raise its priority to less 
+than 198, take the console, and set priority back to 200.</P>
+<P>The format of the command-line buffer is:</P><PRE>        DB   0      ;Reserved
+        DS   128    ;128 bytes for 0-terminated command line
+        DB   0      ;Reserved
+</PRE>
+<HR>
+
+<H3><A id=151 name=151>BDOS function 151 (P_RPL) - Call resident procedure 
+library</A></H3>
+<H6>Supported by: MP/M, Concurrent CP/M</H6>
+<P><I>Entered with C=97h, DE=address of parameter. Returns HL=result from RPL, 
+or 0001h if RPL not found.</I></P>
+<P>The parameter is formed:</P><PRE>	DB	'  name  '
+	DW	parameter
+</PRE>
+<P>Internally, this is implemented using message queues.</P>
+<HR>
+
+<H3><A id=152 name=152>BDOS function 152 (F_PARSE) - Parse filename</A></H3>
+<H6>Supported by: MP/M, CP/M 3 and higher.</H6>
+<P><I>Entered with C=98h, DE=address of PFCB. Returns codes in HL.</I></P>
+<P>This parses an ASCII filename to a FCB. The format of the PFCB is:</P><PRE>    DEFW    ascii-address
+    DEFW    fcb-address
+</PRE>The value returned in HL is 0FFFFh if the ASCII filename was invalid; 0 if 
+the ASCII filename was terminated with a zero or a carriage return; and 
+otherwise the address of the next character after the filename. 
+<P>The filename can be of any form up to the full <I>d:filename.typ;password</I> 
+(password only under CP/M 3 and above). When the filename is parsed, the 
+password is copied to FCB+10h, with its length at FCB+1Ah.</P>
+<P>Under ZPM3, the filename may be of the form <I>du:filename.typ;password</I>; 
+FCB+0Dh will be 0 if no user number was specified, or 1+number otherwise. If a 
+Z-System is loaded, ZPM3 can also parse filenames of the form 
+<I>dir:filename.typ;password</I>.</P>
+<P><B>BUG:</B> ZPM3 (version N10) puts the password at FCB+0Ch rather than 
+FCB+10h, overwriting the user number stored at FCB+0Dh. It does not zero the 
+last four bytes of the FCB, while CP/M does.</P>
+<P>The filename can be terminated by any of: <CODE>space tab cr nul ; = &gt; 
+&lt; . : , [ ] / |</CODE> .</P>
+<HR>
+
+<H3><A id=153 name=153>BDOS function 153 (C_GET) - Return console 
+number</A></H3>
+<H6>Supported by: MP/M, Concurrent CP/M</H6>
+<P><I>Enter with C=99h (153). Returns A = default console number</I></P>
+<P>Returns the number of the process's default console.</P>
+<HR>
+
+<H3><A id=154 name=154>BDOS function 154 (S_SYSDAT) - System data 
+address</A></H3>
+<H6>Supported by: MP/M, Concurrent CP/M, CP/M-86 v4.</H6>
+<P><I>Entered with C=9Ah. Returns HL (or ES:BX) = system data address.</I></P>
+<UL>
+  <LI><A href="http://www.seasip.demon.co.uk/Cpm/cpmdata41.html">CP/M-86 3.x/4.x 
+  System Data Area format</A> 
+  <LI><A href="http://www.seasip.demon.co.uk/Cpm/cpmdatam31.html">CCP/M-86 3.1 
+  System Data Area format</A> 
+  <LI><A href="http://development.imsltd.com/calls/s_sysdat.html">REAL/32 System 
+  Data Area format</A> </LI></UL>
+<HR>
+
+<H3><A id=155 name=155>BDOS function 155 (T_SECONDS) - Get date and 
+time</A></H3>
+<H6>Supported by: MP/M, Concurrent CP/M</H6>
+<P><I>Entered with C=9Bh, DE=address of time stamp.</I></P>
+<P>The format of the time stamp is:</P><PRE>        DW      day     ;Day 1 is 1 January 1978
+        DB      hour    ;Packed BCD
+        DB      minute  ;Packed BCD
+        DB      second  ;Packed BCD
+</PRE>
+<P>Note that this function fills in the "seconds" field, which function <A 
+href="http://www.seasip.demon.co.uk/Cpm/bdos.html#105">105</A> does not do.</P>
+<HR>
+
+<H3><A id=156 name=156>BDOS function 156 (P_PDADR) - Return address of process 
+descriptor</A></H3>
+<H6>Supported by: MP/M 2, Concurrent CP/M</H6>
+<P><I>Entered with C=9Ch. Returns HL = address of descriptor (ES:BX in 16-bit 
+systems).</I></P>
+<P>The process descriptor is described in <A 
+href="http://www.seasip.demon.co.uk/Cpm/bdos.html#144">P_CREATE</A>.</P>
+<HR>
+
+<H3><A id=157 name=157>BDOS function 157 (P_ABORT) - Abort a process</A></H3>
+<H6>Supported by: MP/M 2, Concurrent CP/M</H6>
+<P><I>Entered with C=9Dh, DE = address of abort parameter block. Returns A=0 if 
+OK, 0FFh if failed.</I></P>
+<P>Terminates a process by force. The abort parameter block is formed:</P><PRE>        DW      pd              ;Process ID of the process to be
+                                ;terminated. If this is zero, uses 
+                                ;the 'name' and 'cns' fields for a match.
+        DW      term            ;Termination code (see <A href="http://www.seasip.demon.co.uk/Cpm/bdos.html#143">P_TERM</A>)
+        DB      cns             ;(if PD=0) Default console of process to be 
+                                ;terminated.
+        DB      0
+        DB      '  name  '      ;(if PD=0) Name of process to be terminated.
+</PRE>
+<P>The low byte of the termination code is 0FFh to abort a system process, other 
+values to abort a user process.</P>
+<HR>
+
+<H3><A id=158 name=158>BDOS function 158 (L_ATTACH) - Attach printer</A></H3>
+<H6>Supported by: MP/M 2, Concurrent CP/M</H6>
+<P><I>Entered with C=9Eh.</I></P>
+<P>Blocks the calling process until the default printer is available. This is 
+automatically called if any printer function is used while the current process 
+is not attached to the printer.</P>
+<HR>
+
+<H3><A id=159 name=159>BDOS function 159 (L_DETACH) - Detach printer</A></H3>
+<H6>Supported by: MP/M 2, Concurrent CP/M</H6>
+<P><I>Entered with C=9Fh.</I></P>
+<P>Detach this process from the printer,</P>
+<HR>
+
+<H3><A id=160 name=160>BDOS function 160 (L_SET) - Select printer</A></H3>
+<H6>Supported by: MP/M 2, Concurrent CP/M</H6>
+<P><I>Entered with C=0A0h, E=printer number.</I></P>
+<P>Sets the process's default printer number. If the number is out of range, 
+returns A=0FFh; else returns 0.</P>
+<HR>
+
+<H3><A id=161 name=161>BDOS function 161 (L_CATTACH) - Conditionally attach 
+printer</A></H3>
+<H6>Supported by: MP/M 2, Concurrent CP/M</H6>
+<P><I>Entered with C=0A1h.</I></P>
+<P>Attempts to attach to the process's default printer without blocking. Returns 
+0 if succeeded, 0FFh if something else is using the printer.</P>
+<HR>
+
+<H3><A id=162 name=162>BDOS function 162 (C_CATTACH)- Conditionally attach 
+console</A></H3>
+<H6>Supported by: MP/M 2, Concurrent CP/M</H6>
+<P><I>Entered with C=0A2h.</I></P>
+<P>Attempts to attach to the process's default console without blocking. Returns 
+0 if succeeded, 0FFh if something else is using the console.</P>
+<HR>
+
+<H3><A id=163 name=163>BDOS function 163 (S_OSVER) - Return version 
+number</A></H3>
+<H6>Supported by: DOSPLUS, MP/M 2, Concurrent CP/M</H6>
+<P><I>Entered with C=A3h.</I></P>
+<P>The version number returned by this function is a "user-visible" number 
+rather than the internal BDOS version. Numbers include:</P><PRE>1012h - DOSPLUS v1.2
+1021h - DOSPLUS v2.1
+1121h - MP/M-86 v2.1
+1420h - Concurrent CP/M v2.0
+1431h - Concurrent CP/M v3.1
+1432h - Concurrent DOS v3.2
+1441h - Concurrent DOS v4.1
+1450h - Concurrent DOS v5.0
+</PRE>
+<P>(the high byte has the same meaning as in function <A 
+href="http://www.seasip.demon.co.uk/Cpm/bdos.html#12">12</A>.)</P>
+<HR>
+
+<H3><A id=164 name=164>BDOS function 164 (L_GET) - Return default printer device 
+number</A></H3>
+<H6>Supported by: MP/M 2, Concurrent CP/M</H6>
+<P><I>Enter with C=0A4h (164). Returns A = default printer number</I></P>
+<P>Returns the number of the process's default printer.</P>
+<HR>
+
+<H3><A id=175 name=175>BDOS function 175 - Return real drive ID</A></H3>
+<H6>Supported by: DOSPLUS v2.1</H6>
+<P><I>Entered with CL=AFh, DL=drive number (0 =&gt; A:, 1 =&gt; B: etc.)</I></P>
+<P>DOSPLUS treats drive N:, O: and P: as floating drives, which can be assigned 
+to paths on other drives (the same sort of thing as SUBST under MS-DOS).</P>
+<UL>
+  <LI>If DL is the number of a non-floating drive, this will return AH=BH=0 and 
+  AL=BL=drive number passed in. This is true even if the drive in question does 
+  not exist. 
+  <LI>If DL is the number of a floating drive which has not been assigned, this 
+  will return AH=BH=0 and AL=BL=drive number of the boot drive. 
+  <LI>If DL is the number of a floating drive which has not been assigned, this 
+  will return AH=BH=0 and AL=BL=drive number of the host drive. 
+  <LI>If DL is out of range, this will return AX=BX=0FFFFh and CX=17h. </LI></UL>
+<P>For example, after the command <KBD>CD P:=B:\MYDIR</KBD>, this call will 
+return AX=BX=0001h (B:) if it was entered with DL=0Fh (P:).</P>
+<HR>
+
+<H3><A id=200 name=200>P2DOS function 200 - get time</A></H3>
+<P>This has the same functionality under P2DOS as <A 
+href="http://www.seasip.demon.co.uk/Cpm/bdos.html#105">function 105</A> does 
+under Z80DOS and DOS+.</P>
+<P>Used by P2DOS, SUPRBDOS, NovaDOS.</P>
+<HR>
+
+<H3><A id=201 name=201>P2DOS function 201 - set time</A></H3>
+<P>This has the same functionality under P2DOS as <A 
+href="http://www.seasip.demon.co.uk/Cpm/bdos.html#104">function 104</A> does 
+under Z80DOS and DOS+.</P>
+<P>Used by P2DOS, SUPRBDOS, NovaDOS.</P>
+<HR>
+
+<H3><A id=210 name=210>DOS+ function 210 - Return system information</A></H3>
+<H6>Supported by: DOS+</H6>
+<P><I>Entered with C=0D2h, E=number, 0-5. Returns values in BA and HL.</I></P>
+<P>Suitable arguments are:</P><PRE>0.     Return base address for BDOS module. Used for dynamic reconfiguration.
+1.     Return the current DMA setting.
+2.     Flush any console input pending, emptying all buffers.  Returns 0.
+3.     Returns list device status (ready/not ready)
+4.     Returns punch   "     "          "
+5.     Returns reader  "     "          "
+</PRE>
+<P>Arguments 3 to 5 represent ready as 0ffh, not ready as 0. If no custom 
+installation for punch/reader device status has been made their status is 
+returned 0 (not ready). Other arguments return 0.</P>
+<HR>
+
+<H3><A id=211 name=211>DOS+ function 211 - Print decimal number</A></H3>
+<H6>Supported by: DOS+</H6>
+<P><I>Entered with C=0D3h, DE=decimal number.</I></P>
+<P>Outputs the number as an unsigned 16-bit integer, with leading zero 
+suppression.</P>
+<HR>
+
+<P><A href="http://www.seasip.demon.co.uk/Cpm/index.html#archive">Return to 
+archive listing</A></P></DIV></BODY></HTML>

@@ -1,0 +1,417 @@
+
+ZRUN                                            2 April 1988 -med
+
+
+     The Z80 CPeMulator is the latest release of the Z80  program  which
+allows  CP/M-80 programs to be run on an MS-DOS computer.  If you have a
+V20 or V30 chip, see the shareware information below on how to obtain  a
+V20/V30 specific version.
+
+
+     The Z80 program can run many CP/M 80 programs.  There are however a
+few limitations due to  the  minor  differences  in  the  file  handling
+structures of MS-DOS and CP/M, and of course any program that is machine
+dependent is probably not going to run.
+
+     One area where the Z80 program has problems is when a CP/M  program
+accesses  file extents directly.  MS-DOS does not use file extents, thus
+they don't exist.  What will happen if an extent is accessed is that the
+primary file will re-accessed.  This problem only occurs when the extent
+is accessed directly.  Proper sequential accessing or  random  accessing
+will not have a problem.
+
+     The  file  extent  problem  occurs  in  programs  that  try  to  be
+compatible to V1.x CP/M which did not  have  random  access  capability.
+Random  access  was  performed  by  accessing  the  hidden  extent files
+directly.  As long as the file being read is smaller than  16K  (can  be
+contained  within  one  file extent) this is not a problem.  The problem
+only occurs when the file is larger than 16K.  If you have access to the
+original code this can be easily solved by changing it to use the proper
+random access method.
+
+     Much work has gone into the file handling emulation to allow it  to
+work with as many programs as possible while still operating through the
+MS-DOS operating system and thus providing all the benefits of operating
+under  MS-DOS.  Many  programs  that  are  not  able  to operate in this
+environment will operate with the Z80 emulator, including PIP, STAT, and
+ED.  The  emulator even supports the IO byte function for those programs
+that use it.  (The value is lost when returning to MS-DOS though.)
+
+     The STAT program will not give correct information  in  all  cases,
+but as much as can be obtained through its program structure is provided.
+
+
+     The  SUBMIT  program will not work under the V2080 program since it
+is very closely tied to the CP/M  operating  environment.  When  a  CP/M
+program  is terminated, complete control is returned to MS-DOS, thus any
+hooks  that  submit created into the CP/M environment are lost.  The MS-
+DOS batch program should be used instead.  The  batch  program  performs
+the  same  function  in  MS-DOS  as the submit program does in CP/M, but
+gives you a greater degree of flexibility.
+
+
+     Programs  which  use  Z80 specific code will not run with the V2080
+program. The V20/V30 processors do not have the ability to  emulate  the
+Z80  specific  code.  Most  CP/M  programs  are  written  with  the 8080
+processor in mind since many CP/M systems used that processor.  The  Z80
+processor  was  based  on the 8080 processor, so it can run code for the
+8080 processor without any problems.
+
+     Note: If a CP/M program should ever crash on you be sure to  reboot
+your  computer  since  the 8080 emulation mode may get left on the stack
+causing some weird problems to occur the next time  you  try  to  run  a
+program.
+
+     One  way to find out if the program uses Z80 code is to try running
+it.  If the program crashes it probably uses Z80 code.  Another  way  to
+find  out  is  to send in your shareware donation ($40.00).  Included in
+the package that you will receive is the 8080  software  emulator.  This
+program  performs exactly the same as the Z80 and V2080 emulators except
+that it performs the action entirely in software under the  normal  8088
+environment.  Thus  when  a  Z80 specific op-code is encountered it will
+flag it and abort the program gracefully.  As with  the  V2080  emulator
+you  will receive full source code listings with the program so that you
+can modify it to suit your needs.
+
+     If you have a V20 or V30 in your computer, you may want to use  the
+V2080  CPeMulator instead.  The V2080 CPeMulator operates in the special
+hardware emulation mode of the V20/V30.  Thus you can run  the  CP/M  80
+programs at full speed.
+
+
+     The  advantage  to  using the software CPeMulator is that it allows
+you to run the CPeMulator program on a regular 8088/8086 processor, or a
+286,  or  even  a  386!  Thus you won't be left out in the cold when you
+upgrade to these newer processors.  The price you  pay  for  this  is  a
+slower  emulation  speed.  Keep  in  mind though that speed is relative.
+Processing speed on a 16Mhz 386 is a whole lot faster than on a  4.77Mhz
+V20.
+
+
+Speed comparisons:
+
+     V2080 CPeMulator on a V20  @ 4.77Mhz =  Kaypro @ 2Mhz
+     8080  CPeMulator on a 8088 @ 4.77Mhz =  Kaypro @ 0.5Mhz
+     8080  CPeMulator on a 286  @ 8Mhz    =  Kaypro @ 2Mhz
+     Z80   CPeMulator on a 386  @ 16Mhz   =  Kaypro @ 4Mhz
+
+     These  times are  very approximate.  The actual times depend on the
+programs being run and the particular characteristics of your  computer.
+I provided them here to give you an idea of what to expect.
+
+
+
+
+
+READCPM utility:
+
+     In  addition  to the other programs on the shareware disk, you will
+receive a utility program that allows you to read Kaypro II  CP/M  disks
+on  your  IBM PC.  The source code for this program is also provided for
+the true hacker who wants to dig into it.  The utility is primitive, and
+will  not  handle Kaypro IV DS disks, but it does provide a mechanism to
+get those CP/M programs onto your IBM PC.
+
+Shareware donations:
+
+     Here's what you get with your donation.
+
+The basic donation is $40.00 American.  For this you will get a disk in-
+cludes the following:
+
+   1. The latest version of the V2080 CPeMulator.
+   2. The complete source code listing for the V2080 CPeMulator.
+   3. An introductory lesson on the V20/V30 processor.
+   4. Sample CP/M programs.
+   5. The latest version of the 8080 software CPeMulator.
+   6. The complete source code for the 8080 software CPeMulator.
+   7. The latest version of the Z80 software CPeMulator.
+   8. The complete source code for the Z80 software CPeMulator.
+   9. A utility program to allow you to read Kaypro II disks.
+  10. Complete source code listing for the READCPM program.
+  11. A manual and all this nifty documentation.
+
+     Distribution is on a IBM 360K  5.25 inch diskette.
+     The 3.5 inch 1.44M disk format is available on request.
+
+     Although  I  ask  that you include $5.00 to help defray the cost of
+shipping and handling, don't worry about it if you forget or don't think
+it  is  worth  it.   If you send the $40.00 you'll get the stuff anyway.
+And of course no one is forcing you to pay anything.   The  only  reason
+you  need  to  send  the  money  is to get the above listed goodies.  Of
+course if you simply feel that the product is worth  the  $40.00  anyway
+I'm not going to complain, and I'll still send you the stuff.
+
+
+
+
+
+OEM's:
+
+     Are  you  thinking  of  using  the  CPeMulator  in conjunction with
+another product?  No problem.  The commercial license for the CPeMulator
+is  very simple: I ask that you purchase the $40.00 shareware package as
+a one time fee.  As long as you do not modify the  code  and  leave  the
+Copyright  notice  intact there is no other requirement.  If you wish to
+modify the code and/or change the copyright notice then I only ask  that
+you pay a one percent royalty on each modified  CPeMulator product sold.
+
+     One  percent  royalty  on what? Normally royalties are based on the
+overall product in which the component is used.  This  is based  on  the
+assumption  that  the  overall product would not be possible without the
+component.  If the CPeMulator is the only component in the product, then
+the royalty would be based on the CPeMulator itself.
+
+     Some  may not feel that it is worth the one percent royalty fee.  I
+understand your feelings in this regard.  No one is forcing you  to  pay
+the  royalty, I  am  only  asking that you do so.  I will not pursue the
+matter if you don't wish to pay it, it is only a request.  Use your  own
+good judgment, pay what I ask, what you think it is worth, or nothing at
+all.
+
+
+Full rights purchase:
+
+     Some of you may not want to deal with  the  hassles  of  royalties.
+You  may purchase the complete non-exclusive right to use the CPeMulator
+as you see fit for $1000.  What you will get is the complete source code
+to  the CPeMulator and the right to do anything you want to it including
+putting your own name on it and selling it for any price you want.
+
+     The full-purchase rights are non-exclusive to the basic  CPeMulator
+package.  What  that means is that you can do anything you want with the
+package.  Any derivatives you generate from the package are you own  and
+will  be  covered  by your own copyright.  I will not have any rights to
+the derivative packages you might produce (unless an agreement  is  made
+otherwise).
+
+     What  you  do  not  get is exclusive rights to the basic CPeMulator
+package.  I as the author retain the right to the basic package and  any
+derivation  that  I  might  make  to  the  package myself, and any other
+full-rights purchaser retains the rights to their own  derivations  that
+they might make.
+
+
+Support:
+
+     I do not imply that any support for the CPeMulator will be provided
+by sending in a donation, paying royalties, or purchasing full rights to
+the  package.   (At  these  prices  what  do  you  expect?)  Any support
+arrangement must be made separately on a retainer basis.  That is not to
+say  that  I will necessarily not support the product, only that sending
+in the donation or purchasing  full  rights  does  not  imply  that  any
+support will be provided as a part of the transaction.  The only obliga-
+tion that I have in exchange for receiving the donation is to  ship  the
+latest source code disk.
+
+But enough weasel words, on to other items...
+
+
+Modifying the emulator:
+
+     In  many  cases the CPeMulator program may be better suited to your
+needs if you modified  it to suit them.  By all means please do  so.  It
+won't  crush my ego if you modify the code.  I do recommend that you get
+the shareware package first so you know what  impact  the  changes  will
+have.
+
+     In  some cases you may have modified the program to the extent that
+you may consider it more your program  than  mine.   I  don't  have  any
+problems  with  this.   You  have  as much right to your work as I do to
+mine.  If you reach this point I only ask that you refer to my  original
+work  somewhere.  Something  along  the  lines  of  "Based on CPeMulator
+program by Michael Day".  If  you  have  objections  to  even  this,  no
+problem, simply don't say anything, I won't be hurt by it.
+
+
+
+Your Basic General Disclaimer:
+
+     I  make  no warranties or claims of the fitness of this product for
+any particular purpose.
+
+Or to put it in layman's terms...
+
+     I can't control how you use the program or what  you  use  it  for.
+Like  all  software there can be no guarantee that the program will work
+in your situation. With an emulator program this becomes even  more  so.
+There  are  umpteen zillion different CP/M machines out there, and a lot
+of programmers write machine dependent code.  Add to that that I am  not
+God  (a minor deity maybe...) and thus there are bound to be bugs in the
+software.  So don't be surprised if your particular program doesn't work
+with the emulator.
+
+Remember:  the  prudent  user *always* backs up everything before trying
+something new.
+
+
+
+
+To other shareware authors:
+
+     If you see anything in the shareware concepts brought forth in this
+document that you like, by all means plagiarize!
+
+
+
+
+
+
+
+
+
+Distribution:
+
+     The  CPeMulator  is  being offered as a shareware product, and thus
+there are some things that should be considered in regard  to  distribu-
+tion.
+
+     The  basic  product  is being distributed as an archived file which
+includes the latest version of the emulator and some  documentation.   I
+encourage  you  to  give  the  product  to  your  friends,  place  it in
+libraries,  on  BBS's  and  other  areas  where  shareware  is  normally
+distributed.  I do however have some basic requests in this.
+
+     Please  only distribute the original shareware archive file so that
+the next person will get the same thing as everyone else  including  the
+documentation.   Please  do  not distribute the donation response source
+code disk.  This is how I support the effort to get the product out.  If
+everyone  gets  the  donation  source code disk there is no incentive to
+send in the donation, and I lose incentive to continue  with the effort.
+
+     I will send the donation response source code disk  to  anyone  who
+sends  the  required $40.00 American.  I recognize that many times there
+will be group  purchases  involved.  Though  I  would  hope  that  every
+individual  who  uses  the  program  would  send  in  the donation, I am
+realistic enough in this to accept what I can get.  I would  rather  get
+$40.00 out of every ten users than nothing at all from anyone.
+
+
+Where does the donation money go:
+
+     The  donation money goes many places, some of them are obvious, and
+others not so obvious. Some of the areas where the money goes are:
+
+Purchase of supplies: Disks, labels, shipping  boxes, etc.
+Postage: P.O. Box rent, postage on package, fliers.
+Travel: Gas and time to and from post office and suppliers.
+Package prep: Time and effort to put package together,
+              Wear and tear on computer and printer,
+              Operating supplies - ribbons, paper, disks, pens.
+Support: Answering letters and E-mail, phone, service fees.
+Development: Purchasing or obtaining access to equipment to
+             expand and improve the product.
+Future: Hopefully there will be enough income to encourage me to
+        continue to support and improve the product and
+        introduce others. If I lose money on this it's not
+        exactly going to encourage me to continue...
+
+
+
+
+
+
+An open letter to the software industry in general:
+
+     It has long been my considered opinion that since people who  would
+think  twice  about  taking  a  pencil  home  from the office will steal
+(err...make off-site backups of...)  software  that  there  is  a  major
+discrepancy between how the users view software and the way manufactures
+do.
+
+     When the problem is as rampant as it is in  our  industry  it  goes
+beyond  moral  issues  of theft. It indicates that the software industry
+itself is not properly serving the  needs  of  the  customer.  When  the
+customer takes the software, it indicates that there is a perceived need
+for it.  When they steal the  product, it  indicates  that  the  pricing
+strategy is wrong.
+
+     Let's  be  realistic  here,  *nobody*  is  going to pay $700+ for a
+spreadsheet package to do their home budget on.  Yet software  companies
+get  upset and start screaming foul when the user "borrows" the software
+to use it.  The problem here is not the  customer, it  is  the  software
+manufacturer  for  placing  the  product  outside the reach of the small
+user.  As a result the user is left with a dilemma.  Do  they steal  the
+software, use a cheap clone, or continue to use pen and paper?
+
+     In  some  cases the software manufacturer rubs salt in the wound by
+taking legal action against the clone manufactures threatening to remove
+one of the options available.
+
+     The  end  result of all this is that the end user begins to see the
+software manufacturer in a different light, as a predatory robber baron.
+This  then  gives  the  end  user the excuse needed to take the software
+without regret.
+
+     I am not attempting to apologize for, or justify  software  piracy.
+What I am trying to do is understand it and find out what can be done to
+solve it.  This is particularly important to me as a software  developer
+since the small user is my customer.
+
+     One  thing  is  certain, continuing to treat the small user as pond
+scum and laying guilt trips on them in the form of "Thou Shalt Not Dupe"
+only  alienates  the customer even further and does nothing to solve the
+problem.
+
+     The needs and requirements of the small user are not  the  same  as
+the needs  and  requirements  of  the  business user.  As long as we the
+software manufacturer continue to ignore the needs and  requirements  of
+the  small  user,  that  customer  will continue to ignore our needs and
+requirements and the problems of theft will continue.
+
+
+
+
+
+
+
+                           Request Form
+
+Send your request to:
+
+ Michael Day
+ C/O Day Research
+ P.O. Box 22902
+ Milwaukie, OR 97222
+
+
+
+                                             Date________________
+
+
+
+Please send me
+
+______ copies of the V2080 source disk at $40.00 ea.
+
+
+                             Total ______________________________
+
+                             Shipping and handling ------- $5.00
+
+                             Total enclosed _____________________
+
+
+
+
+
+Please send to:
+
+Name____________________________________________________________
+
+Address_________________________________________________________
+
+City____________________________________________________________
+
+State________________________________Zip________________________
+
+
+
+
+Thank you for your support!
+
+                                Mike Day
+                              Day Research
+                             P.O. Box 22902
+                          Milwaukie, OR 97222
+

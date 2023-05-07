@@ -1,0 +1,8 @@
+era $1.o
+era $1.com
+cii $1.c
+as $1.asm
+era $1.asm
+ln $1.o libc.lib 
+$1
+

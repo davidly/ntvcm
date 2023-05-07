@@ -1,0 +1,770 @@
+=====================================================================
+This is the comp.os.cpm Frequently Asked Questions (FAQ) list, June 2,
+1994 edition.  It is the intent of the editor to post this FAQ to
+comp.os.cpm on a regular basis.  Changes from the previous FAQ are
+marked with a "|" in the first column, additions marked with a "+".
+
+I wish to thank those below who have contributed information.  Please
+send any corrections or additions to <Donald.C.Kirkpatrick@tek.com>.
+
+John D. Baker           <jdb8042@tamuts.tamu.edu>
+Ralph Becker-Szendy     <RALPH@SLAC.STANFORD.EDU>
+Mike Gordillo           <GQ23V55D@umiami.ir.miami.edu>
+Stephen R. Griswold     <stephen.griswold@CIRCELLAR.COM>
+Roger Hanscom           <hanscom@atlantis.ees.anl.gov>
+Ulrich Hebecker         <Ulrich.Hebecker@studbox.uni-stuttgart.de>
+William P. Maloney      <aq743@cleveland.Freenet.Edu>
+Paul Martin             <pm@nowster.demon.co.uk>
+Don Maslin              <donm@crash.cts.com>
+Udo Munk                <udo@umunk.GUN.de>
+Alan Ogden              <arog@BIX.com>
+Jay Sage                <sage@LL.MIT.EDU>
+Curt Schroeder          <cschroed@hercii.lasc.lockheed.com>
+Peter A. Schuman        <schu0204@gold.tc.umn.edu>
+Kevin Spears            <kspear@ss0.eng.wayne.edu>
+Geir Tjoerhom           <geirt@nvg.unit.no>
+Jack Velte              <velte@cdrom.com> 
+Juergen Weber           <weberj@dia.informatik.uni-stuttgart.de>
+Jeffrey J. Wieland      <wieland@ea.ecn.purdue.edu>
+Frank Zsitvay           <frank.zsitvay@bytewarrior.altcit.eskimo.com>
+
+While this FAQ is not intended to be an advertisement for any product,
+please note that some of the contributor have a financial interest in
+some of the items mentioned.  Your FAQ editor has NO financial interest
+in anything mentioned in this FAQ.
+=====================================================================
+
+                Table Of Contents
+
+Q1: Does CP/M stand for anything?
+Q2: Is CP/M in the Public Domain?
+Q3: Where are the CP/M archives?
+Q4: What languages/compilers/databases/editors are still available?
+Q5: What new CP/M computers are available?
+Q6: What is this I hear about a CP/M CD ROM?
+Q7: How can I transfer my CP/M files to DOS?
+Q8: How can I convert an (insert name) disk to (insert name) format?
+Q9: Can I run CP/M on my MSDOS machine?
+Q10: Where can I get a boot disk for (insert system name)?
+Q11: What terminal emulation programs are available?
+Q12: How do you unpack a .ARK or .ARC file?
+Q13: How do you unpack a .lbr file?
+Q14: What are all these .xQx, .xYx, and .xZx file types?
+Q15: Are any of these .ARK, .LBR, or CRUNCH utilities on MSDOS?
+Q16: Why does my Kaypro drop characters above (insert baud rate)?
+Q17: What is an Advent TurboROM?
+Q18: How can I add a hard drive to my Kaypro?
+Q19: What belongs in the unpopulated board area on a Kaypro?
+Q20: What is The Computer Journal?
+Q21: What is ZCPR and the Z System?
+Q22: What ever happened to the Z800?
+Q23: What is the status of the Z380?
+Q24: What is the KC80?
+Q25: Anyone know a good source for cross assemblers?
+
+=====================================================================
+
+Q1: Does CP/M stand for anything?
+
+A: (Don Kirkpatrick)
+
+   There are at least three popular answers - Control Program for
+   Microcomputers, Control Program for Microprocessors, and Control
+   Program/Monitor.  The issue is clouded by authors of popular CP/M
+   books giving different answers.  According to Gary Kildall (the
+   author of CP/M), in response to a direct question on the PBS show
+   "The Computer Chronicles" following Computer Bowl I, was: Control
+   Program for Microcomputers.  This is also consistent with DRI
+   documentation.  See, for example, p. 4 of the DRI TEX manual.
+
+
+Q2: Is CP/M in the Public Domain?
+
+A: (Jay Sage)
+
+   CP/M is not in the public domain, and there is at least one source
+   for the purchase of new, legal copies:
+
+              David McGlone
+              149 W. Hilliard Lane
+              Eugene, OR 97404-3057,
+              503-688-3563.
+
+   On the other hand, there have been lots of greatly improved clones,
+   including ZCPR3 for the command process and several replacements for
+   the BDOS.  Those components can be obtained from oak.oakland.edu and
+   from many BBSs.
+
+  
+Q3: Where are the CP/M archives?
+
+A: (Don Maslin, Ralph Becker-Szendy, Paul Martin, Ulrich Hebecker)
+
+   Simtel20 is no more.  Five sites that stock CP/M files are:
+
+              oak.oakland.edu
+              wuarchive.wustl.edu
+              update.uu.se
+              ftp.demon.co.uk
+              reze-2.rz.rwth-aachen.de
+   
+   Assuming the availability of anonymous ftp, look into the
+   subdirectories of oak.oakland.edu: /pub/cpm.  There is a *lot*
+   there!  One of the first directories to check is starter-kit.  It
+   contains everything you need to get up and running.
+
+
+Q4: What languages/compilers/databases/editors are still available?
+
+A: (Ralph Becker-Szendy, Ulrich  Hebecker)
+
+   Wordstar V4 was still for sale as of a year ago.  The SLR assembler
+   and linkers are available from Jay Sage.  MIX C and other MIX
+   products are available from:
+
+              Ed Grey
+              P.O. Box #2186
+              Inglewood, CA 90305
+              (213)759-7406
+              <ac959@cleveland.Freenet.Edu>.
+
+   Hi-Tech C V3.09 for CP/M is now in the public domain.  The original
+   is on their bbs in Australia, at (61)(7)300-5235.  Copies can be
+   obtained from:
+
+        design.fen.qut.edu.au: /pub/hitech
+        update.uu.se: /pub/rainbow/cpm/c
+
+
+   Public domain CP/M programs are available via:
+
+              Elliam Associates
+              Box 2664
+              Atascadero, CA 93423
+              (805)466-8440
+
+   In the past, Elliam has sold Turbo Pascal, Uniform, Nevada COBOL,
+   SuperCalc, and much more.  Call for availability and price.
+
+   WordStar is available from:
+
+              Trio Company of Cheektowaga Limited
+              3290 Genesee Street
+              Cheektowaga, NY 14225
+              716-892-9630
+
+
+   Dynacomp stills sell CP/M software (or to be accurate, they still
+   had several dozen CP/M programs in the 1992 catalog.) It is the
+   kind of programs which ought to be written in BASIC: Typing tutors,
+   little engineering programs like calculation of the stiffness of
+   beams, education math programs. Their address is:
+
+              Dynacomp
+              178 Phillips Road
+              Webster, NY 14580
+              (800)828-6772 orders
+              (716)265-4040 support
+
+   There is no known U.S. source to purchase the following programs:
+
+        muMath/muSimp
+	Any Microsoft product (M80, L80, F80, Pascal, BASIC)
+        VEdit 
+
+   Most have been "abandoned" by their makers, but not placed in the
+   public domain.
+
+   For our European readers, much is available in Germany.  dBASE,
+   dBASSI, Wordstar 3.0, Multiplan, Supercalc PCW, and Microsoft Basic
+   (Interpreter and Compiler), M80, L80, CREF80 , and LIB80 can be
+   ordered from:
+
+	      Fa. Wiedmann
+              Unternehmensberatung
+              Korbinianplatz 2
+      D 85737 Ismaning
+	      Tel.: 089/969374 (from 9:00 to 18:00 )
+
+   Z3PLUS (for CP/M, DM 70.--), NZCOM (for CP/M 2.2, DM 70.--), BDSC-Z,
+   TURBO Tools Turbolader, SLR Super Asm./Lnk. and Juggler (DM 50.--)
+   from:
+
+	      Helmut Jungkunz Zacherlstr.14 D 85737 Ismaning
+	      Tel.: 089/969374 (18:30 to 21:30)
+	      100024.1545@compuserve.com
+
+   C 128 CP/M Plus (DM 80.-) from:
+
+	      Schaltungsdienst Lange Berlin Tel.: 030/7036060
+
+
+Q5: What new CP/M computers are available?
+
+A: (Ralph Becker-Szendy, John D. Baker)
+
+   The YASBEC (uses a 64180, has  SCSI interface), written up in TCJ
+   a while ago.
+
+   The CPU280 (uses a Z280, an IDE interface is available), also
+   written up in TCJ, circuit boards are available from Jay Sage and
+   Ralph Becker-Szendy.
+
+   Ampro Little Board products were available from Dean Davidge of
+   Davidge Corporation, Buellton, CA, but he may have moved and the
+   address and phone number are unknown.
+
+   The Micromint SB180/SB180FX is also still available.
+
+
+Q6: What is this I hear about a CP/M CD ROM?
+
+A: (Jack Velte)
+
+   The disk should be ready early in 1994.  It's going to be about
+   full, probably over 600 Meg. It may contain some commodore 64 and
+   128 files and some embedded system controller files, but mostly it
+   will be CP/M.  So far it contains these files:
+
+        fog/         First osborne user group newsletters and promo's
+        fog_000/     First osborne user group intro to cpm
+        t_hoot/      Tom Hoot personal collection
+        tcj/         The Computer Journal collection
+	znode/       The Newton Centre Z-Node, Z-Node #3, in Newton
+                     Centre, Massachusetts.
+	znode_12/    This software was collected over a period of
+		     many years by Lee Bradley, Z- Node 12 Sysop.
+		     There is about 20 megabytes here. Many files are
+		     .LBR's which contain compressed members, so the
+		     actual size of this collection is probably close
+		     to 30-35 megabytes. No index is provided but the
+		     three files -MYZ-001.DIR, -MYZ-002.DIR and
+		     -MYZ-003.DIR give the file names and the
+		     .LBR member names.
+        zsus/        Z-System Software-Update-Service
+        cpm/         From SIMTEL
+        cpmug        From SIMTEL -- cpm user's group collection
+        sigm         From SIMTEL -- sig m user's group collection
+
+   The cost will be $39.95 plus $5 shipping and handling (per order,
+   not per disk) for US/Canada, and $10 for airmail overseas.  If you
+   live in California, please add sales tax.  For further information:
+
+              info@cdrom.com
+              Walnut Creek CDROM
+              1547 Palos Verdes, Suite 260
+              Walnut Creek, CA  94596 USA
+              (510)674-0783 voice  
+              (510)674-0821 fax 
+              (800)786-9907 
+
+
+Q7: How can I transfer my CP/M files to DOS?
+
+A: (Don Maslin, Will Rose, Alan Ogden)
+
+   One solution is Sydex' excellent shareware program 22DISK which
+   permits reading (and writing) many CP/M format disks on a PC.  It is
+   available on:
+
+         oak.oakland.edu: /pub/msdos/diskutil/22dsk140.zip
+
+   There is also UniForm by Micro Solutions that should still be
+   available from them. There are versions for both the IBM-pc's and a
+   lot of different cp/m machines. Micro Solutions can be reached at:
+
+              Micro Solutions
+              123 W Lincoln Hwy.
+              DeKalb, IL 60115
+              (815)756-3411 Voice
+              (815)756-2928 Fax
+              (800)890-7227
+
+   If it's for an IBM type system, talk to them about what kind of
+   hardware/software you have. Some flavors of PC have a problem with
+   both UniForm and 22disk and UniForm will not operate properly under
+   DRDOS v6.0.  UniForm also fails if the machine clock exceeds
+   ~20MHz.  This has been confirmed with Micro Solutions, and no fix is
+   available.
+
+   Remember these conversion programs only enables you to read on your
+   PC what was stored on the disk when under CP/M.  They make no
+   conversion of file content.
+
+
+Q8: How can I convert an (insert name) disk to (insert name) format?
+
+A: (Jay Sage, Curt Schroeder, Mike Gordillo, Don Kirkpatrick)
+
+   David McGlone and Elliam Associates (see above) offer disk
+   conversion services at modest prices that can convert from just
+   about any format to just about any other format.
+
+   If you have a Kaypro equipped with an Advent TurboROM, Plu*Perfect
+   Systems offers a program called MULTICPY that can read/write about
+   one hundred different 5 1/4 formats.
+
+   It is not possible to directly read/write Apple II CP/M disks on any
+   other host machine because an Apple disk is recorded in GCR which is
+   incompatible with FM/MFM disk controllers.  The only way to get CP/M
+   files in or out of Apple II CP/M disks is via a serial link with a
+   non-Apple II host.
+
+   There exists a program called "Juggler" for the C128's CP/M that
+   will read/write 130 different CP/M formats both 3.5 and 5.25 MFM
+   (and some GCR) formats.  Juggler is available from Herne Data
+   Systems in Canada.  A demo version, and other C128 specific CP/M
+   software, can be found at:
+
+        ccosun.caltech.edu: /pub/rknop/INCOMING/CPM/juggdemo.lbr
+
+   The demo accesses only 22 formats.  A location for the full 130
+   format version is not known, so be on the lookout.
+
+
+Q9: Can I run CP/M on my MSDOS machine?
+
+A: (Juergen Weber, Udo Munk, Paul Martin, John D. Baker)
+
+   Available by anonymous ftp from the primary mirror site
+   OAK.Oakland.Edu and its mirrors:
+
+        pub/msdos/emulators/zsim23.zip
+
+   ZSIM is an (extremely accurate) Z80 emulator (80386/40 -8 MHz Z80)
+   in conjunction with a CP/M 80 BIOS, i.e. it simulates a Z80 machine,
+   that can run CP/M.  Together with the original CP/M operating system
+   you have a full Z80-CP/M machine.
+
+   If you don't have a CP/M system disk at hand, you can use the
+   included public domain CP/M compatible operating system P2DOS.
+
+   ZSIM uses CP/M format disks, a ram disk and a hard disk.  Supported
+   disk formats are CP/M 86 single sided and double sided, but you can
+   install any singled sided CP/M format PC drives can physically
+   read.  So you can use ZSIM to transfer data to MS-Dos.  The ram disk
+   can be saved to the PC hard disk.  The hard disk is in an MS-Dos
+   file.  A sample hard disk containing the SMALL-C compiler is
+   included.
+
+   As ZSIM uses an original operating system and CP/M disks it should
+   run every CP/M program that does not use special hardware.  ZSIM is
+   free for personal use.  Sources of the CP/M BIOS are included.
+
+   On raven.alaska.edu you'll find:
+
+        /pub/coherent/sources32/z80pack.tar.Z.
+
+   This is a Z80 CPU emulation completely written in C, an I/O
+   emulation for a typical CP/M system also is included. The package
+   also comes with the BIOS source for the I/O emulation and a Z80
+   cross-assembler.  It was developed it under COHERENT but it's known
+   that it does work under Linux and SunOS too. You still need a CP/M
+   license to get CP/M running or you might try to get one of the free
+   available CP/M clones running on it. On a 486/66 DX2 running
+   COHERENT it's like a 11Mhz Z80 CPU, so the emulation speed is
+   acceptable.
+
+   On oak.oakland.edu you'll find:
+ 
+        /pub/msdos/emulator/myz80111.zip
+ 
+   MYZ80 is a Z80/64180 emulator package.  The new 80486, 80386 & 80286
+   machines with the fast hard drives and the snazzy OS/2 operating
+   systems are such a delight... but for many, the Z80 machines still
+   have to be fired up from to time in order to develop code for CP/M
+   and the Z80 chip. Well, not any more, thanks to MYZ80.
+ 
+   Other emulators on the market are less than satisfactory solutions.
+   Of the small number which can actually run without causing system
+   errors under the later versions of DOS, apparently none is capable
+   of running real CP/M. Instead they use an emulated version of CP/M
+   which is only as accurate as the developers have bothered to make
+   it.
+ 
+   MYZ80 can run CP/M 3.0 and ZCPR (which is such a useful Z80
+   developer's environment).  So if you suffer from less than perfect
+   Z80 emulation and slow overall performance, give MYZ80 a try, and
+   save the 'real' Z80  machines for those cold winter mornings when
++  you really need the heat.  The author of MYZ80, Simon Cran, can be
++  reached at:
+
++       Simeon Cran P/L
++       PO Box 5706
++       West End, Queensland, AUstalia 4101
++       Simeon.Cran@f236.n640.z3.fidonet.org
+
+|  It may also be helpful to note that Micro Solutions had a device
+|  called the MatchPoint PC, which was effectively an Apple //e on a
+|  card, for the IBM clones.  When used in conjunction with a
+|  MicroSolutions CompatiCard, you can read files from an Apple CP/M
+|  disk and transfer to another disk format with a special
+|  configuration of UniForm.  That although this setup is effective, it
+|  is quite expensive and the cost is not justified for small amounts
+|  of copying.
+
+
+
+Q10: Where can I get a boot disk for (insert system name)?
+   
+A: (Don Maslin)
+
+   Getting a system disk is pretty easy - if Dina-SIG CP/M System Disk
+   Archives has it.  However, some dialogue with the requester has
+   usually been necessary to assure that we are talking about the same
+   Jurassic inhabitant!  There are just too many variants in the CP/M
+   world.  A request with specifics on the computer, an address to mail
+   to, and some recompense is all it takes.  Since this is an unfunded
+   effort on the part of the SIG, the costs of media, mailer, and
+   postage  must be recouped.  In general, and there are variations,
+   this runs $3 for the first disk and $2 or less for each additional.
+   Eight inch disks are a bit more!  However, a swap can be arranged if
+   the other party has disks that are not duplicative of ones already
+   in the archive.  If you can help augment the archive, yours is
+   free.
+
+   The keeper of the archives can be reached at:
+
+              Don Maslin
+              7742 Via Capri
+              La Jolla CA 92037
+              619-454-7392
+
+   or use the email address given above.
+
+
+Q11: What terminal emulation programs are available?
+
+A: (Peter A. Schuman)
+
+   The leading CP/M public domain or freeware (author kept copyright
+   but distributed it for free) modem programs are:
+
+	MODEM740 - The last of the "MODEMxxx" programs.
+
+	IMP245 - This is nice, and works smoothly within what it does.
+	What it does, it does very well.  IF you have slow floppy
+	drives, there is a patch to cut down the receive buffer size.
+
+	MEX114 - different from the above two, but minimally functional
+	with just an IMP overlay.  To use it all, you need MEX overlay
+	for your machine.
+
+	ZMP15  -  This program includes ZMODEM file transfers.
+
+	KERMIT - This program may have the widest implementation base
+	because it uses only printable characters for its file
+	transfers.  This is a plus because the MODEM7 family of
+	protocols send binary characters that sometimes conflict with
+	the underlying system use.  It is a minus because many more
+	characters must be sent and thus is slower.  KERMIT may be
+ 	found on watsun.cc.columbia.edu.
+
+	QTERM43E - This is somewhat like using QMODEM on an MSDOS
+	machine.  Qterm has VT100 emulation mode as well as XMODEM and
+	KERMIT protocol.  If you can get (or write) a good overlay,
+	this is a nice program.
+
+   For high speed transfers, you will probably need interrupt-driven
+   routines, which are available for some these.  The exact baud rate
+   where it becomes necessary varies by system and program.
+
+
+Q12: How do you unpack a .ARK or .ARC file?
+
+A: (Gier Tjoerhom, Don Kirkpatrick)
+
+    Archive files are a collection of related files packed together so
+    they stay together.  They have somewhat been replaced by librarys,
+    but are still encountered often.  The C or K at the end only
+    differentiate the original packing program, they are otherwise
+    identical.  Some archives are self extracting, just rename them
+    with a .com ending and execute them.  Others must be unpacked with
+    a program, unarc16.ark containing one of the most popular (in a
+    self extracting archive). This archive can be found at:
+
+         oak.oakland.edu: /pub2/cpm/arc-lbr/unarc16.ark
+
+
+Q13: How do you unpack a .lbr file?
+
+A: (William P. Maloney, Peter A. Schuman)
+
+   A .lbr is a single file that contains a number of compressed files
+   inside.  The files must be extracted from the .lbr before the can be
+   used.
+
+   One very good library extract program is called lbrext.com.  It's
+   simple to use and uncrunches the files at the same time.  EXAMPLE:
+
+        A>lbrext b:myfile.lbr c:*.* uo
+
+   This takes the lbrext.com file on 'A' to extract all the files in
+   myfile.lbr on 'B' and put them on 'C' uncrunched.  A simple 'lbrext'
+   first will show you how to use the .com file.
+
+   Other popular library maintenance programs are LUE, DELBR, and NULU,
+   the latter being one of the best CP/M programs for handling LBRs.
+   However, don't use NULU to extract and unsqueeze simultaneously.  It
+   occasionally screws up doing this, and it can trash an entire disk
+   when it does so.
+
+
+Q14: What are all these .xQx, .xYx, and .xZx file types?
+
+A: (Don Kirkpatrick)
+
+   These are compressed files, a.k.a. squeezed or crunched files.  They
+   must be uncompressed before they can be used.  They differ in the
+   compression algorithm; .?Q? was the first generation and .?Y? the
+   newest.  There are many fine programs that uncompress files, but
+   most handle only one or two compression types (e.g. SQ111.ARC and
+   CRUNCH24.LBR).  One program that will uncompress all three types can
+   be found in CRLZH20.LBR.
+
+
+Q15: Are any of these .ARK, .LBR, or CRUNCH utilities on MSDOS?
+
+A: (Geir Tjoerhom)
+
+   Yes, MSDOS versions do exist and can be located as follows:
+
+        oak.oakland.edu: /pub/msdos/arcutil/lue220.zip         (.LBR)
+        nic.switch.ch: /mirror/msdos/archiver/arce41a.zip      (.ARK)
+        nic.funet.fi: /pub/msdos/packing/compress/alusq.com    (.xQx)
+        nic.funet.fi: /pub/msdos/packing/compress/uncr233.zip  (.xZx)
+
+
+Q16: Why does my Kaypro drop characters above (insert baud rate)?
+
+A: (Jeff Wieland, Stephen Griswold, Don Kirkpatrick)
+
+   The basic problem is that updating the screen takes too long and some
+   incoming characters are missed.  The exact baud rate where
+   characters begin to disappear depends on the configuration of the
+   Kaypro and the terminal program.  Generally, the older non-graphic
+   Kaypros will run at a much higher baud rate before characters start
+   to disappear.  Stock Kaypros are not interrupt driven and the BIOS
+   ROM has several built-in delays, which demanded too much of a
+   2x/4x/10's time.
+
+   Several things can be done to help the situation.  If your Kaypro
+   came with the MITE software package, you can use it for high speed
+   terminal emulation.  A Kaypro 2X using MITE can go as fast as 19200
+   bps.  MITE uses interrupts to achieve this.
+
+   Sometimes the problem can be ignored. A 2X will drop characters at
+   300 baud using Kermit-80.  File transfers work fine at 19200 bps.
+   It is always a good ides to run file transfers in the quiet mode if
+   terminal mode is dropping characters as then the display update time
+   is minimized.
+
+   The graphic-equipped Kaypros can be significantly improved in
+   terminal mode just by turning off the status line at the bottom of
+   the screen.  As most terminal programs have an initialize sequence
+   available, just send the no status line command to the Kaypro -
+   <ESC>, C, 7 [1BH, 43H, 37H in hex].
+
+   There are several hardware changes that can lessen or eliminate the
+   problem.  There is a speed modification for the 1983 Kaypro-II's &
+   IV's requiring changing some chips to faster versions and outfitting
+   the back with a toggle switch.  Upgrading to a MicroCornucopia MAX-8
+   or Advent TurboROM also helps.
+
+   If your machine is equipped with the Advent TurboROM and you choose
+   to run QTERM, Don Kirkpatrick can send you an interrupt driver that
+   allows the graphic-enhanced Kaypros to work just fine to at least
+   2400 baud.
+
+
+Q17: What is an Advent TurboROM?
+
+A: (Don Maslin)
+
+   The Advent TurboROM is a firmware upgrade to the Kaypro.  It
+   replaces the original Kaypro system ROM and provides flexible
+   configurations, additional disk formats, greater speed, and bug
+   fixes.  Contact point for this is:
+
+              Chuck Stafford
+              4000 Norris Avenue
+              Sacramento CA 95812
+              916/483-0312
+
+
+Q18: How can I add a hard drive to my Kaypro?
+
+A: (Don Kirkpatrick)
+
+   Chuck Stafford (see above) sells hard drive conversion kits.
+   Emerald Microware used to offer hard drive kits for the Kaypro, but
+   has run out of hard disk controllers. If you already have your own
+   WD-1002-05 or WD-1002-HDO or can find one, then Emerald can provide
+   you with controller software.  They can be contacted at:
+
+              EMERALD MICROWARE
+              P.O. Box 1726
+              Beaverton OR 97075
+              503/641-8088  Brian/Patricia
+
+
+Q19: What belongs in the unpopulated board area on a Kaypro?
+
+A: (Don Maslin, Don Kirkpatrick, Peter A. Schuman)
+
+   A clock and modem go there.  The modem is rather useless as it is
+   only 300 baud.  The clock/calendar is useful.  The Computer Journal,
+   issue 64, Nov./Dec. 1993, describes the installation procedure.
+   There is also an area on a 2X for a hard drive interface.  
+
+
+
+Q20: What is The Computer Journal?
+
+A: (Kevin Spears, Don Kirkpatrick)
+
+   The Computer Journal is a magazine specializing in CP/M, small
+   systems, and related topics. Chuck Stafford writes a regular column
+   on Kaypros and Jay Sage writes one on Z Systems. In their own
+   words:
+
+	"The Computer Journal has been supporting CP/M and Z80s for TEN
+	years.  TCJ has recently increased our support by providing
+	more beginner CP/M articles, as well as our regular advanced
+	ZCPR column.  The ZCPR column is written by one of the ZCPR
+	authors and guides people in replacing CP/M with this
+	do-it-yourself operating system.
+
+	Tired of PC/MSDOS files getting bigger and bigger?  Like to do
+	things in a simple way?  How about learning about new devices
+	without having the latest "C" compiler?  Have you been
+	wondering about using the new IDE drives on your CP/M system?
+	We do all that and more at The Computer Journal."
+
+   There are six issues per year, and the subscription rate is $24 for
+   1 year, or $44 for 2. Subscriptions may be sent to:
+
+              The Computer Journal
+              P.O. Box 535
+              Lincoln, CA 95648
+
+
+Q21: What is ZCPR and the Z System?
+
+A: (Jay Sage, Don Kirkpatrick)
+
+   The original ZCPR was written in Z80 code and was called the "Z80
+   Command Processor Replacement".  It was a drop-in replacement for
+   the Digital Research CCP (Console Command Processor) and adhered to
+   the 800H space restriction.  ZCPR2 (February 14, 1983) was the first
+   experiment in greatly extending the power of the command processor.
+   It added additional memory modules for supporting such things as
+   multiple commands on a line, a dynamically reconfigurable command
+   search path, and directory names associated with drive/user areas.
+   The ideas and implementation in ZCPR2 were only half-baked, and they
+   came to logical fruition in ZCPR3 (Richard Conn's 3.0 and Jay Sage's
+   3.3 and 3.4).
+ 
+   ZCPR3 gives you UNIX-like flexibility.  Features implemented include
+   shells, aliases, I/O redirection, flow control, named directories,
+   search paths, custom menus, passwords, online help, and greater
+   command flexibility.  ZCPR3 can be found on many BBS and SIMTEL
+   mirrors.  The Z System commercial version is available for a nominal
+   fee from Jay Sage.  Further details can be found in the text "ZCPR3,
+   The Manual", by Richard Conn, ISBN 0-918432-59-6.
+ 
+   You can find a detailed history of the development of ZCPR and the Z
+   System in Jay Sage's column in issue #54 of The Computer Journal.
+   This article celebrated the 10th anniversary of ZCPR, which was
+   first released on February 2, 1982.  His "ZCPR33 User's Guide" also
+   has a section on the history (it can be ordered from Jay for $10,
+   domestic shipping included).
+
+
+Q22: What ever happened to the Z800?
+
+A: (Ralph Becker-Szendy, Frank Zsitvay)
+
+   The Z800 was planned to be NMOS, and was finally implemented as the
+   Z280 in CMOS, five years late.  And it does have a 4kB/8kB paged
+   MMU, and separate I/D space, and cache. There are small differences
+   between the Z800 preliminary spec and the final Z280 specification.
+
+   The Z180 was not an outgrowth of the Z800.  It was a joint effort
+   between Zilog and Hitachi.  The first two versions of the HD64180
+   were slightly different from the current Z180.  The current HD64180
+   and Z180 are identical, and both have flags in one of the control
+   registers to emulate the earlier versions.  The changes are mostly
+   bus timing, as the HD64180 was designed to interface with Motorola
+   6800 style peripherals as well as Intel and Zilog, which wasn't too
+   strange since Hitachi second sources some Motorola 6800 series
+   products.
+
+
+Q23: What is the status of the Z380?
+
+A: (Ralph Becker-Szendy)
+
+   The Z380 is a 32-bit version binary-compatible upgrade of the
+   HD180.  The 18MHz part in the 100-pin QFP package is shipping.  The
+   plan for a PGA-package for the Z380 has been scrapped.  Zilog is
+   working on a 25MHz part, but it isn't quite ready yet.  The
+   "Preliminary Product Specfication", Zilog part number DC6003-02,
+   documents the part.  According to the manual, the plans include a
+   40MHz part, but the time frame is uncertain.
+
+
+Q24: What is the KC80?
+
+A: (Ralph Becker-Szendy)
+
+   There was an announcement in the trade press about a deal between
+   Kawasaki Heavy Industries and Zilog. Kawasaki has developed
+   something called the KC80, which is a Z80 (no MMU, extended address
+   space, or 32-bit enhancements), but speeded up to execute most
+   instructions in one or two cycles, and running at 20MHz.  Zilog has
+   the rights to the design. The catch is that Zilog is currently not
+   planning to sell it as a chip.
+
+
+Q25: Anyone know a good source for cross assemblers?
+
+A: (Roger Hanscom)
+
+   There are a variety of sources for cross platform development tools.
+
+   The C Users' Group (1601 W. 23rd St., Suite 200, Lawrence, KS
+   66046-2700) has a library of software that includes all kinds of
+   development tools.  Source code is distributed with many of them.
+   They charge $4/disk and $3.50 s&h per order, and can supply 3.5" or
+   5.25" DOS formats.  Those of you seeking assemblers or disassemblers
+   will be particularly interested in volumes number 398, 363 (2
+   disks), 348, 346 (2 disks), 338 (2 disks), 335 (4 disks), 316, 303,
+   and 292(4 disks).  They also market a CD-ROM of volumes 100 through
+   364 for $49.95 list (it can usually be found at computer shows for
+   $25 to $35).  They can be reached at 913/841-1631 FAX: 913/841-2624.
+
+   The Circuit Cellar BBS is on-line 24 hours per day with some cross
+   development tools, particularly for CPU's that are commonly used as
+   controllers.  They have a Courier HST running 2400/9600 bps at
+   203/871-0549, and another line that will do up to 14.4k bps (8N1) at
+   203/871-1988.  Both of these numbers are in Connecticut.
+
+   The Motorola BBS is in Austin, Texas, on 512/440-3733.  They have
+   downloadable cross development products mostly for the 68xx and
+   68xxx architectures.  Like the Circuit Cellar BBS, this BBS seems to
+   specialize in micro-controller development.  Many of these files can
+   also be accessed over the network on bode.ee.ualberta.ca
+   (129.128.16.96).
+
+   Don't forget to look in the old familiar places, such as
+   oak.oakland.edu and wuarchive.wustl.edu.
+
+   It is an unverified rumor that Walnut Creek CDROM (cdrom.com) has
+   some tools from some of the sources listed above on line on their
+   server.
+
+
+=====================================================================
+                            End of FAQ
+

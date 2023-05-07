@@ -1,0 +1,139 @@
+.TH CTOOLS 1 "1996\-02\-20" "version 0.4"
+.\" $Id: ctools.1,v 1.1 1997/02/20 23:29:31 jochen Rel $
+.\" Copyright (c) 1995-1996  Jochen Metzinger.
+.\"
+.\" Permission is granted to make and distribute verbatim copies of
+.\" this manual provided the copyright notice and this permission notice
+.\" are preserved on all copies.
+.\"
+.\" Permission is granted to copy and distribute modified versions of this
+.\" manual under the conditions for verbatim copying, provided that the
+.\" entire resulting derived work is distributed under the terms of a
+.\" permission notice identical to this one.
+.\"
+.\" Permission is granted to copy and distribute translations of this
+.\" manual into another language, under the above conditions for modified
+.\" versions, except that this permission notice may be included in
+.\" translations instead of in the original English.
+.\"
+.SH NAME
+ctools \- manipulate c64/c128 CP/M disk images
+.SH SYNOPSIS
+.B ctools
+.RB [ \-hi ]
+.RB [ \-u
+.IR user ]
+.RB [ \-\-help ]
+.RB [ \-\-initdir ]
+.RB [ \-\-user=\fIuser ]
+.I image
+.I command
+.RI [ parameter ]
+.SH DESCRIPTION
+.B ctools
+is a public domain program to allow Unix and MSDOS systems to read,
+write and manipulate files on an c64/c128 CP/M disk image.
+.SH "CP/M FILE NAMES"
+.BR ctools '
+CP/M file have the format
+.PP
+	[\fIuser\fB:\fR]\fIname\fP[\fB.\fP[\fPtype\fP]]
+.PP
+where
+.I user
+is a letter from
+.B A
+to
+.BR P ,
+.I name 
+a string of up to 8 and
+.I type
+a string of up to 3 character.
+The character 
+.B ?
+is a joker for one character and
+.B *
+for the rest of the part
+.RI ( user ,
+.I name
+or
+.IR type ).
+.SH OPTIONS
+.TP
+.BR \-i ", " \-\-initdir
+If you have passwords, directory labels or time stamps on your image
+you will not be able to work with
+.BR ctools .
+You have to use this option to remove this entries.
+.TP
+.BR "-u \fIuser" ", " "\-\-user=\fIuser"
+Set the default user array to
+.IR user .
+If you do not use this option the default user array will be
+.BR 0 .
+.TP
+.BR \-h ", " \-\-help
+print a help message on standard output and exit successfully.
+.SH COMMANDS
+.TP
+.B c
+check the directory of the
+.IR image .
+If the option
+.B \-i
+is given the cleared directory will be saved to the
+.IR image .
+.TP
+.BR "d " "[\fIfile\fP]"
+output the directory of
+.IR file .
+The default
+.I file 
+is
+.BR ?:*.* .
+.TP
+.BR "e " "[\fIfile\fP]"
+delete each
+.IR file .
+.TP
+.BR "g " "[\fIfile\fP]"
+copy each 
+.I file
+from the 
+.I image
+to the current directory.
+.TP
+.BR h ", " ?
+print a help message on standard output and exit successfully.
+.TP
+.BR "m " "[\fIfile\fP]"
+output a dump for each
+.IR file .
+.TP
+.BR "p " "[\fIfile\fP]"
+copy each
+.I file
+to the user array
+.I user 
+of the 
+.IR image .
+.TP
+.BI "r " "old new"
+renames 
+.I old
+to 
+.RI new .
+.TP
+.BR "t " "[\fIfile\fP]"
+output each file matching 
+.IR file .
+.TP
+.B u
+undelete deleted files.
+.SH "SEE ALSO"
+.BR d64dump (1),
+.BR biosdump (1),
+.BR cformat (1),
+.BR d64 (5)
+.SH AUTHOR
+Jochen Metzinger<1metzing@informatik.uni\-hamburg.de>

@@ -1,0 +1,22 @@
+	public .rs
+.rs:	XCHG
+	mov a,e
+	ani	31
+	mov	e,a
+	jz	setcc
+	MOV A,H
+	ORA H
+	JP .arloop
+;
+.sign:	MOV	A,H
+	STC
+	RAR
+	MOV	H,A
+	MOV	A,L
+	RAR
+	MOV	L,A
+	DCR E
+	JNZ	.sign
+	ora h
+	ret
+
