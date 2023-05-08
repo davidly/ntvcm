@@ -24,9 +24,9 @@ class ConsoleConfiguration
         #ifdef _MSC_VER
             ConsoleConfiguration() : consoleOutputHandle( 0 ), consoleInputHandle( 0 ), oldConsoleMode( 0 )
             {
-                    oldWindowPlacement = {0};
-                    oldScreenInfo = {0};
-                    oldCursorInfo = {0};
+                oldWindowPlacement = {0};
+                oldScreenInfo = {0};
+                oldCursorInfo = {0};
             } //ConsoleConfiguration
         #else
             ConsoleConfiguration() : initialized( false ), established( false )
@@ -205,14 +205,13 @@ class ConsoleConfiguration
 
         static bool throttled_kbhit()
         {
-            
             // _kbhit() does device I/O in Windows, which sleeps for a tiny amount waiting for a reply, so 
             // compute-bound mbasic.com apps run 10x slower than they should because mbasic polls for keyboard input.
             // Workaround: only call _kbhit() if 50 milliseconds has gone by since the last call.
 
             static high_resolution_clock::time_point last_call = high_resolution_clock::now();
             high_resolution_clock::time_point tNow = high_resolution_clock::now();
-            long long difference = duration_cast<std::chrono::milliseconds>( tNow - last_call ).count();                
+            long long difference = duration_cast<std::chrono::milliseconds>( tNow - last_call ).count();
 
             if ( difference > 50 )
             {
