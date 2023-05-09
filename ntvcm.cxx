@@ -46,6 +46,8 @@
 #define COMMAND_TAIL_LEN_OFFSET    0x80
 #define COMMAND_TAIL_OFFSET        0x81
 #define DEFAULT_DMA_OFFSET         0x80 // read arguments before doing I/O because it's the same address
+#define DPB_HI_OFFSET              0xfe // where the Disk Parameter Block resides for BDOS 31.
+#define DPB_LO_OFFSET              0x00 // lo part of DPB
 
 #define CPM_FILENAME_LEN ( 8 + 3 + 1 + 1 ) // name + type + dot + null
   
@@ -99,6 +101,22 @@ struct CPMTime // non-standard time structure
     uint16_t second;
     uint16_t millisecond;
 };
+
+#pragma pack( push, 1 )
+struct DiskParameterBlock // for BDOS 31. https://www.seasip.info/Cpm/format22.html
+{
+    uint16_t spt;    // Number of 128-byte records per track
+    uint8_t  bsh;    // Block shift. 3 => 1k, 4 => 2k, 5 => 4k....
+    uint8_t  blm;    // Block mask. 7 => 1k, 0Fh => 2k, 1Fh => 4k...
+    uint8_t  exm;    // Extent mask, see later
+    uint16_t dsm;    // (no. of blocks on the disc)-1
+    uint16_t drm;    // (no. of directory entries)-1
+    uint8_t  al0;    // Directory allocation bitmap, first byte
+    uint8_t  al1;    // Directory allocation bitmap, second byte
+    uint16_t cks;    // Checksum vector size, 0 for a fixed disc
+    uint16_t off;    // Offset, number of reserved tracks
+};
+#pragma pack(pop)
 
 CDJLTrace tracer;
 ConsoleConfiguration g_consoleConfig;
@@ -1171,6 +1189,15 @@ uint8_t x80_invoke_hook()
 
             break;
         }
+        case 31:
+        {
+            // get PDB address. Get Disk Parameter Block. Return the address in HL
+
+            reg.h = DPB_HI_OFFSET;
+            reg.l = DPB_LO_OFFSET;
+
+            break;
+        }
         case 32:
         {
             // get/set current user
@@ -1742,7 +1769,8 @@ int main( int argc, char * argv[] )
     //   0000-00ff: CP/M global storage
     //   0100-????: App run space growing upward until it collides with the stack
     //   ????-fdff: Stack growing downward until it collides with the app
-    //   fe00-ff00: reserved space for bdos; filled with 0s
+    //   fe00-fe10: reserved space for bdos; filled with the Disk Parameter Block for BDOS call 31 Get DPB.
+    //   fe10-ff00: reserved space for bdos; filled with 0s
     //   ff00-ff33: bios jump table of 3*17 bytes. (0xff03 is stored at addess 0x1)
     //   ff80-ff91: where jump table addresses point, filled with OPCODE_HOOK
     //
@@ -1764,6 +1792,19 @@ int main( int argc, char * argv[] )
         printf( "unable to load command %s\n", acCOM );
         exit( 1 );
     }
+
+    // Use made-up numbers that look believable enough to a CP/M app checking for free disk space. 107k.
+
+    DiskParameterBlock * pdpb = (DiskParameterBlock *) ( memory + ( DPB_HI_OFFSET << 8 ) + DPB_LO_OFFSET );
+    pdpb->spt = 128;
+    pdpb->bsh = 3;
+    pdpb->blm = 7;
+    pdpb->exm = 7;
+    pdpb->dsm = 127;
+    pdpb->drm = 1;
+    pdpb->al0 = 0xf0;
+    pdpb->al1 = 0;
+    pdpb->off = 0;
 
     memory[ 0x100 + file_size ] = OPCODE_HLT; // in case the app doesn't shutdown properly
     reg.powerOn();    // set default values of registers
