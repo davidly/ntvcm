@@ -101,13 +101,13 @@ struct CPMTime // non-standard time structure
 };
 
 CDJLTrace tracer;
+ConsoleConfiguration g_consoleConfig;
 
 static bool g_haltExecuted;
 static uint8_t * g_DMA = memory + DEFAULT_DMA_OFFSET;
 static vector<FileEntry> g_fileEntries;
 static bool g_forceConsole = false;
 static bool g_forceLowercase = false;
-ConsoleConfiguration g_consoleConfig;
 
 bool ValidCPMFilename( char * pc )
 {
@@ -495,7 +495,10 @@ uint8_t x80_invoke_hook()
             // if the output character is ESC, assume the app wants 80x24. 
 
             if ( 0x1b == reg.c && !g_forceConsole && !g_consoleConfig.IsEstablished() )
+            {
+                tracer.Trace( "establishing 80x24\n" );
                 g_consoleConfig.EstablishConsole( 80, 24 );
+            }
 
             char ch = reg.c;
             tracer.Trace( "bios console out: %02x == '%c'\n", ch, printable_ch( ch ) );
@@ -1671,7 +1674,7 @@ int main( int argc, char * argv[] )
 
     tracer.Enable( trace, L"ntvcm.log", true );
     tracer.SetQuiet( true );
-    tracer.SetFlushEachTrace( false );
+    tracer.SetFlushEachTrace( true );
     x80_trace_instructions( traceInstructions );
 
     if ( 0 == pcCOM )
