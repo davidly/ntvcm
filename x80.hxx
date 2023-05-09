@@ -238,6 +238,7 @@ struct registers
         a = f = b = c = d = e = h = l = 0xff;
         sp = ix = iy = 0xffff;
         ap = fp = bp = cp = dp = ep = hp = lp = 0xff;
+        fZero = fCarry = fParityEven_Overflow = fSign = fAuxCarry = fWasSubtract = fY = fX = 0;
     } //powerOn
 };
 

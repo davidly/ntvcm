@@ -126,6 +126,7 @@ static uint8_t * g_DMA = memory + DEFAULT_DMA_OFFSET;
 static vector<FileEntry> g_fileEntries;
 static bool g_forceConsole = false;
 static bool g_forceLowercase = false;
+static bool g_backspaceToDel = false;
 
 bool ValidCPMFilename( char * pc )
 {
@@ -428,7 +429,18 @@ const char * bdos_functions[] =
     "write random with zero fill",
 };
 
-const char * get_bdos_function( uint16_t address )
+const char * get_bdos_function( uint8_t id )
+{
+    if ( id < _countof( bdos_functions ) )
+        return bdos_functions[ id ];
+
+    if ( 105 == id )
+        return "get time";
+
+    return "unknown";
+} //get_bdos_function
+
+const char * get_bios_function( uint16_t address )
 {
     uint16_t id = address & 0xff;
 
@@ -470,7 +482,7 @@ const char * get_bdos_function( uint16_t address )
         return "sectran: sector translation for skewing";
 
     return "unknown";
-} //get_bdos_function
+} //get_bios_function
 
 uint8_t x80_invoke_hook()
 {
@@ -478,7 +490,7 @@ uint8_t x80_invoke_hook()
 
     if ( address >= 0xff00 )
     {
-        tracer.Trace( "bios function %#x: %s\n", address, get_bdos_function( address ) );
+        tracer.Trace( "bios function %#x: %s\n", address, get_bios_function( address ) );
         //x80_trace_state();
 
         // BIOS call. 0xff00-0xff33 are for actual, documented BIOS calls.
@@ -505,6 +517,10 @@ uint8_t x80_invoke_hook()
             // conin
 
             reg.a = ConsoleConfiguration::portable_getch();
+
+            if ( g_backspaceToDel && 0x08 == reg.a )
+                reg.a = 0x7f;
+
             tracer.Trace( "conin is returning %02xh\n", reg.a );
         }
         else if ( 0xff0c == address || 0xff84 )
@@ -525,6 +541,8 @@ uint8_t x80_invoke_hook()
         }
         else
         {
+            // I only implemented bios calls actually used in apps I tested.
+
             tracer.Trace( "UNIMPLEMENTED BIOS CODE!!!!!!!!!!!!!!!: %#x\n", address );
             printf( "unhandled bios code!!!!!!!!!!!!!!! %#x\n", address );
         }
@@ -539,9 +557,10 @@ uint8_t x80_invoke_hook()
     }
 
     uint8_t function = reg.c;
-    tracer.Trace( "bdos function %d: %s\n", function, function <= 40 ? bdos_functions[ function ] :
-                                                      ( 105 == function ) ? "get time" : "unknown" );
+    tracer.Trace( "bdos function %d: %s\n", function, get_bdos_function( function ) );
     //x80_trace_state();
+
+    // Only BDOS calls called by a apps I tested are implemented. 
 
     switch( reg.c )
     {
@@ -1514,6 +1533,7 @@ void usage( char const * perr = 0 )
     printf( "NT Virtual CP/M 2.2 Machine: emulates a CP/M 2.2 i8080/Z80 runtime environment\n" );
     printf( "usage: ntvcm [-c] [-p] [-s:X] [-t] <cp/m 2.2 .com file> [filearg1] [filearg2]\n" );
     printf( "  notes:    filearg1 and filearg2 optionally specify filename arguments for the command\n" );
+    printf( "            -b     translate bios console input character BS 0x08 to DEL 0x7f. some apps need this.\n" );
     printf( "            -c     never auto-detect ESC characters and change to to 80x24 mode\n" );
     printf( "            -C     always switch to 80x24 mode\n" );
     printf( "            -i     trace 8080/Z80 instructions when tracing with -t\n" );
@@ -1681,6 +1701,8 @@ int main( int argc, char * argv[] )
                 trace = true;
             else if ( 'p' == ca )
                 showPerformance = true;
+            else if ( 'b' == parg[1] )
+                g_backspaceToDel = true;
             else if ( 'c' == parg[1] )
                 g_forceConsole = true;
             else if ( 'C' == parg[1] )
@@ -1815,6 +1837,9 @@ int main( int argc, char * argv[] )
     reg.bp = reg.cp = reg.dp = reg.ep = reg.hp = reg.lp = 0;
     reg.ix = reg.iy = 0;
     g_haltExecuted = false;
+
+    tracer.Trace( "starting execution of app '%s' size %d\n", acCOM, file_size );
+    x80_trace_state();
 
     if ( force80x24 )
         g_consoleConfig.EstablishConsole( 80, 24 );
