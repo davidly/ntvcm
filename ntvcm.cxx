@@ -1831,7 +1831,11 @@ int main( int argc, char * argv[] )
     memory[ 0x100 + file_size ] = OPCODE_HLT; // in case the app doesn't shutdown properly
     reg.powerOn();    // set default values of registers
     reg.pc = 0x100;
-    reg.sp = 0xfe00;  // the stack is written to below this address
+
+    // the stack is written to below this address.
+    // 0xfdfe and 0xfdff are 0, which some apps (load.com) require as they "ret" to 0 to exit.
+
+    reg.sp = 0xfdfe;
     reg.a = reg.b = reg.c = reg.d = reg.e = reg.h = reg.l = 0;
     reg.fp = reg.ap = 0; // apparently this is expected by CPUTEST
     reg.bp = reg.cp = reg.dp = reg.ep = reg.hp = reg.lp = 0;
