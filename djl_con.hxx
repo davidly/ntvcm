@@ -107,7 +107,8 @@ class ConsoleConfiguration
                 
                     CONSOLE_SCREEN_BUFFER_INFOEX newInfo;
                     memcpy( &newInfo, &oldScreenInfo, sizeof newInfo );
-                
+
+                    setWidth = width;
                     newInfo.dwSize.X = width;
                     newInfo.dwSize.Y = height;
                     newInfo.dwMaximumWindowSize.X = width;
