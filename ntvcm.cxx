@@ -1774,7 +1774,7 @@ int main( int argc, char * argv[] )
 
     // make memory look like CP/M 2.2
 
-    memory[0] = OPCODE_HLT;
+    memory[0] = OPCODE_HLT; // when an app exits by jumping here, halt execution
     memory[1] = 0x03; // low byte of BIOS jump table. boot is at -3 from this address. wboot is here.
     memory[2] = 0xff; // high byte of BIOS jump table
 
@@ -1790,11 +1790,13 @@ int main( int argc, char * argv[] )
     // The memory map is here (giving apps a little more RAM than standard CP/M):
     //   0000-00ff: CP/M global storage
     //   0100-????: App run space growing upward until it collides with the stack
-    //   ????-fdff: Stack growing downward until it collides with the app
+    //   ????-fdfd: Stack growing downward until it collides with the app
+    //   fdfe-fdff: two bytes of 0 so apps can return instead of a standard app exit. ccp has "call 0x100" it's OK to return.
     //   fe00-fe10: reserved space for bdos; filled with the Disk Parameter Block for BDOS call 31 Get DPB.
     //   fe10-ff00: reserved space for bdos; filled with 0s
     //   ff00-ff33: bios jump table of 3*17 bytes. (0xff03 is stored at addess 0x1)
     //   ff80-ff91: where jump table addresses point, filled with OPCODE_HOOK
+    //   ff92-ffff: unused, filled with 0
     //
     // On a typical CP/M machine:
     //   0000-00ff: CP/M global storage
@@ -1829,13 +1831,9 @@ int main( int argc, char * argv[] )
     pdpb->off = 0;
 
     memory[ 0x100 + file_size ] = OPCODE_HLT; // in case the app doesn't shutdown properly
-    reg.powerOn();    // set default values of registers
+    reg.powerOn();       // set default values of registers
     reg.pc = 0x100;
-
-    // the stack is written to below this address.
-    // 0xfdfe and 0xfdff are 0, which some apps (load.com) require as they "ret" to 0 to exit.
-
-    reg.sp = 0xfdfe;
+    reg.sp = 0xfdfe;     // the stack is written to below this address.
     reg.a = reg.b = reg.c = reg.d = reg.e = reg.h = reg.l = 0;
     reg.fp = reg.ap = 0; // apparently this is expected by CPUTEST
     reg.bp = reg.cp = reg.dp = reg.ep = reg.hp = reg.lp = 0;
