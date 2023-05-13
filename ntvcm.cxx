@@ -21,7 +21,7 @@
 // To build on Windows with mingw64 & g++: (performance is >10% faster than the Microsoft compiler)
 //     g++ -Ofast -ggdb -fopenmp -D _MSC_VER ntvcm.cxx x80.cxx -I ../djl -D DEBUG -o ntvcm.exe -static -lwininet
 //     g++ -Ofast -ggdb -fopenmp -D _MSC_VER ntvcm.cxx x80.cxx -I ../djl -D NDEBUG -o ntvcm.exe -static -lwininet
-// Note: openmp, wininet, ssl, crypto, and djl_rssrdr.hxx are only required for RSS BDOS calls.
+// Note: openmp, wininet, ssl, crypto, and djl_rssrdr.hxx are only required for RSS support.
 //          
 
 #include <stdio.h>
@@ -38,10 +38,13 @@
 // On non-Windows platforms djl_rssrdr.hxx has a dependency on:
 //     httplib.h from https://github.com/yhirose/cpp-httplib
 //     openssl headers and libraries
-// If you don't want RSS, remove this and BDOS functions 107 and 108
 
-#include <djl_rssrdr.hxx>
-CRssFeed g_rssFeed;
+#define NTVCM_RSS_SUPPORT true
+
+#if NTVCM_RSS_SUPPORT
+    #include <djl_rssrdr.hxx>
+    CRssFeed g_rssFeed;
+#endif
 
 #include "x80.hxx"
 
@@ -1541,6 +1544,7 @@ uint8_t x80_invoke_hook()
             sleep_ms( ms );
             break;
         }
+#if NTVCM_RSS_SUPPORT
         case 107:
         {
             // non-standard BDOS call load rss feeds. DE points to a 0-terminated list of URLs
@@ -1571,6 +1575,7 @@ uint8_t x80_invoke_hook()
             reg.a = g_rssFeed.fetch_rss_item( item, buf, 2048 );
             break;
         }
+#endif
         default:
         {
             tracer.Trace( "UNIMPLEMENTED BDOS FUNCTION!!!!!!!!!!!!!!!: %d = %#x\n", reg.c, reg.c );
@@ -1956,7 +1961,10 @@ int main( int argc, char * argv[] )
             printf( "      %20s Hz\n", RenderNumberWithCommas( clockrate, ac ) );
     }
 
+#if NTVCM_RSS_SUPPORT
     g_rssFeed.clear();
+#endif
+
     tracer.Shutdown();
 } //main
 
