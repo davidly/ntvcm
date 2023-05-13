@@ -13,14 +13,15 @@
 //          -- Not tested for other CP/M apps, which means they probably don't work. If they fail, it's probably
 //             not the CPU emulation (that's pretty well tested). It's probably the CP/M emulation in this file.
 // To build on Windows debug and release:
-//     cl /nologo ntvcm.cxx x80.cxx /Oti2 /Ob2 /Qpar /Fa /EHac /Zi /DDEBUG /D_AMD64_ /link user32.lib ntdll.lib /OPT:REF
-//     cl /nologo ntvcm.cxx x80.cxx /Oti2 /Ob2 /Qpar /Fa /EHac /Zi /DNDEBUG /D_AMD64_ /link user32.lib ntdll.lib /OPT:REF
+//     cl /nologo /openmp ntvcm.cxx x80.cxx /Oti2 /Ob2 /Qpar /Fa /EHac /Zi /DDEBUG /D_AMD64_ /link user32.lib ntdll.lib /OPT:REF
+//     cl /nologo /openmp ntvcm.cxx x80.cxx /Oti2 /Ob2 /Qpar /Fa /EHac /Zi /DNDEBUG /D_AMD64_ /link user32.lib ntdll.lib /OPT:REF
 // To build on Linux debug and release:
-//     g++ -ggdb -Ofast -fno-builtin -D DEBUG -I . ntvcm.cxx x80.cxx -o ntvcm
-//     g++ -ggdb -Ofast -fno-builtin -D NDEBUG -I . ntvcm.cxx x80.cxx -o ntvcm
+//     g++ -ggdb -Ofast -fopenmp -fno-builtin -D DEBUG -I . ntvcm.cxx x80.cxx -lssl -lcrypto -o ntvcm
+//     g++ -ggdb -Ofast -fopenmp -fno-builtin -D NDEBUG -I . ntvcm.cxx x80.cxx -lssl -lcrypto -o ntvcm
 // To build on Windows with mingw64 & g++: (performance is >10% faster than the Microsoft compiler)
-//     g++ -Ofast -ggdb -D _MSC_VER ntvcm.cxx x80.cxx -I ../djl -D DEBUG -o ntvcm.exe -static
-//     g++ -Ofast -ggdb -D _MSC_VER ntvcm.cxx x80.cxx -I ../djl -D NDEBUG -o ntvcm.exe -static
+//     g++ -Ofast -ggdb -fopenmp -D _MSC_VER ntvcm.cxx x80.cxx -I ../djl -D DEBUG -o ntvcm.exe -static -lwininet
+//     g++ -Ofast -ggdb -fopenmp -D _MSC_VER ntvcm.cxx x80.cxx -I ../djl -D NDEBUG -o ntvcm.exe -static -lwininet
+// Note: openmp, wininet, ssl, crypto, and djl_rssrdr.hxx are only required for RSS BDOS calls.
 //          
 
 #include <stdio.h>
@@ -34,6 +35,14 @@
 #include <djl_con.hxx>
 #include <djl_cycle.hxx>
 
+// On non-Windows platforms djl_rssrdr.hxx has a dependency on:
+//     httplib.h from https://github.com/yhirose/cpp-httplib
+//     openssl headers and libraries
+// If you don't want RSS, remove this and BDOS functions 107 and 108
+
+#include <djl_rssrdr.hxx>
+CRssFeed g_rssFeed;
+
 #include "x80.hxx"
 
 #define OPCODE_NOP  0x00
@@ -41,6 +50,7 @@
 #define OPCODE_HALT 0x76
 
 // CP/M constants for memory addresses where OS-global state is stored
+
 #define FCB_ARG1_OFFSET            0x5c
 #define FCB_ARG2_OFFSET            0x6c
 #define COMMAND_TAIL_LEN_OFFSET    0x80
@@ -437,6 +447,15 @@ const char * get_bdos_function( uint8_t id )
     if ( 105 == id )
         return "get time";
 
+    if ( 106 == id )
+        return "sleep";
+
+    if ( 107 == id )
+        return "initialize rss feed";
+
+    if ( 108 == id )
+        return "fetch rss item";
+
     return "unknown";
 } //get_bdos_function
 
@@ -483,6 +502,7 @@ const char * get_bios_function( uint16_t address )
 
     return "unknown";
 } //get_bios_function
+
 
 uint8_t x80_invoke_hook()
 {
@@ -1158,7 +1178,7 @@ uint8_t x80_invoke_hook()
             // set the dma address (128 byte buffer for doing I/O)
 
             //tracer.Trace( "  updating DMA address; D %u = %#x, old %p, new %p\n", reg.D(), reg.D(), g_DMA, memory + reg.D() );
-            tracer.Trace( "  updating DMA address; D %u = %#x\n", reg.D() );
+            tracer.Trace( "  updating DMA address; D %u = %#x\n", reg.D(), reg.D() );
 
             g_DMA = memory + reg.D();
 
@@ -1512,6 +1532,45 @@ uint8_t x80_invoke_hook()
 
             break;
         }
+        case 106:
+        {
+            // non-standard BDOS call sleep. DE contains a count of milliseconds 0-32767
+
+            uint16_t ms = reg.D();
+
+            sleep_ms( ms );
+            break;
+        }
+        case 107:
+        {
+            // non-standard BDOS call load rss feeds. DE points to a 0-terminated list of URLs
+            // hl returns the # of items loaded
+            // any single item can only be of size 2048 when rendered by fetch_rss_item
+
+            uint16_t * poffsets = (uint16_t *) ( memory + reg.D() );
+
+            char * afeeds[ 10 ];
+            size_t count;
+            for ( count = 0; 0 != poffsets[ count ] && count < _countof( afeeds ); count++ )
+                afeeds[ count ] = (char *) ( memory + poffsets[ count ] );
+            afeeds[ count ] = 0;
+
+            size_t result = g_rssFeed.load_rss_feeds( afeeds, 2048 );
+            tracer.Trace( "found %zd items in %zd feeds feeds\n", result, count );
+            reg.SetH( (uint16_t) result );
+            break;
+        }
+        case 108:
+        {
+            // non-standard BDOS call load rss item. DE is the item to load. DMA points to
+            // a 2048 byte buffer of the form name0title0description0
+
+            char * buf = (char *) g_DMA;
+            uint16_t item = reg.D();
+
+            reg.a = g_rssFeed.fetch_rss_item( item, buf, 2048 );
+            break;
+        }
         default:
         {
             tracer.Trace( "UNIMPLEMENTED BDOS FUNCTION!!!!!!!!!!!!!!!: %d = %#x\n", reg.c, reg.c );
@@ -1536,6 +1595,7 @@ void usage( char const * perr = 0 )
     printf( "            -b     translate bios console input character BS 0x08 to DEL 0x7f. some apps need this.\n" );
     printf( "            -c     never auto-detect ESC characters and change to to 80x24 mode\n" );
     printf( "            -C     always switch to 80x24 mode\n" );
+    printf( "            -d     don't clear the display on app exit when in 80x24 mode\n" );
     printf( "            -i     trace 8080/Z80 instructions when tracing with -t\n" );
     printf( "            -l     force CP/M filenames to be lowercase (can be useful on Linux)\n" );
     printf( "            -p     show performance information at app exit\n" ); 
@@ -1655,6 +1715,7 @@ int main( int argc, char * argv[] )
     uint64_t clockrate = 0;
     bool showPerformance = false;
     bool force80x24 = false;
+    bool clearDisplayOnExit = true;
 
     for ( int i = 1; i < argc; i++ )
     {
@@ -1691,6 +1752,8 @@ int main( int argc, char * argv[] )
                 else
                     usage( "colon required after s argument" );
             }
+            else if ( 'd' == ca )
+                clearDisplayOnExit = false;
             else if ( '8' == ca )
                 reg.fZ80Mode = false;
             else if ( 'i' == ca )
@@ -1840,8 +1903,8 @@ int main( int argc, char * argv[] )
     reg.ix = reg.iy = 0;
     g_haltExecuted = false;
 
-    tracer.Trace( "starting execution of app '%s' size %d\n", acCOM, file_size );
     x80_trace_state();
+    tracer.Trace( "starting execution of app '%s' size %d\n", acCOM, file_size );
 
     if ( force80x24 )
         g_consoleConfig.EstablishConsole( 80, 24 );
@@ -1861,7 +1924,7 @@ int main( int argc, char * argv[] )
     } while ( true );
 
     high_resolution_clock::time_point tDone = high_resolution_clock::now();
-    g_consoleConfig.RestoreConsole();
+    g_consoleConfig.RestoreConsole( clearDisplayOnExit );
 
     CloseFindFirst();
 
@@ -1893,6 +1956,7 @@ int main( int argc, char * argv[] )
             printf( "      %20s Hz\n", RenderNumberWithCommas( clockrate, ac ) );
     }
 
+    g_rssFeed.clear();
     tracer.Shutdown();
 } //main
 
