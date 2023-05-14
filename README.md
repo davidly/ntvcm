@@ -52,9 +52,10 @@ above, but I can't vouch for more than that. Undocumented 8080 instructions are 
 Non-standard BDOS calls are added for sleeping for a specified number of milliseconds and to
 fetch and iterate through RSS feeds. On Linux and MacOS, this creates dependencies on httplib.h from 
 https://github.com/yhirose/cpp-httplib and openssl. You must have these dependencies copied
-to your machine for NTVCM to build. Or, remove the RSS feature by changing NTVCM_RSS_SUPPORT
-to false in ntvcm.cxx. Then, remove -fopenmp -lssl -lcrypto from the make script. I've been
-unable to build on MacOS with RSS enabled.
+to your machine for NTVCM to build. Or, remove the RSS feature by not defining NTVCM_RSS_SUPPORT
+in your build script. Each build script includes lines for building with and without. I've been
+unable to build on MacOS with RSS enabled. rssrdr.c in the Aztec folder is a sample CP/M RSS
+reader app that can be built with that compiler using m.bat in that folder.
 
 The two versions of Turbo Pascal and the apps they generate use a tiny fraction of Z80 instructions.
 It took a day to implement the instructions for Turbo Pascal, and three more days to implement the 
