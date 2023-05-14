@@ -28,13 +28,13 @@ using namespace std;
 
 #include "x80.hxx"
 
-static bool g_traceInstructions = false;
 uint8_t memory[ 65536 ];
 registers reg;
 static const char * reg_strings[ 8 ] = { "b", "c", "d", "e", "h", "l", "m", "a" };
 static const char * rp_strings[ 4 ] = { "bc", "de", "hl", "sp" };
 static const char * z80_math_strings[ 8 ] = { "add", "adc", "sub", "sbb", "and", "xor", "or", "cp" };
 static const char * z80_rotate_strings[ 8 ] = { "rlc", "rrc", "rl", "rr", "sla", "sra", "sll", "srl" };
+static bool g_traceInstructions = false;
 enum z80_value_source { vs_register, vs_memory, vs_indexed }; // this impacts how Z80 undocumented Y and X flags are updated
 void x80_trace_instructions( bool t ) { g_traceInstructions = t; }
 

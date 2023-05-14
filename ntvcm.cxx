@@ -1843,9 +1843,10 @@ int main( int argc, char * argv[] )
     memory[0] = OPCODE_HLT; // when an app exits by jumping here, halt execution
     memory[1] = 0x03; // low byte of BIOS jump table. boot is at -3 from this address. wboot is here.
     memory[2] = 0xff; // high byte of BIOS jump table
-
-    memory[5] = OPCODE_HOOK;
-    memory[6] = 0x00;
+    memory[3] = 0; // use TTY: for console, READER, PUNCH, and LIST
+    memory[4] = 0; // default drive 0 == A
+    memory[5] = OPCODE_HOOK; // BDOS entry point
+    memory[6] = 0x00;        // these two bytes point to the first byte above app-available RAM (reserved RAM)
     memory[7] = 0xfe;
 
     // The real bios function table is a list of 3-byte entries containing jmp and the address of
