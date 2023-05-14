@@ -39,9 +39,7 @@
 //     httplib.h from https://github.com/yhirose/cpp-httplib
 //     openssl headers and libraries
 
-#define NTVCM_RSS_SUPPORT true
-
-#if NTVCM_RSS_SUPPORT
+#ifdef NTVCM_RSS_SUPPORT
     #include <djl_rssrdr.hxx>
     CRssFeed g_rssFeed;
 #endif
@@ -1544,7 +1542,7 @@ uint8_t x80_invoke_hook()
             sleep_ms( ms );
             break;
         }
-#if NTVCM_RSS_SUPPORT
+#ifdef NTVCM_RSS_SUPPORT
         case 107:
         {
             // non-standard BDOS call load rss feeds. DE points to a 0-terminated list of URLs
@@ -1961,7 +1959,7 @@ int main( int argc, char * argv[] )
             printf( "      %20s Hz\n", RenderNumberWithCommas( clockrate, ac ) );
     }
 
-#if NTVCM_RSS_SUPPORT
+#ifdef NTVCM_RSS_SUPPORT
     g_rssFeed.clear();
 #endif
 
