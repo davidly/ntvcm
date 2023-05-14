@@ -58,7 +58,7 @@ void slow_print( p ) char * p;
             exit( 1 );
 
         x = *p;
-        if ( x > 0 )
+        if ( x > 0 )  /* skip extended ascii characters */
         {
             if ( ' ' == x )
             {
@@ -67,7 +67,7 @@ void slow_print( p ) char * p;
                      ( !pnext && ( cols + strlen( p  ) > 80 ) ) )
                 {
                     cols = 0;
-                    printf( "\n" );
+                    putchar( '\n' );
                     p++;
                     continue;
                 }
@@ -80,7 +80,7 @@ void slow_print( p ) char * p;
         }
     }
 
-    printf( "\n" );
+    putchar( '\n' );
 } /*slow_print*/
 
 int main( argc, argv ) int argc; char * argv[];
@@ -99,12 +99,12 @@ int main( argc, argv ) int argc; char * argv[];
         if ( shown >= ITEMS_SHOWN_BEFORE_RELOAD )
         {
             shown = 0;
-            printf( "<loading rss feeds>\n" );
+            puts( "<loading rss feeds>" );
             count = bdos_feed_load_rss( g_feeds );
         
             if ( 0 == count )
             {
-                printf( "no rss results\n" );
+                puts( "no rss results" );
                 exit( 1 );
             }
         }
@@ -122,8 +122,10 @@ int main( argc, argv ) int argc; char * argv[];
                 slow_print( g_rss_item );
                 slow_print( ptitle );
                 slow_print( pdescription );
-                printf( "\n" );
-    
+                putchar( '\n' );
+
+                /* sleep for 2 seconds. exit if any key is pressed */
+
                 for ( j = 0; g_sleep && j < 20; j++ )
                 {
                     if ( bdos_kbhit() )
