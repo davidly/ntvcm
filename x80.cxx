@@ -92,7 +92,7 @@ static const Instruction z80_ins[ 256 ] =
     /*00*/  4, "nop",      10, "ld bc,d16",  7, "ld (bc),a",   6, "inc bc",      4, "inc b",        4, "dec b",     7, "ld b,d8",    4, "rlca",
     /*08*/  4, "*'",       11, "add hl,bc",  7, "ld a,(bc)",   6, "dec bc",      4, "inc c",        4, "dec c",     7, "ld c,d8",    4, "rrca",
     /*10*/  0, "*",        10, "ld de,d16",  7, "ld (de),a",   6, "inc de",      4, "inc d",        4, "dec d",     7, "ld d,d8",    4, "rla",
-    /*18*/  0, "*",        11, "add hl,de",  7, "ld a(de)",    6, "dec de",      4, "inc e",        4, "dec e",     7, "ld e,d8",    4, "rra",
+    /*18*/  0, "*",        11, "add hl,de",  7, "ld a,(de)",   6, "dec de",      4, "inc e",        4, "dec e",     7, "ld e,d8",    4, "rra",
     /*20*/  0, "*",        10, "ld hl,d16", 16, "ld (a16),hl", 6, "inc hl",      4, "inc h",        4, "dec h",     7, "ld h,d8",    4, "daa",
     /*28*/  0, "*",        11, "add hl,hl", 20, "ld hl,(a16)", 6, "dec hl",      4, "inc l",        4, "dec l",     7, "ld l,d8",    4, "cpl",
     /*30*/  0, "*",        10, "ld sp,d16", 13, "ld (a16),a",  6, "inc sp",     11, "inc (hl)",    11, "dec (hl)", 10, "ld m,d8",    4, "scf",

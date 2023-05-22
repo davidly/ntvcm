@@ -1595,7 +1595,7 @@ void usage( char const * perr = 0 )
     printf( "NT Virtual CP/M 2.2 Machine: emulates a CP/M 2.2 i8080/Z80 runtime environment\n" );
     printf( "usage: ntvcm [-c] [-p] [-s:X] [-t] <cp/m 2.2 .com file> [filearg1] [filearg2]\n" );
     printf( "  notes:    filearg1 and filearg2 optionally specify filename arguments for the command\n" );
-    printf( "            -b     translate bios console input character BS 0x08 to DEL 0x7f. some apps need this.\n" );
+    printf( "            -b     translate bios console input backspace (BS / 0x08) to delete (DEL / 0x7f).\n" );
     printf( "            -c     never auto-detect ESC characters and change to to 80x24 mode\n" );
     printf( "            -C     always switch to 80x24 mode\n" );
     printf( "            -d     don't clear the display on app exit when in 80x24 mode\n" );
