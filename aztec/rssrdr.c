@@ -47,9 +47,18 @@ char * strchr( p, c ) char * p; char c;
     return 0;
 } /*strchr*/
 
+int chars_to_sp( p ) char * p;
+{
+    char * start = p;
+    while ( *p && ' ' != *p )
+        p++;
+
+    return p - start;
+} /*chars_to_sp*/
+
 void slow_print( p ) char * p;
 {
-    int cols = 0;
+    int col = 1;
     char * pnext, x;
 
     while ( *p )
@@ -62,17 +71,16 @@ void slow_print( p ) char * p;
         {
             if ( ' ' == x )
             {
-                pnext = strchr( p + 1, ' ' );
-                if ( ( pnext && ( cols + ( pnext - p ) > 80 ) ) ||
-                     ( !pnext && ( cols + strlen( p  ) > 80 ) ) )
+                int nextsp = chars_to_sp( p + 1 );
+                if ( ( nextsp + col + 1 ) >= 80 )
                 {
-                    cols = 0;
+                    col = 0;
                     putchar( '\n' );
                     p++;
                     continue;
                 }
             }
-            cols++;
+            col++;
             putchar( x );
             p++;
             if ( g_sleep )

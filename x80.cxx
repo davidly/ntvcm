@@ -372,9 +372,7 @@ uint8_t src_value( uint8_t op )
 
 void z80_ni( uint8_t op, uint8_t op2 )
 {
-    tracer.Trace( "bugbug: not-implemented z80 instruction: %#x, next byte is %#x\n", op, op2 );
-    printf( "bugbug not-implemented z80 instruction: %#x, next byte is %#x\n", op, op2 );
-    exit( 1 );
+    x80_hard_exit( "bugbug: not-implemented z80 instruction: %#x, next byte is %#x\n", op, op2 );
 } //z80_ni
 
 void z80_op_bit( uint8_t val, uint8_t bit, z80_value_source vs )
@@ -1637,11 +1635,7 @@ _restart_op:
                 continue;
             }
             else
-            {
-                tracer.Trace( "Error: 8080 undocumented instruction: %#x\n", op );
-                printf( "Error: 8080 undocumented instruction: %#x\n", op );
-                exit( 1 );
-            }
+                x80_hard_exit( "Error: 8080 undocumented instruction: %#x, next byte %#x\n", op, memory[ reg.pc + 1 ] );
         }
         else if ( reg.fZ80Mode )        // 4% of runtime is checking this
         {
@@ -1963,11 +1957,7 @@ _restart_op:
                 reg.pc = 0x38 & (uint16_t) op;
             }
             else
-            {
-                tracer.Trace( "unimplemented 8080 instruction: %#x, next byte is %#x\n", op, memory[ reg.pc ] );
-                printf( "unimplemented 8080 instruction: %#x, next byte is %#x\n", op, memory[ reg.pc ] );
-                exit( 1 );
-            }
+                x80_hard_exit( "unimplemented 8080 instruction: %#x, next byte is %#x\n", op, memory[ reg.pc ] );
         }
     }
 _all_done:

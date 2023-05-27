@@ -342,6 +342,15 @@ const char * low_address_names[] =
     "bdos high",
 };
 
+void x80_hard_exit( const char * pcerror, uint8_t arg1, uint8_t arg2 )
+{
+    tracer.Trace( pcerror, arg1, arg2 );
+    printf( pcerror, arg1, arg2 );
+
+    g_consoleConfig.RestoreConsole( false );
+    exit( 1 );
+} //x80_hard_exit
+
 void x80_invoke_out( uint8_t x)
 {
 } //x80_invoke_out
