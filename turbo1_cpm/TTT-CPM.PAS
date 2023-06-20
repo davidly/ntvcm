@@ -20,7 +20,7 @@ const
   pieceX = 1;
   pieceO = 2;
 
-  iterations = 100;
+  iterations = 1000;
 
 type
   boardType = array[ 0..8 ] of integer;
@@ -58,32 +58,28 @@ begin
   begin
     t := board[1];
     if ( t = board[4] ) and ( t = board[7] ) then
-       p := t;
-
-    if pieceBlank = p then
+      p := t
+    else
     begin
       t := board[2];
       if ( t = board[5] ) and ( t = board[8] ) then
-        p := t;
-
-      if pieceBlank = p then
+        p := t
+      else
       begin
         t := board[3];
         if ( t = board[4] ) and ( t = board[5] ) then
-          p := t;
-
-        if pieceBlank = p then
+          p := t
+        else
         begin
           t := board[6];
           if ( t = board[7] ) and ( t = board[8] ) then
-            p := t;
-
-          if pieceBlank = p then
+            p := t
+          else
           begin
             t := board[4];
             if ( ( ( t = board[0] ) and ( t = board[8] ) ) or
                  ( ( t = board[2] ) and ( t = board[6] ) ) ) then
-              p := t;
+              p := t
           end;
         end;
       end;
@@ -187,7 +183,6 @@ begin
   get_time( timeEnd );
   print_elapsed_time( timeStart, timeEnd );
 
-  Write( 'moves evaluated: ' ); Write( evaluated ); WriteLn;
-  Write( 'iterations: ' ); Write( iterations ); WriteLn;
+  WriteLn( 'moves evaluated: ', evaluated );
+  WriteLn( 'iterations: ', iterations );
 end.
-
