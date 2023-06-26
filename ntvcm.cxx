@@ -138,6 +138,7 @@ static vector<FileEntry> g_fileEntries;
 static bool g_forceConsole = false;
 static bool g_forceLowercase = false;
 static bool g_backspaceToDel = false;
+static bool g_vt52_vt100 = false;
 
 bool ValidCPMFilename( char * pc )
 {
@@ -513,6 +514,60 @@ const char * get_bios_function( uint16_t address )
     return "unknown";
 } //get_bios_function
 
+void output_character( uint8_t c )
+{
+    static bool s_escaped = false;
+    static bool s_escapedY = false;
+    static uint8_t s_row = 0xff;
+
+    tracer.Trace( "  output_character %02x, escaped %d, escapedY %d, s_row %d\n", c, s_escaped, s_escapedY, s_row );
+
+    if ( g_vt52_vt100 )
+    {
+        if ( s_escapedY )
+        {
+            if ( 0xff == s_row )
+                s_row = c - 31;
+            else
+            {
+                uint8_t col = c - 31;
+                printf( "\x1b[%d;%dH", s_row, col );
+                tracer.Trace( "  moved cursor to %d %d\n", s_row, col );
+                s_escapedY = false;
+                s_row = 0xff;
+            }
+
+            return;
+        }
+
+        if ( s_escaped )
+        {
+            tracer.Trace( "  escape command: %c\n", c );
+            if ( 'Y' == c )
+                s_escapedY = true;
+            else if ( 'A' == c )      // cursor up
+                printf( "\x1b[1A" );
+            else if ( 'B' == c )      // cursor down
+                printf( "\x1b[1B" );
+            else if ( 'C' == c )      // cursor right
+                printf( "\x1b[1C" );
+            else if ( 'D' == c )      // cursor left
+                printf( "\x1b[1D" );
+            else if ( 'H' == c )      // cursor home
+                printf( "%\x1b[1;1H" );
+            else
+                tracer.Trace( "  untranslated VT52 command '%c' = %02x\n", c, c );
+
+            s_escaped = false;
+        }
+        else if ( 0x1b == c )
+            s_escaped = true;
+        else
+            printf( "%c", c );
+    }
+    else
+        printf( "%c", c );
+} //output_character
 
 uint8_t x80_invoke_hook()
 {
@@ -551,7 +606,7 @@ uint8_t x80_invoke_hook()
             if ( g_backspaceToDel && 0x08 == reg.a )
                 reg.a = 0x7f;
 
-            tracer.Trace( "conin is returning %02xh\n", reg.a );
+            tracer.Trace( "  conin is returning %02xh\n", reg.a );
         }
         else if ( 0xff0c == address || 0xff84 )
         {
@@ -560,13 +615,13 @@ uint8_t x80_invoke_hook()
 
             if ( 0x1b == reg.c && !g_forceConsole && !g_consoleConfig.IsEstablished() )
             {
-                tracer.Trace( "establishing 80x24\n" );
+                tracer.Trace( "  establishing 80x24\n" );
                 g_consoleConfig.EstablishConsole( 80, 24 );
             }
 
             char ch = reg.c;
-            tracer.Trace( "bios console out: %02x == '%c'\n", ch, printable_ch( ch ) );
-            printf( "%c", reg.c );
+            tracer.Trace( "  bios console out: %02x == '%c'\n", ch, printable_ch( ch ) );
+            output_character( reg.c );
             fflush( stdout );
         }
         else
@@ -615,9 +670,9 @@ uint8_t x80_invoke_hook()
             uint8_t ch = reg.e;
             if ( 0x0d != ch )             // skip carriage return because line feed turns into cr+lf
             {
-                //tracer.Trace( "bdos console out: %02x == '%c'\n", ch, printable_ch( ch ) );
+                tracer.Trace( "  bdos console out: %02x == '%c'\n", ch, printable_ch( ch ) );
 
-                printf( "%c", ch );
+                output_character( ch );
                 fflush( stdout );
             }
 
@@ -646,6 +701,8 @@ uint8_t x80_invoke_hook()
             {
                 if ( ConsoleConfiguration::throttled_kbhit() )
                     reg.a = ConsoleConfiguration::portable_getch();
+                else
+                    sleep_ms( 1 );
             }
 
             break;
@@ -661,14 +718,14 @@ uint8_t x80_invoke_hook()
             {
                 if ( count++ > 2000 ) // arbitrary limit, but probably a bug if this long
                 {
-                    tracer.Trace( "ERROR: String to print is too long!\n", stderr );
+                    tracer.Trace( "  ERROR: String to print is too long!\n", stderr );
                     break;
                 }
 
                 uint8_t ch = memory[ i++ ];
                 if ( 0x0d != ch )              // skip carriage return because line feed turns into cr+lf
                 {
-                    printf( "%c", ch );
+                    output_character( ch );
                     fflush( stdout );
                 }
             }
@@ -749,7 +806,7 @@ uint8_t x80_invoke_hook()
         {
             // open file. return 255 if file not found and 0..3 directory code otherwise
     
-            tracer.Trace( "open file\n" );
+            tracer.Trace( "  open file\n" );
     
             FCB * pfcb = (FCB *) ( memory + reg.D() );
             trace_FCB( pfcb );
@@ -795,7 +852,7 @@ uint8_t x80_invoke_hook()
         {
             // close file. return 255 on error and 0..3 directory code otherwise
     
-            tracer.Trace( "close file\n" );
+            tracer.Trace( "  close file\n" );
     
             FCB * pfcb = (FCB *) ( memory + reg.D() );
             trace_FCB( pfcb );
@@ -828,7 +885,7 @@ uint8_t x80_invoke_hook()
             // search for first. Use the FCB in de and write directory entries to the DMA address, then point to
             // which of those entries is the actual one (0-3) or 0xff for not found in A.
 
-            tracer.Trace( "search for first\n" );
+            tracer.Trace( "  search for first\n" );
 
             // Find First on CP/M has a side-effect of flushing data to disk. Aztec C relies on this and calls
             // Find First at exit() to ensure the disk is flushed, though it does close all files first.
@@ -915,7 +972,7 @@ uint8_t x80_invoke_hook()
             // search for next. Use the FCB in de and write directory entries to the DMA address, then point to
             // which of those entries is the actual one (0-3) or 0xff for not found in A.
 
-            tracer.Trace( "search for next\n" );
+            tracer.Trace( "  search for next\n" );
     
             FCB * pfcb = (FCB *) ( memory + reg.D() );
             trace_FCB( pfcb );
@@ -990,7 +1047,7 @@ uint8_t x80_invoke_hook()
         {
             // delete file. return 255 if file not found and 0..3 directory code otherwise
     
-            tracer.Trace( "delete file\n" );
+            tracer.Trace( "  delete file\n" );
     
             FCB * pfcb = (FCB *) ( memory + reg.D() );
             trace_FCB( pfcb );
@@ -1000,10 +1057,21 @@ uint8_t x80_invoke_hook()
             bool ok = parse_FCB_Filename( pfcb, acFilename );
             if ( ok )
             {
-                tracer.Trace( "  deleting file '%s'\n", acFilename );
+                // if deleting an open file, close it first. CalcStar does this on file save.
+
+                if ( FindFileEntry( acFilename ) )
+                {
+                    FILE * fp = RemoveFileEntry( acFilename );
+                    if ( fp )
+                        fclose( fp );
+                }
+
                 int removeok = ( 0 == remove( acFilename ) );
+                tracer.Trace( "  attempt to remove file '%s' result ok: %d\n", acFilename, removeok );
                 if ( removeok )
                     reg.a = 0;
+                else
+                    tracer.Trace( "  error %d\n", errno );
             }
             else
                 tracer.Trace( "ERROR: can't parse filename for delete file\n" );
@@ -1016,7 +1084,7 @@ uint8_t x80_invoke_hook()
             // reads 128 bytes from cr of the extent and increments cr.
             // if cr overflows, the extent is incremented and cr is set to 0 for the next read
     
-            tracer.Trace( "read sequential file\n" );
+            tracer.Trace( "  read sequential file\n" );
     
             FCB * pfcb = (FCB *) ( memory + reg.D() );
             trace_FCB( pfcb );
@@ -1030,12 +1098,12 @@ uint8_t x80_invoke_hook()
                 if ( fp )
                 {
                     uint32_t curr = ftell( fp );
-                    tracer.Trace( "reading at offset %u\n", curr );
+                    tracer.Trace( "  reading at offset %u\n", curr );
 
                     fseek( fp, 0, SEEK_END );
                     uint32_t file_size = ftell( fp );
                     fseek( fp, curr, SEEK_SET );
-                    tracer.Trace( "file size: %u, current %u\n", file_size, curr );
+                    tracer.Trace( "  file size: %u, current %u\n", file_size, curr );
 
                     uint32_t to_read = get_min( file_size - curr, (uint32_t) 128 );
                     memset( g_DMA, 0x1a, 128 ); // fill with ^Z, the EOF marker in CP/M
@@ -1068,7 +1136,7 @@ uint8_t x80_invoke_hook()
             // reads 128 bytes from cr of the extent and increments cr.
             // if cr overflows, the extent is incremented and cr is set to 0 for the next read
     
-            tracer.Trace( "write sequential file\n" );
+            tracer.Trace( "  write sequential file\n" );
     
             FCB * pfcb = (FCB *) ( memory + reg.D() );
             trace_FCB( pfcb );
@@ -1082,7 +1150,7 @@ uint8_t x80_invoke_hook()
                 if ( fp )
                 {
                     uint32_t curr = ftell( fp );
-                    tracer.Trace( "writing at offset %#x = %u\n", curr, curr );
+                    tracer.Trace( "  writing at offset %#x = %u\n", curr, curr );
         
                     tracer.TraceBinaryData( g_DMA, 128, 0 );
                     size_t numwritten = fwrite( g_DMA, 128, 1, fp );
@@ -1103,7 +1171,7 @@ uint8_t x80_invoke_hook()
         {
             // make file. return 255 if out of space or the file exists. 0..3 directory code otherwise.
     
-            tracer.Trace( "make file\n" );
+            tracer.Trace( "  make file\n" );
     
             FCB * pfcb = (FCB *) ( memory + reg.D() );
             trace_FCB( pfcb );
@@ -1135,7 +1203,7 @@ uint8_t x80_invoke_hook()
         {
             // rename file. 0 for success, non-zero otherwise.
 
-            tracer.Trace( "rename file\n" );
+            tracer.Trace( "  rename file\n" );
     
             FCB * pfcb = (FCB *) ( memory + reg.D() );
             trace_FCB( pfcb );
@@ -1216,7 +1284,7 @@ uint8_t x80_invoke_hook()
         {
             // set file attributes
 
-            tracer.Trace( "set file attributes \n" );
+            tracer.Trace( "  set file attributes \n" );
     
             FCB * pfcb = (FCB *) ( memory + reg.D() );
             trace_FCB( pfcb );
@@ -1259,7 +1327,7 @@ uint8_t x80_invoke_hook()
         {
             // read random
 
-            tracer.Trace( "read random\n" );
+            tracer.Trace( "  read random\n" );
     
             FCB * pfcb = (FCB *) ( memory + reg.D() );
             trace_FCB( pfcb );
@@ -1273,7 +1341,7 @@ uint8_t x80_invoke_hook()
                 if ( fp )
                 {
                     uint16_t record = pfcb->GetRandomIOOffset();
-                    tracer.Trace( "read random record %#x\n", record );
+                    tracer.Trace( "  read random record %#x\n", record );
                     uint32_t file_offset = record * 128;
                     memset( g_DMA, 0x1a, 128 ); // fill with ^Z, the EOF marker in CP/M
     
@@ -1284,7 +1352,7 @@ uint8_t x80_invoke_hook()
     
                     if ( file_size == file_offset )
                     {
-                        tracer.Trace( "random read past eof\n" );
+                        tracer.Trace( "  random read past eof\n" );
                         reg.a = 1;
                         break;
                     }
@@ -1295,7 +1363,7 @@ uint8_t x80_invoke_hook()
                         bool ok = !fseek( fp, file_offset, SEEK_SET );
                         if ( ok )
                         {
-                            tracer.Trace( "reading random at offset %#x\n", file_offset );
+                            tracer.Trace( "  reading random at offset %#x\n", file_offset );
                             size_t numread = fread( g_DMA, to_read, 1, fp );
                             if ( numread )
                             {
@@ -1329,7 +1397,7 @@ uint8_t x80_invoke_hook()
         {
             // write random
 
-            tracer.Trace( "write random\n" );
+            tracer.Trace( "  write random\n" );
     
             FCB * pfcb = (FCB *) ( memory + reg.D() );
             trace_FCB( pfcb );
@@ -1348,7 +1416,7 @@ uint8_t x80_invoke_hook()
                     fseek( fp, 0, SEEK_END );
                     uint32_t file_size = ftell( fp );
 
-                    tracer.Trace( "write random file %p, record %#x, file_offset %d, file_size %d\n", fp, record, file_offset, file_size );
+                    tracer.Trace( "  write random file %p, record %#x, file_offset %d, file_size %d\n", fp, record, file_offset, file_size );
 
                     if ( file_offset > file_size )
                     {
@@ -1356,7 +1424,7 @@ uint8_t x80_invoke_hook()
                         if ( ok )
                             file_size = ftell( fp );
                         else
-                            tracer.Trace( "can't seek to extend file with zeros, error %d = %s\n", errno, strerror( errno ) );
+                            tracer.Trace( "  can't seek to extend file with zeros, error %d = %s\n", errno, strerror( errno ) );
                     }
     
                     if ( file_size >= file_offset )
@@ -1364,7 +1432,7 @@ uint8_t x80_invoke_hook()
                         bool ok = !fseek( fp, file_offset, SEEK_SET );
                         if ( ok )
                         {
-                            tracer.Trace( "writing random at offset %#x\n", file_offset );
+                            tracer.Trace( "  writing random at offset %#x\n", file_offset );
                             tracer.TraceBinaryData( g_DMA, 128, 0 );
                             size_t numwritten = fwrite( g_DMA, 128, 1, fp );
                             if ( numwritten )
@@ -1398,7 +1466,7 @@ uint8_t x80_invoke_hook()
         {
             // Compute file size. A = 0 if ok, 0xff on failure. Sets r2 to 0 and r0/r1 to the number of 128 byte records
 
-            tracer.Trace( "compute file size\n" );
+            tracer.Trace( "  compute file size\n" );
     
             FCB * pfcb = (FCB *) ( memory + reg.D() );
             trace_FCB( pfcb );
@@ -1441,7 +1509,7 @@ uint8_t x80_invoke_hook()
         {
             // Set Random Record. no documented return code. I'm using A=0 for success and A=ff for failure
 
-            tracer.Trace( "set random record\n" );
+            tracer.Trace( "  set random record\n" );
     
             FCB * pfcb = (FCB *) ( memory + reg.D() );
             trace_FCB( pfcb );
@@ -1473,7 +1541,7 @@ uint8_t x80_invoke_hook()
         {
             // write random with zero fill
 
-            tracer.Trace( "write random with zero fill\n" );
+            tracer.Trace( "  write random with zero fill\n" );
     
             FCB * pfcb = (FCB *) ( memory + reg.D() );
             trace_FCB( pfcb );
@@ -1487,7 +1555,7 @@ uint8_t x80_invoke_hook()
                 if ( fp )
                 {
                     uint16_t record = pfcb->GetRandomIOOffset();
-                    tracer.Trace( "write random record %#x\n", record );
+                    tracer.Trace( "  write random record %#x\n", record );
                     uint32_t file_offset = record * 128;
     
                     fseek( fp, 0, SEEK_END );
@@ -1498,7 +1566,7 @@ uint8_t x80_invoke_hook()
                         bool ok = !fseek( fp, file_offset, SEEK_SET );
                         if ( ok )
                         {
-                            tracer.Trace( "writing random at offset %#x\n", file_offset );
+                            tracer.Trace( "  writing random at offset %#x\n", file_offset );
                             uint8_t buf[ 128 ];
                             memset( buf, 0, sizeof buf );
                             size_t numwritten = fwrite( buf, 128, 1, fp );
@@ -1525,7 +1593,7 @@ uint8_t x80_invoke_hook()
         {
             // non-standard BDOS call GetTime. DE points to a CPMTime structure
 
-            tracer.Trace( "get time (non-standard BDOS call)\n" );
+            tracer.Trace( "  get time (non-standard BDOS call)\n" );
 
             CPMTime * ptime = (CPMTime *) ( memory + reg.D() );
 
@@ -1567,7 +1635,7 @@ uint8_t x80_invoke_hook()
             afeeds[ count ] = 0;
 
             size_t result = g_rssFeed.load_rss_feeds( afeeds, 2048 );
-            tracer.Trace( "found %zd items in %zd feeds feeds\n", result, count );
+            tracer.Trace( "  found %zd items in %zd feeds feeds\n", result, count );
             reg.SetH( (uint16_t) result );
             break;
         }
@@ -1614,6 +1682,7 @@ void usage( char const * perr = 0 )
     printf( "            -s:X   speed in Hz. Default is 0, which is as fast as possible.\n" );
     printf( "                   for 4Mhz, use -s:4000000\n" );
     printf( "            -t     enable debug tracing to ntvcm.log\n" );
+    printf( "            -v     translate vt-52 escape sequences to vt-100\n" );
     printf( "            -8     emulate the i8080, not Z80\n" );
     printf( "            e.g. to assemble, load, and run test.asm:\n" );
     printf( "                 ntvcm asm.com test\n" );
@@ -1642,9 +1711,7 @@ bool write_arg( FCB_ARGUMENT * arg, char * pc )
         memcpy( & ( arg->t ), dot + 1, strlen( dot + 1 ) );
     }
     else
-    {
         memcpy( & ( arg->f ), pc, strlen( pc ) );
-    }
 
     return true;
 } //write_arg
@@ -1778,6 +1845,8 @@ int main( int argc, char * argv[] )
                 showPerformance = true;
             else if ( 'b' == parg[1] )
                 g_backspaceToDel = true;
+            else if ( 'v' == parg[1] )
+                g_vt52_vt100 = true;
             else if ( 'c' == parg[1] )
                 g_forceConsole = true;
             else if ( 'C' == parg[1] )
