@@ -10,6 +10,8 @@ mbasic.com BASIC-80 Rev. 5.21 works. Tested with startrek.bas.
 
 Tested witih Aztec C 1.06. The compiler, assembler, linker, and generated apps work.
 
+Tested with CalcStar v1.0.
+
 Console input/output work for both bios bdos API. Disk input/output work via the bdos API.
 There is no attempt at emulating physical disks; apps that use bdos will just work.
 
@@ -75,6 +77,7 @@ or complete. It takes a village :)
               -s:X   speed in Hz. Default is 0, which is as fast as possible.
                      for 4Mhz, use -s:4000000
               -t     enable debug tracing to ntvcm.log
+              -v     translate vt-52 escape sequences to vt-100
               -8     emulate 8080, not Z80
               e.g. to assemble, load, and run test.asm:
                    ntvcm asm.com test
