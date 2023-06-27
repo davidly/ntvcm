@@ -98,7 +98,7 @@ begin { rss }
   feeds[1] := 1 + Addr( feed2 );
   feeds[2] := 1 + Addr( feed3 );
   feeds[3] := 1 + Addr( feed4 );
-  feeds[4] := 0;
+  feeds[4] := 0; { last item must be 0 to indicate end }
 
   shown := items_shown_before_reload;
   count := mem[ 128 ];  { command tail length. paramcount not in v1.0 }
@@ -123,13 +123,16 @@ begin { rss }
       begin
         shown := 1 + shown;
         show_item;
-        for j := 1 to 20 do
+        if do_sleep then
         begin
-          halt_on_keystroke;
-          if ( do_sleep) then bdos_sleep( 100 );
-        end
+          for j := 1 to 20 do
+          begin
+            halt_on_keystroke;
+            bdos_sleep( 100 );
+          end;
+        end;
       end;
     end;
   until false;
 end. { rss }
-
+

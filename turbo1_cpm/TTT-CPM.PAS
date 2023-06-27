@@ -20,7 +20,7 @@ const
   pieceX = 1;
   pieceO = 2;
 
-  iterations = 1000;
+  iterations = 100;
 
 type
   boardType = array[ 0..8 ] of integer;
@@ -164,15 +164,22 @@ begin
   board[move] := pieceBlank;
 end;
 
+type CommandString = string[127];
 var
-  i: integer;
+  i, loops, code: integer;
+  cmdTail : CommandString absolute $80;
 begin
+  loops := Iterations;
+
+  if ( 0 <> mem[ 128 ] ) then
+     Val( cmdTail, loops, code );
+
   for i := 0 to 8 do
     board[i] := pieceBlank;
 
   get_time( timeStart );
 
-  for i := 1 to Iterations do
+  for i := 1 to loops do
   begin
     evaluated := 0;  { once per loop to prevent overflow }
     runit( 0 );
@@ -184,5 +191,6 @@ begin
   print_elapsed_time( timeStart, timeEnd );
 
   WriteLn( 'moves evaluated: ', evaluated );
-  WriteLn( 'iterations: ', iterations );
+  WriteLn( 'iterations: ', loops );
 end.
+
