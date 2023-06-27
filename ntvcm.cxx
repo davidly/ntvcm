@@ -42,7 +42,7 @@
 #ifdef NTVCM_RSS_SUPPORT
     #include <djl_rssrdr.hxx>
     CRssFeed g_rssFeed;
-#endif
+#endif //NTVCM_RSS_SUPPORT
 
 #include "x80.hxx"
 
@@ -514,16 +514,29 @@ const char * get_bios_function( uint16_t address )
     return "unknown";
 } //get_bios_function
 
+// https://en.wikipedia.org/wiki/ANSI_escape_code  // vt-100 in 1978, it existed at the same time as CP/M
+// https://en.wikipedia.org/wiki/VT52
+
 void output_character( uint8_t c )
 {
-    static bool s_escaped = false;
-    static bool s_escapedY = false;
-    static uint8_t s_row = 0xff;
+    static bool s_escaped = false;      // true if prior char was ESC
+    static bool s_escapedY = false;     // true of prior two chars were ESC Y
+    static uint8_t s_row = 0xff;        // not 0xff if prior 3 chars were ESC Y row
 
-    tracer.Trace( "  output_character %02x, escaped %d, escapedY %d, s_row %d\n", c, s_escaped, s_escapedY, s_row );
+    //tracer.Trace( "  output_character %02x, escaped %d, escapedY %d, s_row %d\n", c, s_escaped, s_escapedY, s_row );
+
+    // if the output character is ESC, assume the app wants 80x24. 
+
+    if ( 0x1b == c && !g_forceConsole && !g_consoleConfig.IsEstablished() )
+    {
+        tracer.Trace( "  establishing 80x24\n" );
+        g_consoleConfig.EstablishConsole( 80, 24 );
+    }
 
     if ( g_vt52_vt100 )
     {
+        // only a subset are translated. CalcStar only uses Y cursor positioning and no other sequences.
+
         if ( s_escapedY )
         {
             if ( 0xff == s_row )
@@ -556,12 +569,19 @@ void output_character( uint8_t c )
             else if ( 'H' == c )      // cursor home
                 printf( "%\x1b[1;1H" );
             else
-                tracer.Trace( "  untranslated VT52 command '%c' = %02x\n", c, c );
+            {
+                printf( "%\x1b%c", c ); // send it out untranslated
+                tracer.Trace( "  untranslated VT-52 command '%c' = %02x\n", printable_ch( c ), c );
+            }
 
             s_escaped = false;
         }
         else if ( 0x1b == c )
+        {
             s_escaped = true;
+            s_escapedY = false; // just in case
+            s_row = 0xff; // just in case
+        }
         else
             printf( "%c", c );
     }
@@ -611,13 +631,6 @@ uint8_t x80_invoke_hook()
         else if ( 0xff0c == address || 0xff84 )
         {
             // conout
-            // if the output character is ESC, assume the app wants 80x24. 
-
-            if ( 0x1b == reg.c && !g_forceConsole && !g_consoleConfig.IsEstablished() )
-            {
-                tracer.Trace( "  establishing 80x24\n" );
-                g_consoleConfig.EstablishConsole( 80, 24 );
-            }
 
             char ch = reg.c;
             tracer.Trace( "  bios console out: %02x == '%c'\n", ch, printable_ch( ch ) );
@@ -1383,7 +1396,10 @@ uint8_t x80_invoke_hook()
                             tracer.Trace( "ERROR: can't seek in read random\n" );
                     }
                     else
-                        tracer.Trace( "ERROR: read random read at %u beyond end of file %u\n", file_offset, file_size );
+                    {
+                        reg.a = 1;
+                        tracer.Trace( "ERROR: read random read at %u beyond end of file size %u\n", file_offset, file_size );
+                    }
                 }
                 else
                     tracer.Trace( "ERROR: read random on unopened file\n" );
@@ -1650,7 +1666,7 @@ uint8_t x80_invoke_hook()
             reg.a = g_rssFeed.fetch_rss_item( item, buf, 2048 );
             break;
         }
-#endif
+#endif //NTVCM_RSS_SUPPORT
         default:
         {
             tracer.Trace( "UNIMPLEMENTED BDOS FUNCTION!!!!!!!!!!!!!!!: %d = %#x\n", reg.c, reg.c );
@@ -2040,7 +2056,7 @@ int main( int argc, char * argv[] )
 
 #ifdef NTVCM_RSS_SUPPORT
     g_rssFeed.clear();
-#endif
+#endif //NTVCM_RSS_SUPPORT
 
     tracer.Shutdown();
 } //main
