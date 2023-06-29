@@ -20,10 +20,11 @@ const
   pieceX = 1;
   pieceO = 2;
 
-  iterations = 100;
+  iterations = 1;
 
 type
   boardType = array[ 0..8 ] of integer;
+  CommandString = string[127];
 
 var
   evaluated: integer;
@@ -44,7 +45,7 @@ function lookForWinner : integer;
 var
   t, p : integer;
 begin
-  {  dumpBoard; }
+  {dumpBoard;}
   p := pieceBlank;
   t := board[ 0 ];
   if pieceBlank <> t then
@@ -164,33 +165,56 @@ begin
   board[move] := pieceBlank;
 end;
 
-type CommandString = string[127];
+function Trim( intext : CommandString ): CommandString;
+var FirstPos, LastPos: integer;
+begin
+  FirstPos := 1;
+  while ( FirstPos <= Length( intext ) ) and ( intext[FirstPos] = #32 ) do
+    FirstPos := FirstPos + 1;
+
+  LastPos := Length( intext );
+  while ( LastPos >= 1 ) and ( intext[LastPos] = #32 ) do
+    LastPos := LastPos - 1;
+
+  Trim := Copy( intext, FirstPos, LastPos - FirstPos + 1 );
+end;
+
 var
   i, loops, code: integer;
+  strArg : CommandString;
   cmdTail : CommandString absolute $80;
 begin
   loops := Iterations;
 
-  if ( 0 <> mem[ 128 ] ) then
-     Val( cmdTail, loops, code );
+  { on cp/m 2.2 the length is 1 for no arguments -- it's just a space }
 
-  for i := 0 to 8 do
-    board[i] := pieceBlank;
-
-  get_time( timeStart );
-
-  for i := 1 to loops do
+  if ( mem[ 128 ] > 1 ) then
   begin
-    evaluated := 0;  { once per loop to prevent overflow }
-    runit( 0 );
-    runit( 1 );
-    runit( 4 );
+    { trim the space at the start that's always there }
+
+    strArg := Trim( cmdTail );
+    Val( strArg, loops, code );
   end;
 
-  get_time( timeEnd );
-  print_elapsed_time( timeStart, timeEnd );
+  if ( loops > 0 ) then
+  begin
+    for i := 0 to 8 do
+      board[i] := pieceBlank;
+  
+    get_time( timeStart );
+  
+    for i := 1 to loops do
+    begin
+      evaluated := 0;  { once per loop to prevent overflow }
+      runit( 0 );
+      runit( 1 );
+      runit( 4 );
+    end;
+  
+    get_time( timeEnd );
+    print_elapsed_time( timeStart, timeEnd );
+    WriteLn( 'moves evaluated: ', evaluated );
+  end;
 
-  WriteLn( 'moves evaluated: ', evaluated );
   WriteLn( 'iterations: ', loops );
 end.
-
