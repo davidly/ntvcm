@@ -1,19 +1,21 @@
 # ntvcm
 NT Virtual CP/M Machine. Emulates CP/M 2.2 and the 8080/Z80 on Linux, MacOS, and Windows to run .com files. 
 
-This app emulates the subset of CP/M 2.2 required to run asm.com, load.com, and Turbo Pascal
-versions 1.00 and 3.01A. The latter two use bdos APIs very differently.
+Tested with:
 
-I've also tested with Wordstar CP/M Editition Release 4. It works well.
-
-mbasic.com BASIC-80 Rev. 5.21 works. Tested with startrek.bas.
-
-Tested witih Aztec C 1.06. The compiler, assembler, linker, and generated apps work.
-
-Tested with CalcStar v1.0.
-
+    asm.com
+    load.com
+    Turbo Pascal v1.00
+    Turbo Pascal v3.01A
+    WordStar Release 4
+    mbasic.com BASIC-80 rev. 5.21 (startrek and other apps)
+    Aztec C v1.06 (compiler, assembler, linker, and generated apps)
+    CalcStar v1.0
+    Microsoft fortran-80 v3.4
+    
 Console input/output work for both bios bdos API. Disk input/output work via the bdos API.
-There is no attempt at emulating physical disks; apps that use bdos will just work.
+There is no attempt at emulating physical disks. Apps that use bdos for disk I/O will work
+but apps that use the BIOS or assume things about disk layout will not.
 
 The x80 emulator passes at 100% for:
     
@@ -30,20 +32,21 @@ The app supports tracing to the ntvcm.log file. Instruction tracing includes a d
 that shows instructions either as 8080 or Z80 depending on the mode.
 
 I've done some testing on Linux and MacOS with the same set of test apps as Windows. It all seems
-to work, most importantly the CPU tests. More testing is to come. 80x24 mode is not well-tested, 
-but it kind of just works given vt-100 emulation on Linux and MacOS. CP/M apps expect cr/lf in
-text files, so you may need to use a tool like unix2dos to convert .asm and .bas files so they
-work properly in the emulator. The -l flag in ntvcm is useful if you want to use lowercase
-filenames instead of CP/M's default of uppercase.
+to work, most importantly the CPU tests. CP/M apps expect cr/lf in text files, so you may need
+to use a tool like unix2dos to convert .asm and .bas files so they work properly in the emulator in
+those environments. The -l flag in ntvcm is useful if you want to use lowercase filenames instead 
+of CP/M's default of uppercase.
 
 Performance of the CPU emulator is in the ballpark of other emulators I looked at. 
 I wrote the code to be more readable than other emulators, whose use of lookup tables and macros
 I found to be nearly inscrutable (though I'm sure that's just me). I also wanted both 8080 and Z80
 modes, which hurts the performance of each. An interesting fact is that on modern CPUs, code for 
-computing parity of a byte is faster than a 256-element lookup table. zexall.com runs 5.748 billion
-instructions shared with the 8080, and just 16 million instructions unique to the Z80; optimizing
-for the 8080 will have the most impact. On my machine, Zexall.com runs in about 26 seconds using 
-the Microsoft compiler and 21 seconds using the Gnu compiler.
+computing parity of a byte is faster than a 256-element lookup table. 
+
+zexall.com runs 5.748 billion instructions shared with the 8080, and just 16 million instructions 
+unique to the Z80; optimizing the emulator for the 8080 will have the most impact. On my machine, 
+zexall.com runs in about 26 seconds using the Microsoft compiler and 21 seconds using the Gnu 
+compiler. On a real 4Mhz Z80 it'd take about 3 hours and 14 minutes.
 
 Cycle counts are pretty close, but not precise. I used documented numbers, which are sometimes
 incorrect. And I made guesses for cycle counts for undocumented Z80 instructions.
@@ -77,7 +80,7 @@ or complete. It takes a village :)
               -s:X   speed in Hz. Default is 0, which is as fast as possible.
                      for 4Mhz, use -s:4000000
               -t     enable debug tracing to ntvcm.log
-              -v     translate vt-52 escape sequences to vt-100
+              -v     translate vt-52 escape sequences to vt-100 (calcstar v1.0 needs this)
               -8     emulate 8080, not Z80
               e.g. to assemble, load, and run test.asm:
                    ntvcm asm.com test
