@@ -73,19 +73,24 @@ or complete. It takes a village :)
     usage: ntvcm [-c] [-p] [-s:X] [-t] <cp/m 2.2 .com file> [filearg1] [filearg2]
 
     notes:    filearg1 and filearg2 optionally specify filename arguments for the command
-              -c     don't auto-detect ESC characters and change to to 80x24 mode
-              -i     trace 8080/Z80 instructions when tracing
-              -l     force CP/M filenames to be lowercase (can be useful on Linux)
-              -p     show performance information
-              -s:X   speed in Hz. Default is 0, which is as fast as possible.
-                     for 4Mhz, use -s:4000000
-              -t     enable debug tracing to ntvcm.log
-              -v     translate vt-52 escape sequences to vt-100 (calcstar v1.0 needs this)
-              -8     emulate 8080, not Z80
-              e.g. to assemble, load, and run test.asm:
-                   ntvcm asm.com test
-                   ntvcm load.com test
-                   ntvcm test.com
+            -b     translate bios console input backspace (BS / 0x08) to delete (DEL / 0x7f).
+            -c     never auto-detect ESC characters and change to to 80x24 mode
+            -C     always switch to 80x24 mode
+            -d     don't clear the display on app exit when in 80x24 mode
+            -i     trace 8080/Z80 instructions when tracing with -t
+            -l     force CP/M filenames to be lowercase (can be useful on Linux)
+            -p     show performance information at app exit
+            -s:X   speed in Hz. Default is 0, which is as fast as possible.
+                   for 4Mhz, use -s:4000000
+            -t     enable debug tracing to ntvcm.log
+            -v     translate vt-52 escape sequences to vt-100
+            -8     emulate the i8080, not Z80
+            e.g. to assemble, load, and run test.asm:
+                 ntvcm asm.com test
+                 ntvcm load.com test
+                 ntvcm test.com
+            e.g. to run Star Trek in mbasic in 80x24 mode using i8080 emulation:
+                 ntvcm -8 -C mbasic startrek.bas
 
 Example usage:
 
