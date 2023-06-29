@@ -155,14 +155,13 @@ void z80_set_sign_zero_parity_16( uint16_t x )
 
 uint8_t op_inc( uint8_t x )
 {
-    uint8_t prior = x;
     x++;
     reg.fAuxCarry = ( 0 == ( x & 0xf ) );
     set_sign_zero_parity( x );
 
     if ( reg.fZ80Mode )
     {
-        reg.fParityEven_Overflow = ( prior == 0x7f );
+        reg.fParityEven_Overflow = ( x == 0x80 );
         reg.fWasSubtract = false;
         reg.assignYX( x );
     }
