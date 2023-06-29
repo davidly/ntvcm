@@ -633,9 +633,12 @@ uint8_t x80_invoke_hook()
             // conout
 
             char ch = reg.c;
-            tracer.Trace( "  bios console out: %02x == '%c'\n", ch, printable_ch( ch ) );
-            output_character( reg.c );
-            fflush( stdout );
+//            if ( 0xd != ch )
+            {
+                tracer.Trace( "  bios console out: %02x == '%c'\n", ch, printable_ch( ch ) );
+                output_character( reg.c );
+                fflush( stdout );
+            }
         }
         else
         {
@@ -1817,7 +1820,7 @@ int main( int argc, char * argv[] )
         char *parg = argv[i];
         char c = *parg;
 
-        // linux shell scripts pass carriage returns '\r' at the end of strings for DOS-style files
+        // linux shell scripts pass carriage returns '\r' at the end of strings for DOS-style cr/lf files
 
         char * pR = strchr( parg, '\r' );
         if ( 0 != pR )
@@ -1827,12 +1830,13 @@ int main( int argc, char * argv[] )
 
         if ( 0 != pcCOM )
         {
-            size_t tailLen = strlen( pCommandTail ) + strlen( parg ) + 1;
+            size_t tailLen = strlen( pCommandTail ) + strlen( parg ) + 1 + 1; // +1 null termination +1 space
             if ( tailLen > 127 )
                 usage( "command length is too long for the 127 char limit in CP/M" );
 
-            if ( 0 != ( * pCommandTail ) )
-                strcat( pCommandTail, " " );
+            // CP/M puts a space at the start of non-zero-length command tails. Also, add a space between arguments.
+
+            strcat( pCommandTail, " " );
             strcat( pCommandTail, parg );
         }
 
