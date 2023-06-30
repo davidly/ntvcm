@@ -300,6 +300,42 @@ class ConsoleConfiguration
     
             buf[ len ] = 0;
             return buf;
-        }
+        } //portable_gets_s
+
+        static char * cpm_read_console( char * buf, size_t bufsize, uint8_t & out_len )
+        {
+            out_len = 0;
+            do
+            {
+                char ch = portable_getch();
+                if ( '\n' == ch || '\r' == ch )
+                {
+                    printf( "\r" );
+                    fflush( stdout ); // fflush is required on linux or it'll be buffered not seen until the app ends.
+                    break;
+                }
+    
+                if ( out_len >= (uint8_t) ( bufsize - 1 ) )                
+                    break;
+    
+                if ( 0x7f == ch || 8 == ch ) // backspace (it's not 8 for some reason)
+                {
+                    if ( out_len > 0 )
+                    {
+                        printf( "\x8 \x8" );
+                        fflush( stdout );
+                        out_len--;
+                    }
+                }
+                else
+                {
+                    printf( "%c", ch );
+                    fflush( stdout );
+                    buf[ out_len++ ] = ch;
+                }
+            } while( true );
+    
+            return buf;
+        } //cpm_read_console
 }; //ConsoleConfiguration
 
