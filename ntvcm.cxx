@@ -1808,6 +1808,8 @@ int ends_with( const char * str, const char * end )
 
 int main( int argc, char * argv[] )
 {
+    bump_thread_priority(); // for performance benchmarking only
+
     memset( memory, 0, sizeof( memory ) );
     memset( &reg, 0, sizeof( reg ) );
     reg.fZ80Mode = true;
@@ -1945,13 +1947,13 @@ int main( int argc, char * argv[] )
     tracer.Trace( "fcb argument 2:\n" );
     trace_FCB( (FCB *) arg2 );
 
-    // make memory look like CP/M 2.2
+    // make memory look like CP/M 2.2. The first 8-byte interrupt vector has this:
 
-    memory[0] = OPCODE_HLT; // when an app exits by jumping here, halt execution
-    memory[1] = 0x03; // low byte of BIOS jump table. boot is at -3 from this address. wboot is here.
-    memory[2] = 0xff; // high byte of BIOS jump table
-    memory[3] = 0; // use TTY: for console, READER, PUNCH, and LIST
-    memory[4] = 0; // default drive 0 == A
+    memory[0] = OPCODE_HLT;  // when an app exits by jumping here, halt execution
+    memory[1] = 0x03;        // low byte of BIOS jump table. boot is at -3 from this address. wboot is here.
+    memory[2] = 0xff;        // high byte of BIOS jump table
+    memory[3] = 0;           // use TTY: for console, READER, PUNCH, and LIST
+    memory[4] = 0;           // default drive 0 == A
     memory[5] = OPCODE_HOOK; // BDOS entry point
     memory[6] = 0x00;        // these two bytes point to the first byte above app-available RAM (reserved RAM)
     memory[7] = 0xfe;
@@ -1962,18 +1964,20 @@ int main( int argc, char * argv[] )
     // Apps like mbasic.com don't call bios functions; they take the address from the vector and
     // call it directly to save a tiny bit of performance.
     // The memory map is here (giving apps a little more RAM than standard CP/M):
-    //   0000-00ff: CP/M global storage
+    //   0000-003f: CP/M global storage + RST hardware interrupt service routines. 8 entries are 8 bytes each
+    //   0040-00ff: CP/M global storage
     //   0100-????: App run space growing upward until it collides with the stack
     //   ????-fdfd: Stack growing downward until it collides with the app
     //   fdfe-fdff: two bytes of 0 so apps can return instead of a standard app exit. ccp has "call 0x100" it's OK to return.
     //   fe00-fe10: reserved space for bdos; filled with the Disk Parameter Block for BDOS call 31 Get DPB.
     //   fe10-ff00: reserved space for bdos; filled with 0s
     //   ff00-ff33: bios jump table of 3*17 bytes. (0xff03 is stored at addess 0x1)
-    //   ff80-ff91: where jump table addresses point, filled with OPCODE_HOOK
+    //   ff80-ff91: where bios jump table addresses point, filled with OPCODE_HOOK
     //   ff92-ffff: unused, filled with 0
     //
     // On a typical CP/M machine:
-    //   0000-00ff: CP/M global storage
+    //   0000-003f: RST hardware interrupt service routines. 8 entries are 8 bytes each
+    //   0040-00ff: CP/M global storage
     //   0100-????: app space
     //   ????-e3a9: stack given to apps at start.
     //   e406-????: bdos

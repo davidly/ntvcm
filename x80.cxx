@@ -1839,9 +1839,9 @@ _restart_op:
             case 0xe3: /*xthl*/ { uint16_t t = reg.H(); reg.SetH( mword( reg.sp ) ); setmword( reg.sp, t ); break; }
             case 0xe9: /*pchl*/ { reg.pc = reg.H(); break; }
             case 0xeb: /*xchg*/ { uint16_t t = reg.H(); reg.SetH( reg.D() ); reg.SetD( t ); break; }
-            case 0xf3: /*di*/ break;
+            case 0xf3: /*di*/ { reg.fINTE = false; break; }
             case 0xf9: /*sphl*/ { reg.sp = reg.H(); break; }
-            case 0xfb: /*di*/ break;
+            case 0xfb: /*ei*/ { reg.fINTE = true; break; }
             default:
             {
                 uint8_t op2reg3 = ( op & 0xc7 ); // two bits, 3 reg bits, 3 bits. 2% of runtime
@@ -1853,18 +1853,16 @@ _restart_op:
                     // op: 0 add, 1 adc, 2 sub, 3 sbb, 4 ana, 5 xra, 6 ora, 7 cmp
     
                     uint8_t math = ( op >> 3 ) & 0x7;
-                    uint8_t src = src_value( op );
-                    op_math( math, src );             // 4% of runtime
+                    op_math( math, src_value( op ) );  // 4% of runtime
                 }
                 else if ( 5 == op2reg3 ) // dcr r. does not set carry
                 {
                     uint8_t * pdst = dst_address( op );
-                    *pdst = op_dec( * pdst );         // 5% of runtime
+                    *pdst = op_dec( * pdst );          // 5% of runtime
                 }
                 else if  ( op >= 0x40 && op <= 0x7f ) // mov r, r.  hlt is in this range but handled above.
                 {
-                    uint8_t src = 0x7 & op;
-                    *dst_address( op ) = ( 6 == src ) ? memory[ reg.H() ] : * reg.regOffset( src ); // 5% of runtime
+                    *dst_address( op ) = src_value( op ); // 5% of runtime
                 }
                 else if ( 0xc6 == op2reg3 ) // immediate math. 0 adi, 1 aci, 2 sui, 3 sbi, 4 ani, 5 xri, 6 ori, 7 cpi  
                 {
@@ -1942,7 +1940,8 @@ _restart_op:
                 }
                 else if ( 0xc3 == ( 0xc3 & op ) ) // rst
                 {
-                    // bits 5..3 are exp, which form an address 0000000000exp000 that is called
+                    // bits 5..3 are exp, which form an address 0000000000exp000 that is called.
+                    // rst is generally invoked by hardware interrupt, which supply one instruction.
     
                     pushword( reg.pc );
                     reg.pc = 0x38 & (uint16_t) op;

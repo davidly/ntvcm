@@ -24,6 +24,8 @@
         return ( ( INVALID_FILE_ATTRIBUTES != attr ) && ( ! ( FILE_ATTRIBUTE_DIRECTORY & attr ) ) );
     } //file_exists
 
+    void bump_thread_priority() { SetThreadPriority( GetCurrentThread(), THREAD_PRIORITY_HIGHEST ); }
+
 #else // Linux, MacOS, etc.
 
     #ifndef OLDGCC
@@ -31,6 +33,8 @@
     #endif
 
     #include <ctype.h>
+
+    void bump_thread_priority() {}
 
     template < typename T, size_t N > size_t _countof( T ( & arr )[ N ] ) { return std::extent< T[ N ] >::value; }    
     #define _stricmp strcasecmp

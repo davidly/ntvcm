@@ -11,6 +11,8 @@ const uint8_t reg_offsets[8] = { 3, 2, 5, 4, 7, 6, 0, 1 }; //bcdehlfa
 
 struct registers
 {
+    // the memory layout of these registers is assumed by the code below
+
     uint8_t f, a;
     uint8_t c, b;
     uint8_t e, d;
@@ -30,6 +32,7 @@ struct registers
     uint8_t r;    // refresh
     uint8_t i;    // interrupt page
 
+
     // these first four bool flags must remain in this order for getFlag() to work
 
     bool fZero;                // Z zero
@@ -40,16 +43,18 @@ struct registers
     bool fWasSubtract;         // N. Z80-specific. Flag for BCD math (DAA). true for subtract, false for add.
     bool fY;                   // defined to be 0, but physical Z80s and 8085s sometimes set them to 1
     bool fX;                   // defined to be 0, but physical Z80s and 8085s sometimes set them to 1
-    bool fZ80Mode;             // true if emulating Z80, false if emulating i8080
+
+    bool fZ80Mode;             // Not a flag. true if emulating Z80, false if emulating i8080
+    bool fINTE;                // Not a flag. true if hardware interrupts are enabled. set/reset bi ei and di
 
     uint8_t materializeFlags()
     {
         // flags bits 7..0 (where they differ, 8080/Z80):
         // sign, zero, mustbe0, auxcarry/halfcarry, mustbe0, parityeven/overflow, mustbe1/subtract, carry
 
-        f = fZ80Mode ? ( fWasSubtract ? 0x02 : 0 ) : 0x02;
-        if ( fCarry ) f |= 0x01;
-        if ( fParityEven_Overflow ) f |= 0x04;
+        f = fZ80Mode ? ( fWasSubtract ? 2 : 0 ) : 2;
+        if ( fCarry ) f |= 1;
+        if ( fParityEven_Overflow ) f |= 4;
         if ( fAuxCarry ) f |= 0x10;
         if ( fZero ) f |= 0x40;
         if ( fSign ) f |= 0x80;
@@ -57,7 +62,7 @@ struct registers
         if ( fZ80Mode )    // these flags are undocumented but must work to run emulation tests
         {
             if ( fY ) f |= 0x20;
-            if ( fX ) f |= 0x08;
+            if ( fX ) f |= 8;
         }
 
         return f;
@@ -66,25 +71,25 @@ struct registers
     uint16_t PSW()
     {
         materializeFlags();
-        return * ( (uint16_t *) & (this->f) );
+        return * ( (uint16_t *) & f );
     }
 
-    uint16_t B() const { return * ( (uint16_t *) & ( this->c ) ); }
-    uint16_t D() const { return * ( (uint16_t *) & ( this->e ) ); }
-    uint16_t H() const { return * ( (uint16_t *) & ( this->l ) ); }
+    uint16_t B() const { return * ( (uint16_t *) & c ); }
+    uint16_t D() const { return * ( (uint16_t *) & e ); }
+    uint16_t H() const { return * ( (uint16_t *) & l ); }
 
     void unmaterializeFlags()
     {
         if ( fZ80Mode )
-            fWasSubtract = ( 0 != ( f & 0x02 ) );
+            fWasSubtract = ( 0 != ( f & 2 ) );
         else
         {
-            this->f &= 0xd7; // set 0 bits
-            this->f |= 0x2; // always 1 on 8080
+            f &= 0xd7; // set 0 bits
+            f |= 0x2; // always 1 on 8080
         }
 
-        fCarry = ( 0 != ( f & 0x01 ) );
-        fParityEven_Overflow = ( 0 != ( f & 0x04 ) );
+        fCarry = ( 0 != ( f & 1 ) );
+        fParityEven_Overflow = ( 0 != ( f & 4 ) );
         fAuxCarry = ( 0 != ( f & 0x10 ) );
         fZero = ( 0 != ( f & 0x40 ) );
         fSign = ( 0 != ( f & 0x80 ) );
@@ -92,19 +97,19 @@ struct registers
         if ( fZ80Mode )
         {
             fY = ( 0 != ( f & 0x20 ) );
-            fX = ( 0 != ( f & 0x08 ) );
+            fX = ( 0 != ( f & 8 ) );
         }
     } //unmaterializeFlags
 
     void SetPSW( uint16_t x )
     {
-        * ( (uint16_t *) & ( this->f ) ) = x;
+        * ( (uint16_t *) & f ) = x;
         unmaterializeFlags();
     } //SetPSW
 
-    void SetB( uint16_t x ) { * ( (uint16_t *) & ( this->c ) ) = x; }
-    void SetD( uint16_t x ) { * ( (uint16_t *) & ( this->e ) ) = x; }
-    void SetH( uint16_t x ) { * ( (uint16_t *) & ( this->l ) ) = x; }
+    void SetB( uint16_t x ) { * ( (uint16_t *) & c ) = x; }
+    void SetD( uint16_t x ) { * ( (uint16_t *) & e ) = x; }
+    void SetH( uint16_t x ) { * ( (uint16_t *) & l ) = x; }
 
     uint16_t * rpAddress( uint8_t rp )
     {
@@ -125,8 +130,8 @@ struct registers
         assert( 0xdd == op || 0xfd == op );
 
         if ( 0xdd == op )
-            return & ( this->ix );
-        return & ( this->iy );
+            return & ix;
+        return & iy;
     } //indexAddress
 
     void setIndex( uint8_t op, uint16_t val )
@@ -139,8 +144,8 @@ struct registers
         assert( 0xdd == op || 0xfd == op );
 
         if ( 0xdd == op )
-            return this->ix;
-        return this->iy;
+            return ix;
+        return iy;
     } //getIndex
 
     uint8_t getIndexByte( uint8_t op, uint8_t hl )
@@ -162,9 +167,9 @@ struct registers
 
         uint8_t * pval;
         if ( 0xdd == op )
-            pval = (uint8_t *) & ( this->ix );
+            pval = (uint8_t *) & ix;
         else
-            pval = (uint8_t *) & ( this->iy );
+            pval = (uint8_t *) & iy;
 
         if ( 0 == hl )
             pval++;
@@ -187,7 +192,7 @@ struct registers
     void assignYX( uint8_t val )
     {
         fY = ( 0 != ( val & 0x20 ) );
-        fX = ( 0 != ( val & 0x08 ) );
+        fX = ( 0 != ( val & 8 ) );
     } //assignYX
 
     bool getFlag( uint8_t x )
@@ -209,7 +214,7 @@ struct registers
             ac[ next++ ] = fY ? 'Y' : 'y';
 
         if ( fZ80Mode )
-            ac[ next++ ] = fAuxCarry ? 'H' : 'h'; // half-carry; same meaning as aux-carry
+            ac[ next++ ] = fAuxCarry ? 'H' : 'h'; // half-carry; almost same meaning as aux-carry
         else
             ac[ next++ ] = fAuxCarry ? 'A' : 'a';
 
@@ -239,6 +244,7 @@ struct registers
         sp = ix = iy = 0xffff;
         ap = fp = bp = cp = dp = ep = hp = lp = 0xff;
         fZero = fCarry = fParityEven_Overflow = fSign = fAuxCarry = fWasSubtract = fY = fX = 0;
+        fINTE = false;
     } //powerOn
 };
 
