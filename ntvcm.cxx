@@ -633,7 +633,6 @@ uint8_t x80_invoke_hook()
             // conout
 
             char ch = reg.c;
-//            if ( 0xd != ch )
             {
                 tracer.Trace( "  bios console out: %02x == '%c'\n", ch, printable_ch( ch ) );
                 output_character( reg.c );
@@ -709,16 +708,29 @@ uint8_t x80_invoke_hook()
         case 6:
         {
             // direct console I/O
+            // e = ff means input -- return char in a if available or return 0 otherwise
+            // e != ff means output that character
 
-            reg.a = 0;
-
-            uint8_t e = reg.e;
-            if ( 0xff == e )
+            if ( 0xff == reg.e )
             {
                 if ( ConsoleConfiguration::throttled_kbhit() )
+                {
                     reg.a = ConsoleConfiguration::portable_getch();
+                    tracer.Trace( "  read character %02x == '%c'\n", reg.a, printable_ch( reg.a ) );
+                }
                 else
-                    sleep_ms( 1 );
+                {
+                    sleep_ms( 1 ); // some apps like forth call this in a busy loop
+                    tracer.Trace( "  no character available\n" );
+                    reg.a = 0;
+                }
+            }
+            else
+            {
+                uint8_t ch = reg.e;
+                tracer.Trace( "  bdos direct console i/o output: %02x == '%c'\n", ch, printable_ch( ch ) );
+                output_character( ch );
+                fflush( stdout );
             }
 
             break;
@@ -754,9 +766,6 @@ uint8_t x80_invoke_hook()
             //   0      1       2       3
             //   in_len out_len char1   char2 ...
 
-            // note: gets_s outputs both a cr and lf to the console. CP/M just outputs a cr.
-            // short of implementing gets_s myself I don't know of a workaround.
-
             uint16_t offset = reg.D();
             char * pbuf = (char *) memory + offset;
             pbuf[ 1 ] = 0;
@@ -765,11 +774,11 @@ uint8_t x80_invoke_hook()
             if ( in_len > 0 )
             {
                 pbuf[ 2 ] = 0;
-                ConsoleConfiguration::portable_gets_s( pbuf + 2, in_len );
-                uint8_t out_len = (uint8_t) strlen( pbuf + 2 );
+                uint8_t out_len;
+                ConsoleConfiguration::cpm_read_console( pbuf + 2, in_len, out_len );
                 pbuf[ 1 ] = out_len;
 
-                tracer.Trace( "  read console len %u, string '%s'\n", out_len, pbuf + 2 );
+                tracer.Trace( "  read console len %u, string '%.*s'\n", out_len, (size_t) out_len, pbuf + 2 );
             }
             else
                 tracer.Trace( "WARNING: read console buffer asked for input but provided a 0-length buffer\n" );
