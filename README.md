@@ -12,6 +12,7 @@ Tested with:
     Aztec C v1.06 (compiler, assembler, linker, and generated apps)
     CalcStar v1.0
     Microsoft fortran-80 v3.4
+    CamelForth beta test version
     
 Console input/output work for both bios bdos API. Disk input/output work via the bdos API.
 There is no attempt at emulating physical disks. Apps that use bdos for disk I/O will work
