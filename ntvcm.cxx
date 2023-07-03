@@ -1718,6 +1718,11 @@ void usage( char const * perr = 0 )
     printf( "                 ntvcm test.com\n" );
     printf( "            e.g. to run Star Trek in mbasic in 80x24 mode using i8080 emulation:\n" );
     printf( "                 ntvcm -8 -C mbasic startrek.bas\n" );
+
+#ifndef NDEBUG
+    printf( "(debug build)\n" );
+#endif
+
     exit( -1 );
 } //usage
 
