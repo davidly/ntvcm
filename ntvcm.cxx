@@ -1954,7 +1954,7 @@ int main( int argc, char * argv[] )
 
     // make memory look like CP/M 2.2. The first 8-byte interrupt vector has this:
 
-    memory[0] = OPCODE_HLT;  // when an app exits by jumping here, halt execution
+    memory[0] = OPCODE_HLT;  // when an app exits by jumping or returning here, halt execution
     memory[1] = 0x03;        // low byte of BIOS jump table. boot is at -3 from this address. wboot is here.
     memory[2] = 0xff;        // high byte of BIOS jump table
     memory[3] = 0;           // use TTY: for console, READER, PUNCH, and LIST
@@ -2016,7 +2016,7 @@ int main( int argc, char * argv[] )
     memory[ 0x100 + file_size ] = OPCODE_HLT; // in case the app doesn't shutdown properly
     reg.powerOn();       // set default values of registers
     reg.pc = 0x100;
-    reg.sp = 0xfdfe;     // the stack is written to below this address.
+    reg.sp = 0xfdfe;     // the stack is written to below this address. 2 bytes here are zero for ret from entry
     reg.a = reg.b = reg.c = reg.d = reg.e = reg.h = reg.l = 0;
     reg.fp = reg.ap = 0; // apparently this is expected by CPUTEST
     reg.bp = reg.cp = reg.dp = reg.ep = reg.hp = reg.lp = 0;

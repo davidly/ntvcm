@@ -66,13 +66,13 @@ struct registers
         }
 
         return f;
-    }
+    } //materializeFlags
 
     uint16_t PSW()
     {
         materializeFlags();
         return * ( (uint16_t *) & f );
-    }
+    } //PSW
 
     uint16_t B() const { return * ( (uint16_t *) & c ); }
     uint16_t D() const { return * ( (uint16_t *) & e ); }
@@ -125,58 +125,6 @@ struct registers
         return rpAddress( rp );
     } //rpAddressFromOp
 
-    uint16_t * indexAddress( uint8_t op )
-    {
-        assert( 0xdd == op || 0xfd == op );
-
-        if ( 0xdd == op )
-            return & ix;
-        return & iy;
-    } //indexAddress
-
-    void setIndex( uint8_t op, uint16_t val )
-    {
-        * indexAddress( op ) = val;
-    } //setIndex
-
-    uint16_t getIndex( uint8_t op )
-    {
-        assert( 0xdd == op || 0xfd == op );
-
-        if ( 0xdd == op )
-            return ix;
-        return iy;
-    } //getIndex
-
-    uint8_t getIndexByte( uint8_t op, uint8_t hl )
-    {
-        assert( 0xdd == op || 0xfd == op );
-        assert( 0 == hl || 1 == hl );
-
-        uint16_t result16 = getIndex( op );
-
-        if ( 0 == hl )
-            return ( ( result16 >> 8 ) & 0xff );
-        return ( result16 & 0xff );
-    } //getIndexByte
-
-    uint8_t * getIndexByteAddress( uint8_t op, uint8_t hl )
-    {
-        assert( 0xdd == op || 0xfd == op );
-        assert( 0 == hl || 1 == hl );
-
-        uint8_t * pval;
-        if ( 0xdd == op )
-            pval = (uint8_t *) & ix;
-        else
-            pval = (uint8_t *) & iy;
-
-        if ( 0 == hl )
-            pval++;
-
-        return pval;
-    } //getIndexByte
-
     uint8_t * regOffset( uint8_t m )
     {
         assert( 6 != m ); // that's a memory access, not a register. f can't be used directly.
@@ -189,20 +137,11 @@ struct registers
         fWasSubtract = false;
     } //clearHN
 
-    void assignYX( uint8_t val )
-    {
-        fY = ( 0 != ( val & 0x20 ) );
-        fX = ( 0 != ( val & 8 ) );
-    } //assignYX
-
     bool getFlag( uint8_t x )
     {
         assert( x <= 3 );
         return * ( ( & fZero ) + x );
     } //getFlag
-
-    void incR() { r++; r &= 0x7f; }
-    void decR() { r--; r &= 0x7f; }
 
     const char * renderFlags()
     {
@@ -234,6 +173,67 @@ struct registers
     
         return ac;
     } //renderFlags
+
+    uint16_t * z80_indexAddress( uint8_t op )
+    {
+        assert( 0xdd == op || 0xfd == op );
+
+        if ( 0xdd == op )
+            return & ix;
+        return & iy;
+    } //z80_indexAddress
+
+    void z80_setIndex( uint8_t op, uint16_t val )
+    {
+        * z80_indexAddress( op ) = val;
+    } //z80_setIndex
+
+    uint16_t z80_getIndex( uint8_t op )
+    {
+        assert( 0xdd == op || 0xfd == op );
+
+        if ( 0xdd == op )
+            return ix;
+        return iy;
+    } //z80_getIndex
+
+    uint8_t z80_getIndexByte( uint8_t op, uint8_t hl )
+    {
+        assert( 0xdd == op || 0xfd == op );
+        assert( 0 == hl || 1 == hl );
+
+        uint16_t result16 = z80_getIndex( op );
+
+        if ( 0 == hl )
+            return ( ( result16 >> 8 ) & 0xff );
+        return ( result16 & 0xff );
+    } //z80_getIndexByte
+
+    uint8_t * z80_getIndexByteAddress( uint8_t op, uint8_t hl )
+    {
+        assert( 0xdd == op || 0xfd == op );
+        assert( 0 == hl || 1 == hl );
+
+        uint8_t * pval;
+        if ( 0xdd == op )
+            pval = (uint8_t *) & ix;
+        else
+            pval = (uint8_t *) & iy;
+
+        if ( 0 == hl )
+            pval++;
+
+        return pval;
+    } //z80_getIndexByteAddress
+
+    void z80_assignYX( uint8_t val )
+    {
+        fY = ( 0 != ( val & 0x20 ) );
+        fX = ( 0 != ( val & 8 ) );
+    } //z80_assignYX
+
+    void z80_incR() { r++; r &= 0x7f; }
+    void z80_decR() { r--; r &= 0x7f; }
 
     void powerOn()
     {
