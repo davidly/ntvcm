@@ -46,7 +46,7 @@ computing parity of a byte is faster than a 256-element lookup table.
 
 zexall.com runs 5.748 billion instructions shared with the 8080, and just 16 million instructions 
 unique to the Z80; optimizing the emulator for the 8080 will have the most impact. On my machine, 
-zexall.com runs in about 26 seconds using the Microsoft compiler and 21 seconds using the Gnu 
+zexall.com runs in about 24 seconds using the Microsoft compiler and 20 seconds using the Gnu 
 compiler. On a real 4Mhz Z80 it'd take about 3 hours and 14 minutes.
 
 Cycle counts are pretty close, but not precise. I used documented numbers, which are sometimes
@@ -165,12 +165,10 @@ Example usage:
     ld (<ix,iy>+1),a..............  OK
     ld (<bc,de>),a................  OK
     Tests complete
-    Z80  cycles:      46,716,028,182
-    clock rate:            unbounded
-    approx ms at 4Mhz:    11,679,007
-    kernel CPU ms:                15
-    user CPU ms:              24,171
-    total CPU ms:             24,187
-    elapsed ms:               25,601
+    
+    elapsed milliseconds:           23,572
+    Z80  cycles:            46,716,093,718
+    clock rate:                  unbounded
+    approx ms at 4Mhz:          11,679,023 == 0 days, 3 hours, 14 minutes, 39 seconds, 23 milliseconds
     
 
