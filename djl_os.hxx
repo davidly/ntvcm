@@ -34,7 +34,7 @@
 
     #include <ctype.h>
 
-    void bump_thread_priority() {}
+    inline void bump_thread_priority() {}
 
     template < typename T, size_t N > size_t _countof( T ( & arr )[ N ] ) { return std::extent< T[ N ] >::value; }    
     #define _stricmp strcasecmp
@@ -47,12 +47,16 @@
         return s;
     } //strupr
 
+    inline char * _strupr( char * s ) { return strupr( s ); }
+
     inline char * strlwr( char * s )
     {
         for ( char * t = s; *t; t++ )
             *t = tolower( *t );
         return s;
     } //strlwr
+
+    inline char * _strlwr( char * s ) { return strlwr( s ); }
 
     inline void sleep_ms( uint64_t ms )
     {

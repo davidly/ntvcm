@@ -32,7 +32,6 @@ struct registers
     uint8_t r;    // refresh
     uint8_t i;    // interrupt page
 
-
     // these first four bool flags must remain in this order for getFlag() to work
 
     bool fZero;                // Z zero
@@ -232,8 +231,7 @@ struct registers
         fX = ( 0 != ( val & 8 ) );
     } //z80_assignYX
 
-    void z80_incR() { r++; r &= 0x7f; }
-    void z80_decR() { r--; r &= 0x7f; }
+    void z80_incR() { r++; } // don't bother masking lower 7 bits until the register is read via ld a,r
 
     void powerOn()
     {

@@ -38,7 +38,7 @@ static bool g_traceInstructions = false;
 enum z80_value_source { vs_register, vs_memory, vs_indexed }; // this impacts how Z80 undocumented Y and X flags are updated
 void x80_trace_instructions( bool t ) { g_traceInstructions = t; }
 
-#define cyclesnt 6  // cycles not taken when a conditional call, jump, or return isn't taken
+const uint8_t cyclesnt = 6;  // cycles not taken when a conditional call, jump, or return isn't taken
 
 // instructions starting with '*' are undocumented for 8080, and not implemented here. They also signal likely Z80 instructions
 static const char i8080_instructions[ 256 ][ 16 ] =
@@ -116,7 +116,8 @@ static const char z80_instructions[ 256 ][ 16 ] =
 };
 
 // base cycles. 8080 conditional calls take 11 (not 17) if not taken. conditional returns take 5 (not 11) if not taken.
-static const uint8_t i8080_cycles[ 256 ] =
+typedef uint8_t acycles_t[ 256 ];
+static const acycles_t i8080_cycles =
 {
     /*00*/  4, 10,  7,  5,  5,  5,  7,  4,  4, 10,  7,  5,  5,  5,  7,  4,
     /*10*/  4, 10,  7,  5,  5,  5,  7,  4,  4, 10,  7,  5,  5,  5,  7,  4,
@@ -136,7 +137,7 @@ static const uint8_t i8080_cycles[ 256 ] =
     /*f0*/ 11, 10, 10,  4, 17, 11,  7, 11, 11,  5, 10,  4, 17, 17,  7, 11,
 };
 
-static const uint8_t z80_cycles[ 256 ] =
+static const acycles_t z80_cycles =
 {
     /*00*/  4, 10,  7,  6,  4,  4,  7,  4,  4, 11,  7,  6,  4,  4,  7,  4,
     /*10*/  0, 10,  7,  6,  4,  4,  7,  4,  0, 11,  7,  6,  4,  4,  7,  4,
@@ -1090,10 +1091,7 @@ uint64_t z80_emulate( uint8_t op )    // this is just for instructions that aren
         else if ( 0x47 == op2 ) // ld i,a
             reg.i = reg.a;
         else if ( 0x4f == op2 ) // ld r,a
-        {
             reg.r = reg.a;
-            reg.z80_incR();
-        }
         else if ( 0x57 == op2 ) // ld a,i
         {
             reg.a = reg.i;
@@ -1105,7 +1103,7 @@ uint64_t z80_emulate( uint8_t op )    // this is just for instructions that aren
         }
         else if ( 0x5f == op2 ) // ld a,r
         {
-            reg.a = reg.r - 1;
+            reg.a = ( 0x7f & reg.r ); // the high bit is always 0 on Z80
             set_sign_zero_parity( reg.a );
             reg.fParityEven_Overflow = false; // no iff2
             reg.fWasSubtract = false;
@@ -1650,6 +1648,7 @@ bool check_conditional( uint8_t op ) // checks for conditional jump, call, and r
 uint64_t x80_emulate( uint64_t maxcycles )
 {
     uint64_t cycles = 0;
+    const acycles_t & acycles = reg.fZ80Mode ? z80_cycles : i8080_cycles; // ms C++ will opportunistically read *both* in the loop below otherwise
 
     while ( cycles < maxcycles )        // 5% of runtime checking if we're done
     {
@@ -1660,15 +1659,9 @@ uint64_t x80_emulate( uint64_t maxcycles )
         reg.pc++;                       // 8% of runtime including npad to make _restart_op aligned
 
 _restart_op:
-        if ( reg.fZ80Mode )             // 1.5% of runtime is checking this
-        {
-            reg.z80_incR();
-            cycles += z80_cycles[ op ];
-        }
-        else
-            cycles += i8080_cycles[ op ];
+        cycles += acycles[ op ];
 
-        switch ( op )                   // 42% of runtime is setting up for the jump table jump; 10 instructions
+        switch ( op )                   // 42% of runtime is completing cycle addition setting up for the jump table jump; 10 instructions
         {
             case 0x00: /*nop*/ break;
             case 0x01: /*lxi b, d16*/ reg.SetB( pcword() ); break;
@@ -1740,7 +1733,7 @@ _restart_op:
                 break;
             }
             case 0x21: /*lxi h, d16*/ reg.SetH( pcword() ); break;
-            case 0x22: /*shld*/ { uint16_t off = pcword(); setmword( off, reg.H() ); break; }
+            case 0x22: /*shld*/ { uint16_t offset = pcword(); setmword( offset, reg.H() ); break; }
             case 0x27: /*daa*/
             {
                 if ( reg.fZ80Mode ) // this logic pulled from Sean Young's doc
@@ -1852,7 +1845,7 @@ _restart_op:
                 }
                 break;
             }
-            case 0x64: /*hook*/ { op = x80_invoke_hook(); if ( reg.fZ80Mode ) reg.z80_decR(); goto _restart_op; }
+            case 0x64: /*hook*/ { op = x80_invoke_hook(); goto _restart_op; }
             case 0x76: /*hlt*/ { x80_invoke_halt(); goto _all_done; }
             case 0xc3: /*jmp a16*/ { reg.pc = pcword(); break; }
             case 0xc9: /*ret*/ { reg.pc = popword(); break; }
@@ -1989,8 +1982,11 @@ _restart_op:
                     x80_hard_exit( "Error: 8080 undocumented instruction: %#x, next byte %#x\n", op, memory[ reg.pc + 1 ] );
             } //default
         } //switch
-    } //while
 
+        reg.z80_incR(); // increment R even for 8080 emulation because the check to do otherwise is slow
+    } //while
 _all_done:
     return cycles;
 } //x80_emulate
+
+
