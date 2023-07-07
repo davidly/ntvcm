@@ -22,7 +22,7 @@
 //     g++ -Ofast -ggdb -fopenmp -D _MSC_VER ntvcm.cxx x80.cxx -I ../djl -D DEBUG -o ntvcm.exe -static -lwininet
 //     g++ -Ofast -ggdb -fopenmp -D _MSC_VER ntvcm.cxx x80.cxx -I ../djl -D NDEBUG -o ntvcm.exe -static -lwininet
 // Note: openmp, wininet, ssl, crypto, and djl_rssrdr.hxx are only required for RSS support.
-//          
+//
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -254,15 +254,15 @@ void ParseFoundFile( char * pfile )
     memset( g_DMA, 0, 128 );
     memset( g_DMA + 1, ' ', 11 );
 
-    int len = strlen( pfile );
+    size_t len = strlen( pfile );
     assert( len <= 12 ); // 8.3 only
-    strupr( pfile );
+    _strupr( pfile );
 
-    for ( int i = 0; i < len; i++ )
+    for ( size_t i = 0; i < len; i++ )
     {
         if ( '.' == pfile[ i ] )
         {
-            for ( int e = 0; e < 3; e++ )
+            for ( size_t e = 0; e < 3; e++ )
             {
                 if ( 0 == pfile[ i + 1 + e ] )
                     break;
@@ -326,7 +326,7 @@ bool parse_FCB_Filename( FCB * pfcb, char * pcFilename )
     // CP/M assumes all filenames are upper case. Linux users generally use all lowercase filenames
 
     if ( g_forceLowercase )
-        strlwr( orig );
+        _strlwr( orig );
 
     return ( pcFilename != orig );
 } //parse_FCB_Filename
@@ -567,10 +567,10 @@ void output_character( uint8_t c )
             else if ( 'D' == c )      // cursor left
                 printf( "\x1b[1D" );
             else if ( 'H' == c )      // cursor home
-                printf( "%\x1b[1;1H" );
+                printf( "\x1b[1;1H" );
             else
             {
-                printf( "%\x1b%c", c ); // send it out untranslated
+                printf( "\x1b%c", c ); // send it out untranslated
                 tracer.Trace( "  untranslated VT-52 command '%c' = %02x\n", printable_ch( c ), c );
             }
 
@@ -1633,7 +1633,7 @@ uint8_t x80_invoke_hook()
             ptime->hour = plocal->tm_hour;
             ptime->minute = plocal->tm_min;
             ptime->second = plocal->tm_sec;
-            ptime->millisecond = ms / 10; // hundredths of a second;
+            ptime->millisecond = (uint16_t) ( ms / 10 ); // hundredths of a second;
             reg.a = 0;
 
             break;
@@ -1937,12 +1937,12 @@ int main( int argc, char * argv[] )
 
     if ( pcArg1 )
     {
-        strupr( pcArg1 );
+        _strupr( pcArg1 );
         write_arg( arg1, pcArg1 );
 
         if ( pcArg2 )
         {
-            strupr( pcArg2 );
+            _strupr( pcArg2 );
             write_arg( arg2, pcArg2 );
         }
     }
