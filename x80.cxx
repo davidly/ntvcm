@@ -38,89 +38,122 @@ static bool g_traceInstructions = false;
 enum z80_value_source { vs_register, vs_memory, vs_indexed }; // this impacts how Z80 undocumented Y and X flags are updated
 void x80_trace_instructions( bool t ) { g_traceInstructions = t; }
 
-struct Instruction
-{
-    uint8_t cycles;  // base cycles. 8080 conditional calls take 11 (not 17) if not taken. conditional returns take 5 (not 11) if not taken.
-    const char assembly[ 15 ];
-};
-
 #define cyclesnt 6  // cycles not taken when a conditional call, jump, or return isn't taken
 
 // instructions starting with '*' are undocumented for 8080, and not implemented here. They also signal likely Z80 instructions
-
-static const Instruction ins_8080[ 256 ] =
+static const char i8080_instructions[ 256 ][ 16 ] =
 {
-    /*00*/  4, "nop",      10, "lxi b, d16",   7, "stax b",   5, "inx b",    5, "inr b",     5, "dcr b",     7, "mvi b, d8", 4, "rlc",
-    /*08*/  4, "*nop",     10, "dad b",        7, "ldax b",   5, "dcx b",    5, "inr c",     5, "dcr c",     7, "mvi c, d8", 4, "rrc",
-    /*10*/  4, "*nop",     10, "lxi d, d16",   7, "stax d",   5, "inx d",    5, "inr d",     5, "dcr d",     7, "mvi d, d8", 4, "ral",
-    /*18*/  4, "*nop",     10, "dad d",        7, "ldax d",   5, "dcx d",    5, "inr e",     5, "dcr e",     7, "mvi e, d8", 4, "rar",
-    /*20*/  4, "*nop",     10, "lxi h, d16",  16, "shld a16", 5, "inx h",    5, "inr h",     5, "dcr h",     7, "mvi h, d8", 4, "daa",
-    /*28*/  4, "*nop",     10, "dad h",       16, "lhld a16", 5, "dcx h",    5, "inr l",     5, "dcr l",     7, "mvi l, d8", 4, "cma",
-    /*30*/  4, "*nop",     10, "lxi sp, d16", 13, "sta a16",  5, "inx sp",  10, "inr m",    10, "dcr m",    10, "mvi m, d8", 4, "stc",
-    /*38*/  4, "*nop",     10, "dad sp",      13, "lda a16",  5, "dcx sp",   5, "inr a",     5, "dcr a",     7, "mvi a, d8", 4, "cmc",
-    /*40*/  5, "mov b, b",  5, "mov b, c",     5, "mov b, d", 5, "mov b, e", 5, "mov b, h",  5, "mov b, l",  7, "mov b, m",  5, "mov b, a",
-    /*48*/  5, "mov c, b",  5, "mov c, c",     5, "mov c, d", 5, "mov c, e", 5, "mov c, h",  5, "mov c, l",  7, "mov c, m",  5, "mov c, a",
-    /*50*/  5, "mov d, b",  5, "mov d, c",     5, "mov d, d", 5, "mov d, e", 5, "mov d, h",  5, "mov d, l",  7, "mov d, m",  5, "mov d, a",
-    /*58*/  5, "mov e, b",  5, "mov e, c",     5, "mov e, d", 5, "mov e, e", 5, "mov e, h",  5, "mov e, l",  7, "mov e, m",  5, "mov e, a",
-    /*60*/  5, "mov h, b",  5, "mov h, c",     5, "mov h, d", 5, "mov h, e", 0, "(hook)",    5, "mov h, l",  7, "mov h, m",  5, "mov h, a",
-    /*68*/  5, "mov l, b",  5, "mov l, c",     5, "mov l, d", 5, "mov l, e", 5, "mov l, h",  5, "mov l, l",  7, "mov l, m",  5, "mov l, a",
-    /*70*/  7, "mov m, b",  7, "mov m, c",     7, "mov m, d", 7, "mov m, e", 7, "mov m, h",  7, "mov m, l",  7, "hlt",       7, "mov m, a",
-    /*78*/  5, "mov a, b",  5, "mov a, c",     5, "mov a, d", 5, "mov a, e", 5, "mov a, h",  5, "mov a, l",  7, "mov a, m",  5, "mov a, a",
-    /*80*/  4, "add b",     4, "add c",        4, "add d",    4, "add e",    4, "add h",     4, "add l",     7, "add m",     4, "add a",
-    /*88*/  4, "adc b",     4, "adc c",        4, "adc d",    4, "adc e",    4, "adc h",     4, "adc l",     7, "adc m",     4, "adc a",
-    /*90*/  4, "sub b",     4, "sub c",        4, "sub d",    4, "sub e",    4, "sub h",     4, "sub l",     7, "sub m",     4, "sub a",
-    /*98*/  4, "sbb b",     4, "sbb c",        4, "sbb d",    4, "sbb e",    4, "sbb h",     4, "sbb l",     7, "sbb m",     4, "sbb a",
-    /*a0*/  4, "ana b",     4, "ana c",        4, "ana d",    4, "ana e",    4, "ana h",     4, "ana l",     7, "ana m",     4, "ana a",
-    /*a8*/  4, "xra b",     4, "xra c",        4, "xra d",    4, "xra e",    4, "xra h",     4, "xra l",     7, "xra m",     4, "xra a",
-    /*b0*/  4, "ora b",     4, "ora c",        4, "ora d",    4, "ora e",    4, "ora h",     4, "ora l",     7, "ora m",     4, "ora a",
-    /*b8*/  4, "cmp b",     4, "cmp c",        4, "cmp d",    4, "cmp e",    4, "cmp h",     4, "cmp l",     7, "cmp m",     4, "cmp a",
-    /*c0*/ 11, "rnz",      10, "pop b",       10, "jnz a16", 10, "jmp a16", 17, "cnz a16",  11, "push b",    7, "adi d8",   11, "rst 0",
-    /*c8*/ 11, "rz",       10, "ret",         10, "jz a16",  10, "*jmp",    17, "cz a16",   17, "call a16",  7, "aci d8",   11, "rst 1",
-    /*d0*/ 11, "rnc",      10, "pop d",       10, "jnc a16", 10, "out d8",  17, "cnc a16",  11, "push d",    7, "sui d8",   11, "rst 2",
-    /*d8*/ 11, "rc",       10, "*ret",        10, "jc a16",  10, "in d8",   17, "cc a16",   17, "*call a16", 7, "sbi d8",   11, "rst 3",
-    /*e0*/ 11, "rpo",      10, "pop h",       10, "jpo a16", 18, "xthl",    17, "cpo a16",  11, "push h",    7, "ani d8",   11, "rst 4",
-    /*e8*/ 11, "rpe",       5, "pchl",        10, "jpe a16",  5, "xchg",    17, "cpe a16",  17, "*call a16", 7, "xri d8",   11, "rst 5",
-    /*f0*/ 11, "rp",       10, "pop psw",     10, "jp a16",   4, "di",      17, "cp a16",   11, "push psw",  7, "ori d8",   11, "rst 6",
-    /*f8*/ 11, "rm",        5, "sphl",        10, "jm a16",   4, "ei",      17, "cm a16",   17, "*call a16", 7, "cpi d8",   11, "rst 7",
+    /*00*/  "nop",      "lxi b, d16",  "stax b",   "inx b",    "inr b",    "dcr b",     "mvi b, d8", "rlc",
+    /*08*/  "*nop",     "dad b",       "ldax b",   "dcx b",    "inr c",    "dcr c",     "mvi c, d8", "rrc",
+    /*10*/  "*nop",     "lxi d, d16",  "stax d",   "inx d",    "inr d",    "dcr d",     "mvi d, d8", "ral",
+    /*18*/  "*nop",     "dad d",       "ldax d",   "dcx d",    "inr e",    "dcr e",     "mvi e, d8", "rar",
+    /*20*/  "*nop",     "lxi h, d16",  "shld a16", "inx h",    "inr h",    "dcr h",     "mvi h, d8", "daa",
+    /*28*/  "*nop",     "dad h",       "lhld a16", "dcx h",    "inr l",    "dcr l",     "mvi l, d8", "cma",
+    /*30*/  "*nop",     "lxi sp, d16", "sta a16",  "inx sp",   "inr m",    "dcr m",     "mvi m, d8", "stc",
+    /*38*/  "*nop",     "dad sp",      "lda a16",  "dcx sp",   "inr a",    "dcr a",     "mvi a, d8", "cmc",
+    /*40*/  "mov b, b", "mov b, c",    "mov b, d", "mov b, e", "mov b, h", "mov b, l",  "mov b, m",  "mov b, a",
+    /*48*/  "mov c, b", "mov c, c",    "mov c, d", "mov c, e", "mov c, h", "mov c, l",  "mov c, m",  "mov c, a",
+    /*50*/  "mov d, b", "mov d, c",    "mov d, d", "mov d, e", "mov d, h", "mov d, l",  "mov d, m",  "mov d, a",
+    /*58*/  "mov e, b", "mov e, c",    "mov e, d", "mov e, e", "mov e, h", "mov e, l",  "mov e, m",  "mov e, a",
+    /*60*/  "mov h, b", "mov h, c",    "mov h, d", "mov h, e", "(hook)",   "mov h, l",  "mov h, m",  "mov h, a",
+    /*68*/  "mov l, b", "mov l, c",    "mov l, d", "mov l, e", "mov l, h", "mov l, l",  "mov l, m",  "mov l, a",
+    /*70*/  "mov m, b", "mov m, c",    "mov m, d", "mov m, e", "mov m, h", "mov m, l",  "hlt",       "mov m, a",
+    /*78*/  "mov a, b", "mov a, c",    "mov a, d", "mov a, e", "mov a, h", "mov a, l",  "mov a, m",  "mov a, a",
+    /*80*/  "add b",    "add c",       "add d",    "add e",    "add h",    "add l",     "add m",     "add a",
+    /*88*/  "adc b",    "adc c",       "adc d",    "adc e",    "adc h",    "adc l",     "adc m",     "adc a",
+    /*90*/  "sub b",    "sub c",       "sub d",    "sub e",    "sub h",    "sub l",     "sub m",     "sub a",
+    /*98*/  "sbb b",    "sbb c",       "sbb d",    "sbb e",    "sbb h",    "sbb l",     "sbb m",     "sbb a",
+    /*a0*/  "ana b",    "ana c",       "ana d",    "ana e",    "ana h",    "ana l",     "ana m",     "ana a",
+    /*a8*/  "xra b",    "xra c",       "xra d",    "xra e",    "xra h",    "xra l",     "xra m",     "xra a",
+    /*b0*/  "ora b",    "ora c",       "ora d",    "ora e",    "ora h",    "ora l",     "ora m",     "ora a",
+    /*b8*/  "cmp b",    "cmp c",       "cmp d",    "cmp e",    "cmp h",    "cmp l",     "cmp m",     "cmp a",
+    /*c0*/  "rnz",      "pop b",       "jnz a16",  "jmp a16",  "cnz a16",  "push b",    "adi d8",    "rst 0",
+    /*c8*/  "rz",       "ret",         "jz a16",   "*jmp",     "cz a16",   "call a16",  "aci d8",    "rst 1",
+    /*d0*/  "rnc",      "pop d",       "jnc a16",  "out d8",   "cnc a16",  "push d",    "sui d8",    "rst 2",
+    /*d8*/  "rc",       "*ret",        "jc a16",   "in d8",    "cc a16",   "*call a16", "sbi d8",    "rst 3",
+    /*e0*/  "rpo",      "pop h",       "jpo a16",  "xthl",     "cpo a16",  "push h",    "ani d8",    "rst 4",
+    /*e8*/  "rpe",      "pchl",        "jpe a16",  "xchg",     "cpe a16",  "*call a16", "xri d8",    "rst 5",
+    /*f0*/  "rp",       "pop psw",     "jp a16",   "di",       "cp a16",   "push psw",  "ori d8",    "rst 6",
+    /*f8*/  "rm",       "sphl",        "jm a16",   "ei",       "cm a16",   "*call a16", "cpi d8",    "rst 7",
 };
 
 // instructions starting with '*' are Z80-specific, generally multi-byte, and handled separately.
-// instructions listed here are the overlap with 8080 but with the Z80 naming and cycle counts.
-
-static const Instruction z80_ins[ 256 ] =
+// instructions listed here are the overlap with 8080 but with the Z80 naming.
+static const char z80_instructions[ 256 ][ 16 ] =
 {
-    /*00*/  4, "nop",      10, "ld bc,d16",  7, "ld (bc),a",   6, "inc bc",      4, "inc b",        4, "dec b",     7, "ld b,d8",    4, "rlca",
-    /*08*/  4, "*'",       11, "add hl,bc",  7, "ld a,(bc)",   6, "dec bc",      4, "inc c",        4, "dec c",     7, "ld c,d8",    4, "rrca",
-    /*10*/  0, "*",        10, "ld de,d16",  7, "ld (de),a",   6, "inc de",      4, "inc d",        4, "dec d",     7, "ld d,d8",    4, "rla",
-    /*18*/  0, "*",        11, "add hl,de",  7, "ld a,(de)",   6, "dec de",      4, "inc e",        4, "dec e",     7, "ld e,d8",    4, "rra",
-    /*20*/  0, "*",        10, "ld hl,d16", 16, "ld (a16),hl", 6, "inc hl",      4, "inc h",        4, "dec h",     7, "ld h,d8",    4, "daa",
-    /*28*/  0, "*",        11, "add hl,hl", 20, "ld hl,(a16)", 6, "dec hl",      4, "inc l",        4, "dec l",     7, "ld l,d8",    4, "cpl",
-    /*30*/  0, "*",        10, "ld sp,d16", 13, "ld (a16),a",  6, "inc sp",     11, "inc (hl)",    11, "dec (hl)", 10, "ld m,d8",    4, "scf",
-    /*38*/  0, "*",        11, "add hl,sp", 13, "ld a,(a16)",  6, "dec sp",      4, "inc a",        4, "dec a",     7, "ld a,d8",    4, "ccf",
-    /*40*/  4, "ld b,b",    4, "ld b,c",     4, "ld b,d",      4, "ld b,e",      4, "ld b,h",       4, "ld b,l",    7, "ld b, (hl)", 4, "ld b,a",
-    /*48*/  4, "ld c,b",    4, "ld c,c",     4, "ld c,d",      4, "ld c,e",      4, "ld c,h",       4, "ld c,l",    7, "ld c, (hl)", 4, "ld c,a",
-    /*20*/  4, "ld d,b",    4, "ld d,c",     4, "ld d,d",      4, "ld d,e",      4, "ld d,h",       4, "ld d,l",    7, "ld d, (hl)", 4, "ld d,a",
-    /*28*/  4, "ld e,b",    4, "ld e,c",     4, "ld e,d",      4, "ld e,e",      4, "ld e,h",       4, "ld e,l",    7, "ld e, (hl)", 4, "ld e,a",
-    /*60*/  4, "ld h,b",    4, "ld h,c",     4, "ld h,d",      4, "ld h,e",      0, "(hook)",       4, "ld h,l",    7, "ld h, (hl)", 4, "ld h,a",
-    /*68*/  4, "ld l,b",    4, "ld l,c",     4, "ld l,d",      4, "ld l,e",      4, "ld l,h",       4, "ld l,l",    7, "ld l, (hl)", 4, "ld l,a",
-    /*70*/  7, "ld (hl),b", 7, "ld (hl),c",  7, "ld (hl),d",   7, "ld (hl),e",   7, "ld (hl),h",    7, "ld (hl),l", 4, "halt",       7, "ld (hl),a",
-    /*78*/  4, "ld a,b",    4, "ld a,c",     4, "ld a,d",      4, "ld a,e",      4, "ld a,h",       4, "ld a,l",    7, "ld a,(hl)",  4, "ld a,a",
-    /*80*/  4, "add a,b",   4, "add a,c",    4, "add a,d",     4, "add a,e",     4, "add a,h",      4, "add a,l",   7, "add a,(hl)", 4, "add a,a",
-    /*88*/  4, "adc a,b",   4, "adc a,c",    4, "adc a,d",     4, "adc a,e",     4, "adc a,h",      4, "adc a,l",   7, "adc a,(hl)", 4, "adc a,a",
-    /*90*/  4, "sub b",     4, "sub c",      4, "sub d",       4, "sub e",       4, "sub h",        4, "sub l",     7, "sub (hl)",   4, "sub a",
-    /*98*/  4, "sbc b",     4, "sbc c",      4, "sbc d",       4, "sbc e",       4, "sbc h",        4, "sbc l",     7, "sbc (hl)",   4, "sbc a",
-    /*a0*/  4, "and b",     4, "and c",      4, "and d",       4, "and e",       4, "and h",        4, "and l",     7, "and (hl)",   4, "and a",
-    /*a8*/  4, "xor b",     4, "xor c",      4, "xor d",       4, "xor e",       4, "xor h",        4, "xor l",     7, "xor (hl)",   4, "xor a",
-    /*b0*/  4, "or b",      4, "or c",       4, "or d",        4, "or e",        4, "or h",         4, "or l",      7, "or (hl)",    4, "or a",
-    /*b8*/  4, "cp b",      4, "cp c",       4, "cp d",        4, "cp e",        4, "cp h",         4, "cp l",      7, "cp (hl)",    4, "cp a",
-    /*c0*/ 11, "ret nz",   10, "pop bc",    10, "jp nz,a16",  10, "jp a16",     17, "call nz,a16", 11, "push bc",   7, "add a,d8",  11, "rst 0",
-    /*c8*/ 11, "ret z",    10, "ret",       10, "jp z,a16",    0, "*",          17, "call z,a16",  17, "call a16",  7, "adc a,d8",  11, "rst 1",
-    /*d0*/ 11, "ret nc",   10, "pop de",    10, "jp nc,a16",  11, "out (d8),a", 17, "call nc,a16", 11, "push de",   7, "sub d8",    11, "rst 2",
-    /*d8*/ 11, "ret c",     0, "*",         10, "jp c,a16",   11, "in a,(d8)",  17, "call c,a16",   0, "*",         7, "sbc d8",    11, "rst 3",
-    /*e0*/ 11, "ret po",   10, "pop hl",    10, "jp po,a16",  19, "ex (sp),hl", 17, "call po,a16", 11, "push hl",   7, "and d8",    11, "rst 4",
-    /*e8*/ 11, "ret pe",    4, "jp (hl)",   10, "jp pe,a16",   4, "ex de,hl",   17, "call pe,a16",  0, "*",         7, "xor d8",    11, "rst 5",
-    /*f0*/ 11, "ret p",    10, "pop af",    10, "jp p,a16",    4, "di",         17, "call p,a16",  11, "push af",   7, "or d8",     11, "rst 6",
-    /*f8*/ 11, "ret m",     5, "ld sp,hl",  10, "jp m,a16",    4, "ei",         17, "call m,a16",   0, "*",         7, "cp d8",     11, "rst 7",
+    /*00*/ "nop",       "ld bc,d16", "ld (bc),a",   "inc bc",     "inc b",       "dec b",     "ld b,d8",    "rlca",
+    /*08*/ "*'",        "add hl,bc", "ld a,(bc)",   "dec bc",     "inc c",       "dec c",     "ld c,d8",    "rrca",
+    /*10*/ "*",         "ld de,d16", "ld (de),a",   "inc de",     "inc d",       "dec d",     "ld d,d8",    "rla",
+    /*18*/ "*",         "add hl,de", "ld a,(de)",   "dec de",     "inc e",       "dec e",     "ld e,d8",    "rra",
+    /*20*/ "*",         "ld hl,d16", "ld (a16),hl", "inc hl",     "inc h",       "dec h",     "ld h,d8",    "daa",
+    /*28*/ "*",         "add hl,hl", "ld hl,(a16)", "dec hl",     "inc l",       "dec l",     "ld l,d8",    "cpl",
+    /*30*/ "*",         "ld sp,d16", "ld (a16),a",  "inc sp",     "inc (hl)",    "dec (hl)",  "ld m,d8",    "scf",
+    /*38*/ "*",         "add hl,sp", "ld a,(a16)",  "dec sp",     "inc a",       "dec a",     "ld a,d8",    "ccf",
+    /*40*/ "ld b,b",    "ld b,c",    "ld b,d",      "ld b,e",     "ld b,h",      "ld b,l",    "ld b, (hl)", "ld b,a",
+    /*48*/ "ld c,b",    "ld c,c",    "ld c,d",      "ld c,e",     "ld c,h",      "ld c,l",    "ld c, (hl)", "ld c,a",
+    /*20*/ "ld d,b",    "ld d,c",    "ld d,d",      "ld d,e",     "ld d,h",      "ld d,l",    "ld d, (hl)", "ld d,a",
+    /*28*/ "ld e,b",    "ld e,c",    "ld e,d",      "ld e,e",     "ld e,h",      "ld e,l",    "ld e, (hl)", "ld e,a",
+    /*60*/ "ld h,b",    "ld h,c",    "ld h,d",      "ld h,e",     "(hook)",      "ld h,l",    "ld h, (hl)", "ld h,a",
+    /*68*/ "ld l,b",    "ld l,c",    "ld l,d",      "ld l,e",     "ld l,h",      "ld l,l",    "ld l, (hl)", "ld l,a",
+    /*70*/ "ld (hl),b", "ld (hl),c", "ld (hl),d",   "ld (hl),e",  "ld (hl),h",   "ld (hl),l", "halt",       "ld (hl),a",
+    /*78*/ "ld a,b",    "ld a,c",    "ld a,d",      "ld a,e",     "ld a,h",      "ld a,l",    "ld a,(hl)",  "ld a,a",
+    /*80*/ "add a,b",   "add a,c",   "add a,d",     "add a,e",    "add a,h",     "add a,l",   "add a,(hl)", "add a,a",
+    /*88*/ "adc a,b",   "adc a,c",   "adc a,d",     "adc a,e",    "adc a,h",     "adc a,l",   "adc a,(hl)", "adc a,a",
+    /*90*/ "sub b",     "sub c",     "sub d",       "sub e",      "sub h",       "sub l",     "sub (hl)",   "sub a",
+    /*98*/ "sbc b",     "sbc c",     "sbc d",       "sbc e",      "sbc h",       "sbc l",     "sbc (hl)",   "sbc a",
+    /*a0*/ "and b",     "and c",     "and d",       "and e",      "and h",       "and l",     "and (hl)",   "and a",
+    /*a8*/ "xor b",     "xor c",     "xor d",       "xor e",      "xor h",       "xor l",     "xor (hl)",   "xor a",
+    /*b0*/ "or b",      "or c",      "or d",        "or e",       "or h",        "or l",      "or (hl)",    "or a",
+    /*b8*/ "cp b",      "cp c",      "cp d",        "cp e",       "cp h",        "cp l",      "cp (hl)",    "cp a",
+    /*c0*/ "ret nz",    "pop bc",    "jp nz,a16",   "jp a16",     "call nz,a16", "push bc",   "add a,d8",   "rst 0",
+    /*c8*/ "ret z",     "ret",       "jp z,a16",    "*",          "call z,a16",  "call a16",  "adc a,d8",   "rst 1",
+    /*d0*/ "ret nc",    "pop de",    "jp nc,a16",   "out (d8),a", "call nc,a16", "push de",   "sub d8",     "rst 2",
+    /*d8*/ "ret c",     "*",         "jp c,a16",    "in a,(d8)",  "call c,a16",  "*",         "sbc d8",     "rst 3",
+    /*e0*/ "ret po",    "pop hl",    "jp po,a16",   "ex (sp),hl", "call po,a16", "push hl",   "and d8",     "rst 4",
+    /*e8*/ "ret pe",    "jp (hl)",   "jp pe,a16",   "ex de,hl",   "call pe,a16", "*",         "xor d8",     "rst 5",
+    /*f0*/ "ret p",     "pop af",    "jp p,a16",    "di",         "call p,a16",  "push af",   "or d8",      "rst 6",
+    /*f8*/ "ret m",     "ld sp,hl",  "jp m,a16",    "ei",         "call m,a16",  "*",         "cp d8",      "rst 7",
+};
+
+// base cycles. 8080 conditional calls take 11 (not 17) if not taken. conditional returns take 5 (not 11) if not taken.
+static const uint8_t i8080_cycles[ 256 ] =
+{
+    /*00*/  4, 10,  7,  5,  5,  5,  7,  4,  4, 10,  7,  5,  5,  5,  7,  4,
+    /*10*/  4, 10,  7,  5,  5,  5,  7,  4,  4, 10,  7,  5,  5,  5,  7,  4,
+    /*20*/  4, 10, 16,  5,  5,  5,  7,  4,  4, 10, 16,  5,  5,  5,  7,  4,
+    /*30*/  4, 10, 13,  5, 10, 10, 10,  4,  4, 10, 13,  5,  5,  5,  7,  4,
+    /*40*/  5,  5,  5,  5,  5,  5,  7,  5,  5,  5,  5,  5,  5,  5,  7,  5,
+    /*50*/  5,  5,  5,  5,  5,  5,  7,  5,  5,  5,  5,  5,  5,  5,  7,  5,
+    /*60*/  5,  5,  5,  5,  0,  5,  7,  5,  5,  5,  5,  5,  5,  5,  7,  5,
+    /*70*/  7,  7,  7,  7,  7,  7,  7,  7,  5,  5,  5,  5,  5,  5,  7,  5,
+    /*80*/  4,  4,  4,  4,  4,  4,  7,  4,  4,  4,  4,  4,  4,  4,  7,  4,
+    /*90*/  4,  4,  4,  4,  4,  4,  7,  4,  4,  4,  4,  4,  4,  4,  7,  4,
+    /*a0*/  4,  4,  4,  4,  4,  4,  7,  4,  4,  4,  4,  4,  4,  4,  7,  4,
+    /*b0*/  4,  4,  4,  4,  4,  4,  7,  4,  4,  4,  4,  4,  4,  4,  7,  4,
+    /*c0*/ 11, 10, 10, 10, 17, 11,  7, 11, 11, 10, 10, 10, 17, 17,  7, 11,
+    /*d0*/ 11, 10, 10, 10, 17, 11,  7, 11, 11, 10, 10, 10, 17, 17,  7, 11,
+    /*e0*/ 11, 10, 10, 18, 17, 11,  7, 11, 11,  5, 10,  5, 17, 17,  7, 11,
+    /*f0*/ 11, 10, 10,  4, 17, 11,  7, 11, 11,  5, 10,  4, 17, 17,  7, 11,
+};
+
+static const uint8_t z80_cycles[ 256 ] =
+{
+    /*00*/  4, 10,  7,  6,  4,  4,  7,  4,  4, 11,  7,  6,  4,  4,  7,  4,
+    /*10*/  0, 10,  7,  6,  4,  4,  7,  4,  0, 11,  7,  6,  4,  4,  7,  4,
+    /*20*/  0, 10, 16,  6,  4,  4,  7,  4,  0, 11, 20,  6,  4,  4,  7,  4,
+    /*30*/  0, 10, 13,  6, 11, 11, 10,  4,  0, 11, 13,  6,  4,  4,  7,  4,
+    /*40*/  4,  4,  4,  4,  4,  4,  7,  4,  4,  4,  4,  4,  4,  4,  7,  4,
+    /*20*/  4,  4,  4,  4,  4,  4,  7,  4,  4,  4,  4,  4,  4,  4,  7,  4,
+    /*60*/  4,  4,  4,  4,  0,  4,  7,  4,  4,  4,  4,  4,  4,  4,  7,  4,
+    /*70*/  7,  7,  7,  7,  7,  7,  4,  7,  4,  4,  4,  4,  4,  4,  7,  4,
+    /*80*/  4,  4,  4,  4,  4,  4,  7,  4,  4,  4,  4,  4,  4,  4,  7,  4,
+    /*90*/  4,  4,  4,  4,  4,  4,  7,  4,  4,  4,  4,  4,  4,  4,  7,  4,
+    /*a0*/  4,  4,  4,  4,  4,  4,  7,  4,  4,  4,  4,  4,  4,  4,  7,  4,
+    /*b0*/  4,  4,  4,  4,  4,  4,  7,  4,  4,  4,  4,  4,  4,  4,  7,  4,
+    /*c0*/ 11, 10, 10, 10, 17, 11,  7, 11, 11, 10, 10,  0, 17, 17,  7, 11,
+    /*d0*/ 11, 10, 10, 11, 17, 11,  7, 11, 11,  0, 10, 11, 17,  0,  7, 11,
+    /*e0*/ 11, 10, 10, 19, 17, 11,  7, 11, 11,  4, 10,  4, 17,  0,  7, 11,
+    /*f0*/ 11, 10, 10,  4, 17, 11,  7, 11, 11,  5, 10,  4, 17,  0,  7, 11,
 };
 
 static uint16_t mword( uint16_t offset ) { return * ( (uint16_t *) & memory[ offset ] ); }
@@ -1166,7 +1199,6 @@ uint64_t z80_emulate( uint8_t op )    // this is just for instructions that aren
         }
         else if ( 0xb0 == op2 ) // ldir
         {
-            uint8_t special;
             cycles = 0;
             do
             {
@@ -1558,7 +1590,7 @@ const char * x80_render_operation( uint16_t address )
 
     if ( reg.fZ80Mode )
     {
-        strcpy( ac, z80_ins[ op ].assembly );
+        strcpy( ac, z80_instructions[ op ] );
         if ( '*' == ac[ 0 ] )
         {
             z80_render( ac, op, address );
@@ -1566,7 +1598,7 @@ const char * x80_render_operation( uint16_t address )
         }
     }
     else
-        strcpy( ac, ins_8080[ op ].assembly );
+        strcpy( ac, i8080_instructions[ op ] );
 
     if ( renderData )
     {
@@ -1582,6 +1614,9 @@ const char * x80_render_operation( uint16_t address )
     return ac;
 } //x80_render_operation
 
+#ifdef _MSC_VER
+__declspec(noinline)
+#endif
 void x80_trace_state()
 {
     uint8_t op = memory[ reg.pc ];
@@ -1616,35 +1651,24 @@ uint64_t x80_emulate( uint64_t maxcycles )
 {
     uint64_t cycles = 0;
 
-    while ( cycles < maxcycles )        // 10.5% of runtime checking this for zexall.com
+    while ( cycles < maxcycles )        // 5% of runtime checking if we're done
     {
-        if ( g_traceInstructions )      // 2% of runtime is checking this flag
+        if ( g_traceInstructions )      // 2% of runtime is checking this flag and branching
             x80_trace_state();
 
-        uint8_t op = memory[ reg.pc ];  // 2% of runtime here
-        reg.pc++;
+        uint8_t op = memory[ reg.pc ];  // 1% of runtime
+        reg.pc++;                       // 8% of runtime including npad to make _restart_op aligned
 
 _restart_op:
-        if ( '*' == ins_8080[ op ].assembly[0] ) // 17% of runtime is checking this
-        {
-            if ( reg.fZ80Mode )
-            {
-                reg.z80_incR();
-                cycles += z80_emulate( op );
-                continue;
-            }
-            else
-                x80_hard_exit( "Error: 8080 undocumented instruction: %#x, next byte %#x\n", op, memory[ reg.pc + 1 ] );
-        }
-        else if ( reg.fZ80Mode )        // 4% of runtime is checking this
+        if ( reg.fZ80Mode )             // 1.5% of runtime is checking this
         {
             reg.z80_incR();
-            cycles += z80_ins[ op ].cycles;
+            cycles += z80_cycles[ op ];
         }
         else
-            cycles += ins_8080[ op ].cycles;
+            cycles += i8080_cycles[ op ];
 
-        switch ( op )                   // 10.5% of runtime is setting up for the jump table jump
+        switch ( op )                   // 42% of runtime is setting up for the jump table jump; 10 instructions
         {
             case 0x00: /*nop*/ break;
             case 0x01: /*lxi b, d16*/ reg.SetB( pcword() ); break;
@@ -1657,7 +1681,6 @@ _restart_op:
                     reg.a |= 1;
                 else
                     reg.a &= 0xfe;
-
                 if ( reg.fZ80Mode )
                 {
                     reg.clearHN();
@@ -1849,6 +1872,7 @@ _restart_op:
     
                 if ( 0x80 == ( op & 0xc0 ) ) // math
                 {
+                    assert( '*' != i8080_instructions[op][0] );
                     // op: 5..3. reg 2..0
                     // op: 0 add, 1 adc, 2 sub, 3 sbb, 4 ana, 5 xra, 6 ora, 7 cmp
     
@@ -1857,25 +1881,30 @@ _restart_op:
                 }
                 else if ( 5 == op2reg3 ) // dcr r. does not set carry
                 {
+                    assert( '*' != i8080_instructions[op][0] );
                     uint8_t * pdst = dst_address( op );
                     *pdst = op_dec( * pdst );          // 5% of runtime
                 }
                 else if  ( op >= 0x40 && op <= 0x7f ) // mov r, r.  hlt is in this range but handled above.
                 {
+                    assert( '*' != i8080_instructions[op][0] );
                     *dst_address( op ) = src_value( op ); // 5% of runtime
                 }
                 else if ( 0xc6 == op2reg3 ) // immediate math. 0 adi, 1 aci, 2 sui, 3 sbi, 4 ani, 5 xri, 6 ori, 7 cpi  
                 {
+                    assert( '*' != i8080_instructions[op][0] );
                     uint8_t math = ( op >> 3 ) & 0x7;
                     op_math( math, pcbyte() );         // 4% of runtime
                 }
                 else if ( 6 == op2reg3 ) // mvi r, d8
                 {
+                    assert( '*' != i8080_instructions[op][0] );
                     uint8_t *pdst = dst_address( op );
                     *pdst = pcbyte();
                 }
                 else if ( 0xc0 == op2reg3 ) // conditional return
                 {
+                    assert( '*' != i8080_instructions[op][0] );
                     if ( check_conditional( op ) )
                         reg.pc = popword();
                     else
@@ -1883,6 +1912,7 @@ _restart_op:
                 }
                 else if ( 0xc2 == op2reg3 ) // conditional jump
                 {
+                    assert( '*' != i8080_instructions[op][0] );
                     uint16_t address = pcword();
                     if ( check_conditional( op ) )
                         reg.pc = address;
@@ -1891,6 +1921,7 @@ _restart_op:
                 }
                 else if ( 0xc4 == op2reg3 ) // conditional call
                 {
+                    assert( '*' != i8080_instructions[op][0] );
                     uint16_t address = pcword();
                     if ( check_conditional( op ) )
                     {
@@ -1902,6 +1933,7 @@ _restart_op:
                 }
                 else if ( 0xc1 == op2rp4 ) // pop
                 {
+                    assert( '*' != i8080_instructions[op][0] );
                     uint16_t val = popword();
                     if ( 0xc1 == op )
                         reg.SetB( val );
@@ -1914,6 +1946,7 @@ _restart_op:
                 }
                 else if ( 0xc5 == op2rp4 ) // push
                 {
+                    assert( '*' != i8080_instructions[op][0] );
                     if ( 0xe5 == op )            // HL is most frequent push
                         pushword( reg.H() );
                     else if ( 0xc5 == op )
@@ -1925,29 +1958,35 @@ _restart_op:
                 }
                 else if ( 3 == op2rp4 ) // inx. no status flag updates
                 {
+                    assert( '*' != i8080_instructions[op][0] );
                     uint16_t * pdst = reg.rpAddressFromOp( op );
                     *pdst = 1 + *pdst;
                 }
                 else if ( 0x0b == op2rp4 ) // dcx. no status flag updates
                 {
+                    assert( '*' != i8080_instructions[op][0] );
                     uint16_t * pdst = reg.rpAddressFromOp( op );
                     *pdst = *pdst - 1;
                 }
                 else if ( 4 == op2reg3 ) // inr r. does not set carry
                 {
+                    assert( '*' != i8080_instructions[op][0] );
                     uint8_t * pdst = dst_address( op );
                     *pdst = op_inc( *pdst );
                 }
-                else if ( 0xc3 == ( 0xc3 & op ) ) // rst
+                else if ( 0xc7 == ( 0xc7 & op ) ) // rst
                 {
+                    assert( '*' != i8080_instructions[op][0] );
                     // bits 5..3 are exp, which form an address 0000000000exp000 that is called.
                     // rst is generally invoked by hardware interrupt, which supply one instruction.
     
                     pushword( reg.pc );
                     reg.pc = 0x38 & (uint16_t) op;
                 }
+                else if ( reg.fZ80Mode )
+                    cycles += z80_emulate( op );
                 else
-                    x80_hard_exit( "unimplemented 8080 instruction: %#x, next byte is %#x\n", op, memory[ reg.pc ] );
+                    x80_hard_exit( "Error: 8080 undocumented instruction: %#x, next byte %#x\n", op, memory[ reg.pc + 1 ] );
             } //default
         } //switch
     } //while
