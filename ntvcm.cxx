@@ -454,16 +454,12 @@ const char * get_bdos_function( uint8_t id )
 {
     if ( id < _countof( bdos_functions ) )
         return bdos_functions[ id ];
-
     if ( 105 == id )
         return "get time";
-
     if ( 106 == id )
         return "sleep";
-
     if ( 107 == id )
         return "initialize rss feed";
-
     if ( 108 == id )
         return "fetch rss item";
 
@@ -652,7 +648,7 @@ uint8_t x80_invoke_hook()
 
     if ( 5 != address )
     {
-        tracer.Trace( "hook call, but not bdos since address isn't 5: %04x\n", address );
+        tracer.Trace( "hook call, but not bios or bdos. likely just a mov h, h. address: %04x\n", address );
         return OPCODE_NOP;
     }
 
@@ -1550,7 +1546,6 @@ uint8_t x80_invoke_hook()
                 pfcb->r2 = 0;
 
                 FILE * fp = FindFileEntry( acFilename );
-
                 if ( fp )
                 {
                     uint32_t curr = ftell( fp );
@@ -1588,7 +1583,6 @@ uint8_t x80_invoke_hook()
     
                     fseek( fp, 0, SEEK_END );
                     uint32_t file_size = ftell( fp );
-    
                     if ( file_size >= file_offset )
                     {
                         bool ok = !fseek( fp, file_offset, SEEK_SET );
@@ -1622,7 +1616,6 @@ uint8_t x80_invoke_hook()
             // non-standard BDOS call GetTime. DE points to a CPMTime structure
 
             tracer.Trace( "  get time (non-standard BDOS call)\n" );
-
             CPMTime * ptime = (CPMTime *) ( memory + reg.D() );
 
             system_clock::time_point now = system_clock::now();
@@ -1643,7 +1636,6 @@ uint8_t x80_invoke_hook()
             // non-standard BDOS call sleep. DE contains a count of milliseconds 0-32767
 
             uint16_t ms = reg.D();
-
             sleep_ms( ms );
             break;
         }
@@ -1692,6 +1684,32 @@ uint8_t x80_invoke_hook()
     return OPCODE_RET;
 } //x80_invoke_hook
 
+const char * target_platform()
+{
+    #if defined( __riscv )        // g++ on linux
+        return "riscv";
+    #elif defined( __amd64 )      // g++ on linux
+        return "amd64";
+    #elif defined( __aarch64__ )  // g++ on linux
+        return "arm64";
+    #elif defined( _M_AMD64 )     // msft on Windows
+        return "amd64";
+    #elif defined( _M_ARM64 )     // msft on Windows
+        return "arm64";
+    #endif
+
+    return "(other)";
+} //target_platform
+
+const char * build_type()
+{
+    #ifndef NDEBUG
+        return "debug";
+    #endif
+
+    return "release";
+} //build_type
+
 void usage( char const * perr = 0 )
 {
     if ( perr )
@@ -1699,30 +1717,26 @@ void usage( char const * perr = 0 )
 
     printf( "NT Virtual CP/M 2.2 Machine: emulates a CP/M 2.2 i8080/Z80 runtime environment\n" );
     printf( "usage: ntvcm [-c] [-p] [-s:X] [-t] <cp/m 2.2 .com file> [filearg1] [filearg2]\n" );
-    printf( "  notes:    filearg1 and filearg2 optionally specify filename arguments for the command\n" );
-    printf( "            -b     translate bios console input backspace (BS / 0x08) to delete (DEL / 0x7f).\n" );
-    printf( "            -c     never auto-detect ESC characters and change to to 80x24 mode\n" );
-    printf( "            -C     always switch to 80x24 mode\n" );
-    printf( "            -d     don't clear the display on app exit when in 80x24 mode\n" );
-    printf( "            -i     trace 8080/Z80 instructions when tracing with -t\n" );
-    printf( "            -l     force CP/M filenames to be lowercase (can be useful on Linux)\n" );
-    printf( "            -p     show performance information at app exit\n" ); 
-    printf( "            -s:X   speed in Hz. Default is 0, which is as fast as possible.\n" );
-    printf( "                   for 4Mhz, use -s:4000000\n" );
-    printf( "            -t     enable debug tracing to ntvcm.log\n" );
-    printf( "            -v     translate vt-52 escape sequences to vt-100\n" );
-    printf( "            -8     emulate the i8080, not Z80\n" );
-    printf( "            e.g. to assemble, load, and run test.asm:\n" );
-    printf( "                 ntvcm asm.com test\n" );
-    printf( "                 ntvcm load.com test\n" );
-    printf( "                 ntvcm test.com\n" );
-    printf( "            e.g. to run Star Trek in mbasic in 80x24 mode using i8080 emulation:\n" );
-    printf( "                 ntvcm -8 -C mbasic startrek.bas\n" );
-
-#ifndef NDEBUG
-    printf( "(debug build)\n" );
-#endif
-
+    printf( "  notes: filearg1 and filearg2 optionally specify filename arguments for the command\n" );
+    printf( "         -b     turn bios console key backspace/BS/0x08 to delete/DEL/0x7f. for turbo.com\n" );
+    printf( "         -c     never auto-detect ESC characters and change to to 80x24 mode\n" );
+    printf( "         -C     always switch to 80x24 mode\n" );
+    printf( "         -d     don't clear the display on app exit when in 80x24 mode\n" );
+    printf( "         -i     trace 8080/Z80 instructions when tracing with -t\n" );
+    printf( "         -l     force CP/M filenames to be lowercase (can be useful on Linux)\n" );
+    printf( "         -p     show performance information at app exit\n" ); 
+    printf( "         -s:X   speed in Hz. Default is 0, which is as fast as possible.\n" );
+    printf( "                for 4Mhz, use -s:4000000\n" );
+    printf( "         -t     enable debug tracing to ntvcm.log\n" );
+    printf( "         -v     translate vt-52 escape sequences to vt-100\n" );
+    printf( "         -8     emulate the i8080, not Z80\n" );
+    printf( "  e.g. to assemble, load, and run test.asm:\n" );
+    printf( "       ntvcm asm.com test\n" );
+    printf( "       ntvcm load.com test\n" );
+    printf( "       ntvcm test.com\n" );
+    printf( "  e.g. to run Star Trek in mbasic in 80x24 mode using i8080 emulation:\n" );
+    printf( "       ntvcm -8 -C mbasic startrek.bas\n" );
+    printf( "  built for %s %s\n", target_platform(), build_type() );
     exit( -1 );
 } //usage
 
