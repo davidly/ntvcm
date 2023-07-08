@@ -1710,6 +1710,30 @@ const char * build_type()
     return "release";
 } //build_type
 
+const char * compiler_used()
+{
+    #if defined( __GNUC__ )
+        return "g++";
+    #elif defined( _MSC_VER )
+        return "msft C++";
+    #endif
+
+    return "unknown";
+} //compiler_used
+
+const char * build_platform()
+{
+    #if defined( __APPLE__ )
+        return "apple";
+    #elif defined( __linux )
+        return "linux";
+    #elif defined( _MSC_VER )
+        return "windows";
+    #endif
+
+    return "unknown";
+} //build_platform
+
 void usage( char const * perr = 0 )
 {
     if ( perr )
@@ -1740,7 +1764,7 @@ void usage( char const * perr = 0 )
     printf( "       ntvcm test.com\n" );
     printf( "  e.g. to run Star Trek in mbasic in 80x24 mode using i8080 emulation:\n" );
     printf( "       ntvcm -8 -C mbasic startrek.bas\n" );
-    printf( "  built for %s %s %s\n", target_platform(), build_type(), __TIMESTAMP__ );
+    printf( "  built for %s, %s, on %s, by %s, on %s\n", target_platform(), build_type(), __TIMESTAMP__, compiler_used(), build_platform() );
     exit( -1 );
 } //usage
 
