@@ -1718,7 +1718,7 @@ void usage( char const * perr = 0 )
     printf( "NT Virtual CP/M 2.2 Machine: emulates a CP/M 2.2 i8080/Z80 runtime environment\n" );
     printf( "usage: ntvcm [-c] [-p] [-s:X] [-t] <cp/m 2.2 .com file> [filearg1] [filearg2]\n" );
     printf( "  notes: filearg1 and filearg2 optionally specify filename arguments for the command\n" );
-    printf( "         -b     turn bios console key backspace/BS/0x08 to delete/DEL/0x7f. for turbo.com\n" );
+    printf( "         -b     turn bios console key backspace/BS/0x08 to delete/DEL/0x7f. for Turbo Pascal\n" );
     printf( "         -c     never auto-detect ESC characters and change to to 80x24 mode\n" );
     printf( "         -C     always switch to 80x24 mode\n" );
     printf( "         -d     don't clear the display on app exit when in 80x24 mode\n" );
@@ -1728,7 +1728,11 @@ void usage( char const * perr = 0 )
     printf( "         -s:X   speed in Hz. Default is 0, which is as fast as possible.\n" );
     printf( "                for 4Mhz, use -s:4000000\n" );
     printf( "         -t     enable debug tracing to ntvcm.log\n" );
-    printf( "         -v     translate vt-52 escape sequences to vt-100\n" );
+    printf( "         -v     translate vt-52 escape sequences to vt-100. for CalcStar and other apps\n" );
+    printf( "         -z:X   applies X as a hex mask to SetProcessAffinityMask, e.g.:\n" );
+    printf( "                  /z:11    2 performance cores on an i7-1280P\n" );
+    printf( "                  /z:3000  2 efficiency cores on an i7-1280P\n" );
+    printf( "                  /z:11    2 random good cores on a 5950x\n" );
     printf( "         -8     emulate the i8080, not Z80\n" );
     printf( "  e.g. to assemble, load, and run test.asm:\n" );
     printf( "       ntvcm asm.com test\n" );
@@ -1736,7 +1740,7 @@ void usage( char const * perr = 0 )
     printf( "       ntvcm test.com\n" );
     printf( "  e.g. to run Star Trek in mbasic in 80x24 mode using i8080 emulation:\n" );
     printf( "       ntvcm -8 -C mbasic startrek.bas\n" );
-    printf( "  built for %s %s\n", target_platform(), build_type() );
+    printf( "  built for %s %s %s\n", target_platform(), build_type(), __TIMESTAMP__ );
     exit( -1 );
 } //usage
 
@@ -1844,6 +1848,7 @@ int main( int argc, char * argv[] )
     bool showPerformance = false;
     bool force80x24 = false;
     bool clearDisplayOnExit = true;
+    uint64_t processAffinityMask = 0; // by default let the OS decide
 
     for ( int i = 1; i < argc; i++ )
     {
@@ -1901,6 +1906,13 @@ int main( int argc, char * argv[] )
                 g_forceConsole = true;
             else if ( 'C' == parg[1] )
                 force80x24 = true;
+            else if ( 'z' == ca )
+            {
+                if ( ':' == parg[2] )
+                    processAffinityMask = strtoull( parg + 3 , 0, 16 );
+                else
+                    usage( "colon required after z argument" );
+            }
             else
                 usage( "invalid argument specified" );
         }
@@ -1919,6 +1931,9 @@ int main( int argc, char * argv[] )
     tracer.SetQuiet( true );
     tracer.SetFlushEachTrace( true );
     x80_trace_instructions( traceInstructions );
+
+    if ( 0 != processAffinityMask )
+        set_process_affinity( processAffinityMask );
 
     if ( 0 == pcCOM )
         usage( "no CP/M command specified" );

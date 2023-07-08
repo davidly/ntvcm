@@ -44,7 +44,7 @@ struct registers
     bool fX;                   // defined to be 0, but physical Z80s and 8085s sometimes set them to 1
 
     bool fZ80Mode;             // Not a flag. true if emulating Z80, false if emulating i8080
-    bool fINTE;                // Not a flag. true if hardware interrupts are enabled. set/reset bi ei and di
+    bool fINTE;                // Not a flag. true if hardware interrupts are enabled. set/reset with ei and di
 
     uint8_t materializeFlags()
     {
@@ -230,8 +230,6 @@ struct registers
         fY = ( 0 != ( val & 0x20 ) );
         fX = ( 0 != ( val & 8 ) );
     } //z80_assignYX
-
-    void z80_incR() { r++; } // don't bother masking lower 7 bits until the register is read via ld a,r
 
     void powerOn()
     {
