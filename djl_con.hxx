@@ -153,10 +153,12 @@ class ConsoleConfiguration
 
                 PHANDLER_ROUTINE handler = (PHANDLER_ROUTINE) proutine;
                 SetConsoleCtrlHandler( handler, TRUE );
-    
-                if ( 0 != width )
-                    SendClsSequence();
+            #else
+                established = true;
             #endif
+
+            if ( 0 != width )
+                SendClsSequence();
         } //EstablishConsole
         
         void RestoreConsole( bool clearScreen = true )
@@ -187,16 +189,21 @@ class ConsoleConfiguration
 #endif
                     initialized = false;
                 }
+
+                if ( established )
+                {
+                    if ( clearScreen )
+                        SendClsSequence();
+                    established = false;
+                }
             #endif
         } //RestoreConsole
 
         void SendClsSequence()
         {
-            #ifdef _MSC_VER
-                printf( "\x1b[2J" ); // clear the screen
-                printf( "\x1b[1G" ); // cursor to top line
-                printf( "\x1b[1d" ); // cursor to left side
-            #endif
+            printf( "\x1b[2J" ); // clear the screen
+            printf( "\x1b[1G" ); // cursor to top line
+            printf( "\x1b[1d" ); // cursor to left side
         } //SendClsSequence
 
         void ClearScreen()
@@ -215,6 +222,8 @@ class ConsoleConfiguration
                     SendClsSequence();
                     SetConsoleMode( hcon, dwMode );
                 }
+            #else
+                SendClsSequence();
             #endif
         } //ClearScreen
 
@@ -223,11 +232,11 @@ class ConsoleConfiguration
             #ifdef _MSC_VER
                 return _kbhit();
             #else
-                struct timeval tv = { 0L, 0L };
-                fd_set fds;
-                FD_ZERO( &fds );
-                FD_SET( 0, &fds );
-                return ( select( 1, &fds, NULL, NULL, &tv ) > 0 );
+                fd_set set;
+                FD_ZERO( &set );
+                FD_SET( STDIN_FILENO, &set );
+                struct timeval timeout = {0};
+                return ( select( 1, &set, NULL, NULL, &timeout ) > 0 );
             #endif
         } //portable_kbhit
 

@@ -138,7 +138,10 @@ static vector<FileEntry> g_fileEntries;
 static bool g_forceConsole = false;
 static bool g_forceLowercase = false;
 static bool g_backspaceToDel = false;
-static bool g_vt52_vt100 = false;
+static bool g_kayproToCP437 = false;
+
+enum terminal_escape: uint32_t { termVT100, termVT52, termKayproII };
+static terminal_escape g_termEscape = termVT100;
 
 bool ValidCPMFilename( char * pc )
 {
@@ -147,6 +150,11 @@ bool ValidCPMFilename( char * pc )
 
     if ( !strcmp( pc, ".." ) )
         return false;
+
+    const char * pcinvalid = "<>,;:=?[]%|()/\\";
+    for ( size_t i = 0; i < strlen( pcinvalid ); i++ )
+        if ( strchr( pc, pcinvalid[i] ) )
+            return false;
 
     size_t len = strlen( pc );
 
@@ -345,10 +353,11 @@ const char * low_address_names[] =
 
 void x80_hard_exit( const char * pcerror, uint8_t arg1, uint8_t arg2 )
 {
+    g_consoleConfig.RestoreConsole( false );
+
     tracer.Trace( pcerror, arg1, arg2 );
     printf( pcerror, arg1, arg2 );
 
-    g_consoleConfig.RestoreConsole( false );
     exit( 1 );
 } //x80_hard_exit
 
@@ -510,18 +519,68 @@ const char * get_bios_function( uint16_t address )
     return "unknown";
 } //get_bios_function
 
-// https://en.wikipedia.org/wiki/ANSI_escape_code  // vt-100 in 1978, it existed at the same time as CP/M
-// https://en.wikipedia.org/wiki/VT52
+char kaypro_to_cp437( uint8_t c )
+{
+#ifdef _MSC_VER
+
+    // these are mostly box-drawing characters
+
+    if ( 0xb0 == c )
+        return 0xcd;
+    if ( 0xd0 == c )
+        return 0xc9;
+    if ( 0xd5 == c )
+        return 0xba;
+    if ( 0xdf == c )
+        return 0xbb;
+    if ( 0x85 == c )
+        return 0xc8;
+    if ( 0x8c == c )
+        return 0xcd;
+    if ( 0x8a == c )
+        return 0xbc;
+    if ( 0xbc == c )
+        return 0xdf;
+    if ( 0xbf == c )
+        return 0xdb;
+
+#else // for linux, use ascii-art
+
+    if ( 0xb0 == c )
+        return '-';
+    if ( 0xd0 == c )
+        return '+';
+    if ( 0xd5 == c )
+        return '|';
+    if ( 0xdf == c )
+        return '+';
+    if ( 0x85 == c )
+        return '+';
+    if ( 0x8c == c )
+        return '-';
+    if ( 0x8a == c )
+        return '+';
+    if ( 0xbc == c )
+        return '*';
+    if ( 0xbf == c )
+        return '*';
+
+#endif
+
+    if ( c >= 0x80 )
+        tracer.Trace( "untranslated kaypro high character %u == %02x\n", c, c );
+
+    return c;
+ } //kaypro_to_cp437
+
+// https://en.wikipedia.org/wiki/ANSI_escape_code              vt-100 in 1978, it existed at the same time as CP/M
+// https://en.wikipedia.org/wiki/VT52                          VT52
+// https://mdfs.net/Archive/info-cpm/1985/01/19/053100.htm     Kaypro II / Lear-Siegler ADM-3A
 
 void output_character( uint8_t c )
 {
-    static bool s_escaped = false;      // true if prior char was ESC
-    static bool s_escapedY = false;     // true of prior two chars were ESC Y
-    static uint8_t s_row = 0xff;        // not 0xff if prior 3 chars were ESC Y row
-
-    //tracer.Trace( "  output_character %02x, escaped %d, escapedY %d, s_row %d\n", c, s_escaped, s_escapedY, s_row );
-
-    // if the output character is ESC, assume the app wants 80x24. 
+    // for terminal emulation, I only implement translations for actual sequences apps use.
+    // if the output character is ESC, assume the app wants 80x24.
 
     if ( 0x1b == c && !g_forceConsole && !g_consoleConfig.IsEstablished() )
     {
@@ -529,8 +588,19 @@ void output_character( uint8_t c )
         g_consoleConfig.EstablishConsole( 80, 24 );
     }
 
-    if ( g_vt52_vt100 )
+    if ( g_kayproToCP437 )
+        c = kaypro_to_cp437( c );
+
+    static bool s_escaped = false;      // true if prior char was ESC
+    static uint8_t s_row = 0xff;        // not 0xff if prior 3 chars were ESC Y row
+
+    if ( termVT100 == g_termEscape )
+        printf( "%c", c );
+    else if ( termVT52 == g_termEscape )
     {
+        static bool s_escapedY = false;     // true if prior two chars were ESC Y
+
+        //tracer.Trace( "  output_character %02x, escaped %d, escapedY %d, s_row %d\n", c, s_escaped, s_escapedY, s_row );
         // only a subset are translated. CalcStar only uses Y cursor positioning and no other sequences.
 
         if ( s_escapedY )
@@ -545,7 +615,6 @@ void output_character( uint8_t c )
                 s_escapedY = false;
                 s_row = 0xff;
             }
-
             return;
         }
 
@@ -581,12 +650,172 @@ void output_character( uint8_t c )
         else
             printf( "%c", c );
     }
-    else
-        printf( "%c", c );
+    else if ( termKayproII == g_termEscape )
+    {
+        static uint8_t s_escapedChar = 0;
+
+        if ( s_escapedChar )
+        {
+            if ( '=' == s_escapedChar )
+            {
+                if ( 0xff == s_row )
+                    s_row = c - 31;
+                else
+                {
+                    uint8_t col = c - 31;
+                    printf( "\x1b[%d;%dH", s_row, col );
+                    tracer.Trace( "  moved cursor to %d %d\n", s_row, col );
+                    s_escapedChar = 0;
+                    s_row = 0xff;
+                }
+            }
+            else if ( 'B' == s_escapedChar )
+            {
+                if ( '0' == c )
+                    printf( "\x1b[7m" );           // reverse video start
+                else if ( '1' == c )
+                    printf( "\x1b[2m" );           // half intensity start
+                else if ( '4' == c )
+                    printf( "\x1b[?25h" );         // cursor on
+                else
+                    tracer.Trace( "unprocessed kaypro B escaped char %c\n", c );
+                s_escapedChar = 0;
+            }
+            else if ( 'C' == s_escapedChar )
+            {
+                if ( '0' == c )
+                    printf( "\x1b[27m" );          // reverse video stop
+                else if ( '1' == c )
+                    printf( "\x1b[22m" );          // half intensity stop
+                else if ( '4' == c )
+                    printf( "\x1b[?25l" );         // cursor off
+                else
+                    tracer.Trace( "unprocessed kaypro C escaped char %c\n", c );
+                s_escapedChar = 0;
+            }
+            else
+                tracer.Trace( "unprocessed kaypro escaped char '%c'\n", c );
+            return;
+        }
+
+        if ( s_escaped )
+        {
+            tracer.Trace( "  escape command: %c\n", c );
+            s_escapedChar = c;
+            s_escaped = false;
+        }
+        else if ( 0x1b == c )
+        {
+            s_escaped = true;
+            s_escapedChar = 0;
+            s_row = 0xff; // just in case
+        }
+        else if ( c <= 30 || 127 == c )
+        {
+            if ( 8 == c ) // cursor left
+                printf( "\x1b[D" );
+            else if ( 8 == c ) // cursor right
+                printf( "\x1b[C" );
+            else if ( 10 == c ) // cursor down
+                printf( "\x1b[B" );
+            else if ( 11 == c ) // cursor up
+                printf( "\x1b[A" );
+            else if ( 12 == c ) // cursor right
+                printf( "\x1b[C" );
+            else if ( 23 == c ) // erase to end of screen
+                printf( "\x1b[J" );
+            else if ( 24 == c ) // erase to end of line
+                printf( "\x1b[K" );
+            else if ( 26 == c ) // clear screen, home cursor
+            {
+                tracer.Trace( "clear screen, home cursor\n" );
+                printf( "\x1b[2J" ); // clear the screen
+                printf( "\x1b[1G" ); // cursor to top line
+                printf( "\x1b[1d" ); // cursor to left side
+            }
+            else if ( 30 == c ) // home cursor
+                printf( "\x1b[H" );
+            else if ( 127 == c ) // del: back + space + back
+                printf( "\x1b[D \x1b[D" );
+            else
+                tracer.Trace( "ignored character in kaypro escape range: %02x\n", c );
+        }
+        else
+            printf( "%c", c );
+    }
 } //output_character
+
+uint8_t map_input( uint8_t input )
+{
+    uint8_t output = input;
+
+#ifdef _MSC_VER
+    if ( 0xe0 == input ) // likely Windows
+    {
+        uint8_t next = ConsoleConfiguration::portable_getch();
+
+        // map the arrow keys to ^ XSED used in many apps. map a handful of other characters
+
+        if ( 'K' == next ) // left arrow
+            output = 1 + 'S' - 'A';
+        else if ( 'P' == next )              // down arrow
+            output = 1 + 'X' - 'A';
+        else if ( 'M' == next )              // right arrow
+            output = 1 + 'D' - 'A';
+        else if ( 'H' == next )              // up arrow
+            output = 1 + 'E' - 'A';
+        else if ( 'S' == next )              // del
+            output = 0x7f;
+        else
+            tracer.Trace( "no mapping for e0 second character %02x\n", next );
+
+        tracer.Trace( "    next character after 0xe0: %02x == '%c' mapped to %02x\n", next, printable_ch( next ), output );
+    }
+#else // Linux / MacOS
+    if ( 0x1b == input )
+    {
+        if ( ConsoleConfiguration::portable_kbhit() )
+        {
+            tracer.Trace( "read an escape on linux... getting next char\n" );
+            uint8_t nexta = ConsoleConfiguration::portable_getch();
+            tracer.Trace( "read an escape on linux... getting next char again\n" );
+            uint8_t nextb = ConsoleConfiguration::portable_getch();
+            tracer.Trace( "  nexta: %02x. nextb: %02x\n", nexta, nextb );
+        
+            if ( '[' == nexta )
+            {
+                if ( 'A' == nextb )              // up arrow
+                    output = 1 + 'E' - 'A';
+                else if ( 'B' == nextb )         // down arrow
+                    output = 1 + 'X' - 'A';
+                else if ( 'C' == nextb )         // right arrow
+                    output = 1 + 'D' - 'A';
+                else if ( 'D' == nextb )         // left arrow
+                    output = 1 + 'S' - 'A';
+                else if ( '3' == nextb )         // DEL on linux?
+                {
+                    uint8_t nextc = ConsoleConfiguration::portable_getch();
+                    tracer.Trace( "  nextc: %02x\n", nextc );
+                    if ( '~' == nextc )
+                        output = 0x7f;
+                }
+                else
+                    tracer.Trace( "unhandled nextb %u == %02x\n", nextb, nextb ); // lots of other keys not on a cp/m machine here
+            }
+            else
+                tracer.Trace( "unhandled linux keyboard escape sequence\n" );
+        }
+    }
+#endif
+    else if ( g_backspaceToDel && 0x08 == input )
+        output = 0x7f;
+
+    return output;
+} //map_input
 
 uint8_t x80_invoke_hook()
 {
+    static uint64_t kbd_poll_busyloops = 0;
     uint16_t address = reg.pc - 1; // the emulator has moved past this instruction already
 
     if ( address >= 0xff00 )
@@ -617,11 +846,8 @@ uint8_t x80_invoke_hook()
         {
             // conin
 
-            reg.a = ConsoleConfiguration::portable_getch();
-
-            if ( g_backspaceToDel && 0x08 == reg.a )
-                reg.a = 0x7f;
-
+            uint8_t input = ConsoleConfiguration::portable_getch();
+            reg.a = map_input( input );
             tracer.Trace( "  conin is returning %02xh\n", reg.a );
         }
         else if ( 0xff0c == address || 0xff84 )
@@ -643,6 +869,7 @@ uint8_t x80_invoke_hook()
             printf( "unhandled bios code!!!!!!!!!!!!!!! %#x\n", address );
         }
 
+        kbd_poll_busyloops = 0;
         return OPCODE_RET;
     }
 
@@ -655,6 +882,9 @@ uint8_t x80_invoke_hook()
     uint8_t function = reg.c;
     tracer.Trace( "bdos function %d: %s\n", function, get_bdos_function( function ) );
     //x80_trace_state();
+
+    if ( ( 6 != reg.c ) || ( 0xff != reg.e ) )
+        kbd_poll_busyloops = 0;
 
     // Only BDOS calls called by a apps I tested are implemented. 
 
@@ -670,7 +900,8 @@ uint8_t x80_invoke_hook()
         {
             // console input
 
-            reg.a = ConsoleConfiguration::portable_getch();
+            uint8_t input = ConsoleConfiguration::portable_getch();
+            reg.a = map_input( input );
 
             break;
         }
@@ -707,24 +938,36 @@ uint8_t x80_invoke_hook()
             // e = ff means input -- return char in a if available or return 0 otherwise
             // e != ff means output that character
 
+
             if ( 0xff == reg.e )
             {
                 if ( ConsoleConfiguration::throttled_kbhit() )
                 {
-                    reg.a = ConsoleConfiguration::portable_getch();
-                    tracer.Trace( "  read character %02x == '%c'\n", reg.a, printable_ch( reg.a ) );
+                    kbd_poll_busyloops = 0;
+                    uint8_t input = ConsoleConfiguration::portable_getch();
+                    tracer.Trace( "  read character %u == %02x == '%c'\n", input, input, printable_ch( input ) );
+                    reg.a = map_input( input );
                 }
                 else
                 {
-                    sleep_ms( 1 ); // some apps like forth call this in a busy loop
-                    tracer.Trace( "  no character available\n" );
+                    if ( kbd_poll_busyloops > 20 )
+                    {
+                        // some apps like forth and multiplan call this in a busy loops.
+                        // don't sleep every call because sometimes they alternate calling this with updating the display.
+
+                        sleep_ms( 1 );
+                        tracer.Trace( "sleeping in direct console i/o\n" );
+                        kbd_poll_busyloops = 0;
+                    }
+                    else
+                        kbd_poll_busyloops++;
                     reg.a = 0;
                 }
             }
             else
             {
                 uint8_t ch = reg.e;
-                tracer.Trace( "  bdos direct console i/o output: %02x == '%c'\n", ch, printable_ch( ch ) );
+                tracer.Trace( "  bdos direct console i/o output: %u == %02x == '%c'\n", ch, ch, printable_ch( ch ) );
                 output_character( ch );
                 fflush( stdout );
             }
@@ -1744,15 +1987,18 @@ void usage( char const * perr = 0 )
     printf( "  notes: filearg1 and filearg2 optionally specify filename arguments for the command\n" );
     printf( "         -b     turn bios console key backspace/BS/0x08 to delete/DEL/0x7f. for Turbo Pascal\n" );
     printf( "         -c     never auto-detect ESC characters and change to to 80x24 mode\n" );
-    printf( "         -C     always switch to 80x24 mode\n" );
+    printf( "         -C     always switch to 80x24 mode (Windows only)\n" );
     printf( "         -d     don't clear the display on app exit when in 80x24 mode\n" );
     printf( "         -i     trace 8080/Z80 instructions when tracing with -t\n" );
+    printf( "         -k     translate Kaypro II extended characters to Windows code page 437 or Linux ascii art\n" );
     printf( "         -l     force CP/M filenames to be lowercase (can be useful on Linux)\n" );
     printf( "         -p     show performance information at app exit\n" ); 
     printf( "         -s:X   speed in Hz. Default is 0, which is as fast as possible.\n" );
     printf( "                for 4Mhz, use -s:4000000\n" );
     printf( "         -t     enable debug tracing to ntvcm.log\n" );
-    printf( "         -v     translate vt-52 escape sequences to vt-100. for CalcStar and other apps\n" );
+    printf( "         -v:X   translate escape sequences to VT-100 where X can be one of:\n" );
+    printf( "                  5:  translate vt-52 escape sequences. for CalcStar and other apps\n" );
+    printf( "                  k:  translate Kaypro II / Lear-Siegler ADM-3A escape sequences. for strtrk.com\n" );
     printf( "         -z:X   applies X as a hex mask to SetProcessAffinityMask, e.g.:\n" );
     printf( "                  /z:11    2 performance cores on an i7-1280P\n" );
     printf( "                  /z:3000  2 efficiency cores on an i7-1280P\n" );
@@ -1764,7 +2010,7 @@ void usage( char const * perr = 0 )
     printf( "       ntvcm test.com\n" );
     printf( "  e.g. to run Star Trek in mbasic in 80x24 mode using i8080 emulation:\n" );
     printf( "       ntvcm -8 -C mbasic startrek.bas\n" );
-    printf( "  built for %s, %s, on %s, by %s, on %s\n", target_platform(), build_type(), __TIMESTAMP__, compiler_used(), build_platform() );
+    printf( "  built for %s, %s, on %s, by %s on %s\n", target_platform(), build_type(), __TIMESTAMP__, compiler_used(), build_platform() );
     exit( -1 );
 } //usage
 
@@ -1918,6 +2164,8 @@ int main( int argc, char * argv[] )
                 traceInstructions = true;
             else if ( 'l' == ca )
                 g_forceLowercase = true;
+            else if ( 'k' == ca )
+                g_kayproToCP437 = true;
             else if ( 't' == ca )
                 trace = true;
             else if ( 'p' == ca )
@@ -1925,7 +2173,17 @@ int main( int argc, char * argv[] )
             else if ( 'b' == parg[1] )
                 g_backspaceToDel = true;
             else if ( 'v' == parg[1] )
-                g_vt52_vt100 = true;
+            {
+                if ( ':' != parg[2] )
+                    usage( "colon required after v argument" );
+
+                if ( 'k' == tolower( parg[3] ) )
+                    g_termEscape = termKayproII;
+                else if ( '5' == parg[3] )
+                    g_termEscape = termVT52;
+                else
+                    usage( "invalid terminal emulation identifier. Only 5 and k are supported" );
+            }
             else if ( 'c' == parg[1] )
                 g_forceConsole = true;
             else if ( 'C' == parg[1] )
