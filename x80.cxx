@@ -351,8 +351,9 @@ void op_xra( uint8_t x )
     }
 } //op_xra
 
-void op_math( uint8_t math, uint8_t src )
+void op_math( uint8_t opcode, uint8_t src )
 {
+    uint8_t math = ( opcode >> 3 ) & 7;
     assert( math <= 7 );
     if ( 7 == math ) op_cmp( src );         // in order of usage for performance
     else if ( 6 == math ) op_ora( src );
@@ -987,17 +988,15 @@ uint64_t z80_emulate( uint8_t op )    // this is just for instructions that aren
         }
         else if ( 0x80 == ( op2 & 0xc2 ) ) // math on il and ih with a. 84/85/8c/8d/94/95/a4/a5/b4/b5/bc/bd
         {
-            uint8_t math = ( ( op2 >> 3 ) & 0x7 );
             uint8_t value = reg.z80_getIndexByte( op, op2 & 1 );
-            op_math( math, value );
+            op_math( op2, value );
         }
         else if ( 0x86 == ( op2 & 0xc7 ) ) // math on [ ix/iy + index ]
         {
             cycles = 19;
-            uint8_t math = ( ( op2 >> 3 ) & 0x7 );
             uint16_t x = reg.z80_getIndex( op );
             x += (int16_t) (int8_t) pcbyte();
-            op_math( math, memory[ x ] );
+            op_math( op2, memory[ x ] );
         }
         else if ( 0x24 == ( op2 & 0xf6 ) ) // inc/dec ixh, ixl, iyh, iyl
         {
@@ -1144,15 +1143,13 @@ uint64_t z80_emulate( uint8_t op )    // this is just for instructions that aren
         if ( 0x3 == ( op2 & 0xf ) ) // ld (mw), rp AKA ld (nn), dd
         {
             cycles = 20;
-            uint8_t rp = op2 & 0x30;
-            uint16_t * prp = reg.rpAddressFromOp( rp );
+            uint16_t * prp = reg.rpAddressFromOp( op2 );
             setmword( pcword(), *prp );
         }
         else if ( 0xb == ( op2 & 0xf ) )      // ld rp, (nn) AKA ld dd, (nn)
         {
             cycles = 20;
-            uint8_t rp = op2 & 0x30;
-            uint16_t * prp = reg.rpAddressFromOp( rp );
+            uint16_t * prp = reg.rpAddressFromOp( op2 );
             *prp = mword( pcword() );
         }
         else if ( 0x44 == op2 ) // neg
@@ -1217,8 +1214,7 @@ uint64_t z80_emulate( uint8_t op )    // this is just for instructions that aren
         }
         else if ( 0x4a == ( op2 & 0xcf ) ) // adc hl, rp
         {
-            uint8_t rp = ( ( op2 >> 4 ) & 3 );
-            uint16_t result = z80_op_adc_16( reg.H(), * reg.rpAddress( rp ) );
+            uint16_t result = z80_op_adc_16( reg.H(), * reg.rpAddressFromOp( op2 ) );
             reg.SetH( result );
         }
         else if ( 0xa0 == op2 ) // ldi
@@ -1354,16 +1350,14 @@ uint64_t z80_emulate( uint8_t op )    // this is just for instructions that aren
         else if ( 0x02 == ( op2 & 0x8f ) ) // sbc hl, rp AKA sbc hl, ss
         {
             cycles = 15;
-            uint8_t rp = op2 & 0x30;
-            uint16_t val = * reg.rpAddressFromOp( rp );
+            uint16_t val = * reg.rpAddressFromOp( op2 );
             reg.SetH( z80_op_sub_16( reg.H(), val, reg.fCarry ) );
         }
         else if ( 0x04 == ( op2 & 0x8f ) ) // adc hl, rp AKA sbc hl, ss
         {
             cycles = 15;
-            uint16_t val = * reg.rpAddressFromOp( op );
-            uint16_t result = z80_op_adc_16( reg.H(), val );
-            reg.SetH( result );
+            uint16_t val = * reg.rpAddressFromOp( op2 );
+            reg.SetH(  z80_op_adc_16( reg.H(), val ) );
         }
         else
             z80_ni( op, op2 );
@@ -1756,7 +1750,6 @@ _restart_op:
                 }
                 break;
             }
-            case 0x09: /*dad b*/ { op_dad( reg.B() ); break; }
             case 0x0a: /*ldax b*/ reg.a = memory[ reg.B() ]; break;
             case 0x0f: /*rrc*/
             {
@@ -1789,7 +1782,6 @@ _restart_op:
                 }
                 break;
             }
-            case 0x19: /*dad d*/ { op_dad( reg.D() ); break; }
             case 0x1a: /*ldax d*/ reg.a = memory[ reg.D() ]; break;
             case 0x1f: /*rar*/
             {
@@ -1810,7 +1802,6 @@ _restart_op:
             case 0x21: /*lxi h, d16*/ reg.SetH( pcword() ); break;
             case 0x22: /*shld*/ { uint16_t offset = pcword(); setmword( offset, reg.H() ); break; }
             case 0x27: /*daa*/ { op_daa(); break; }
-            case 0x29: /*dad h*/ { op_dad( reg.H() ); break; }
             case 0x2a: /*lhld*/ { reg.SetH( mword( pcword() ) ); break; }
             case 0x2f: /*cma*/
             {
@@ -1835,7 +1826,6 @@ _restart_op:
                 }
                 break;
             }
-            case 0x39: /*dad sp*/ { op_dad( reg.sp ); break; }
             case 0x3a: /*lda a16*/ { reg.a = memory[ pcword() ]; break; }
             case 0x3f: /*cmc*/
             {
@@ -1864,44 +1854,27 @@ _restart_op:
             default: // order checks below by usage frequency for performance
             {
                 if ( 0x80 == ( op & 0xc0 ) ) // math
-                {
-                    assert( '*' != i8080_instructions[op][0] );
-                    // op: 5..3. reg 2..0
-                    // op: 0 add, 1 adc, 2 sub, 3 sbb, 4 ana, 5 xra, 6 ora, 7 cmp
-    
-                    uint8_t math = ( op >> 3 ) & 0x7;
-                    op_math( math, src_value( op ) );  // 4% of runtime
-                }
+                    op_math( op, src_value( op ) );  // 4% of runtime
                 else if  ( op >= 0x40 && op <= 0x7f ) // mov r, r.  hlt is in this range but handled above.
-                {
-                    assert( '*' != i8080_instructions[op][0] );
                     *dst_address( op ) = src_value( op ); // 5% of runtime
-                }
                 else
                 {
                     uint8_t op2reg3 = ( op & 0xc7 ); // two bits, 3 reg bits, 3 bits. 2% of runtime
                     if ( 0xc6 == op2reg3 ) // immediate math. 0 adi, 1 aci, 2 sui, 3 sbi, 4 ani, 5 xri, 6 ori, 7 cpi  
-                    {
-                        assert( '*' != i8080_instructions[op][0] );
-                        uint8_t math = ( op >> 3 ) & 0x7;
-                        op_math( math, pcbyte() );         // 4% of runtime
-                    }
+                        op_math( op, pcbyte() );         // 4% of runtime
                     else if ( 4 == op2reg3 ) // inr r. does not set carry
                     {
-                        assert( '*' != i8080_instructions[op][0] );
                         uint8_t * pdst = dst_address( op );
                         *pdst = op_inc( *pdst );
                     }
                     else if ( 6 == op2reg3 ) // mvi r, d8
                     {
-                        assert( '*' != i8080_instructions[op][0] );
                         uint8_t *pdst = dst_address( op );
                         *pdst = pcbyte();
                     }
                     else if ( 0xc2 == op2reg3 ) // conditional jump
                     {
-                        assert( '*' != i8080_instructions[op][0] );
-                        uint16_t address = pcword();
+                        uint16_t address = pcword(); // must be consumed regardless of whether jump is taken
                         if ( check_conditional( op ) )
                             reg.pc = address;
                         else
@@ -1909,7 +1882,6 @@ _restart_op:
                     }
                     else if ( 0xc0 == op2reg3 ) // conditional return
                     {
-                        assert( '*' != i8080_instructions[op][0] );
                         if ( check_conditional( op ) )
                             reg.pc = popword();
                         else
@@ -1917,14 +1889,12 @@ _restart_op:
                     }
                     else if ( 5 == op2reg3 ) // dcr r. does not set carry
                     {
-                        assert( '*' != i8080_instructions[op][0] );
                         uint8_t * pdst = dst_address( op );
                         *pdst = op_dec( * pdst );          // 5% of runtime
                     }
                     else if ( 0xc4 == op2reg3 ) // conditional call
                     {
-                        assert( '*' != i8080_instructions[op][0] );
-                        uint16_t address = pcword();
+                        uint16_t address = pcword(); // must be consumed regardless of whether call is taken
                         if ( check_conditional( op ) )
                         {
                             pushword( reg.pc );
@@ -1936,46 +1906,34 @@ _restart_op:
                     else
                     {
                         uint8_t op2rp4 = ( op & 0xcf );  // two bits, 2 rp bits, 4 bits
-                        if ( 0xc1 == op2rp4 ) // pop
+                        if ( 9 == op2rp4 ) // dad
+                            op_dad( * reg.rpAddressFromOp( op ) );
+                        else if ( 0xc1 == op2rp4 ) // pop
                         {
-                            assert( '*' != i8080_instructions[op][0] );
-                            uint16_t val = popword();
-                            if ( 0xc1 == op )
-                                reg.SetB( val );
-                            else if ( 0xd1 == op )
-                                reg.SetD( val );
-                            else if ( 0xe1 == op )
-                                reg.SetH( val );
+                            if ( 0xf1 == op )
+                                reg.SetPSW( popword() );
                             else
-                                reg.SetPSW( val );
+                                * reg.rpAddressFromOp( op ) = popword();
                         }
                         else if ( 0xc5 == op2rp4 ) // push
                         {
-                            assert( '*' != i8080_instructions[op][0] );
-                            if ( 0xe5 == op )            // HL is most frequent push
-                                pushword( reg.H() );
-                            else if ( 0xc5 == op )
-                                pushword( reg.B() );
-                            else if ( 0xd5 == op )
-                                pushword( reg.D() );
-                            else
+                            if ( 0xf5 == op )
                                 pushword( reg.PSW() );
+                            else
+                                pushword( * reg.rpAddressFromOp( op ) );
                         }
                         else if ( 3 == op2rp4 ) // inx. no status flag updates
                         {
-                            assert( '*' != i8080_instructions[op][0] );
                             uint16_t * pdst = reg.rpAddressFromOp( op );
                             *pdst = 1 + *pdst;
                         }
                         else if ( 0x0b == op2rp4 ) // dcx. no status flag updates
                         {
-                            assert( '*' != i8080_instructions[op][0] );
                             uint16_t * pdst = reg.rpAddressFromOp( op );
                             *pdst = *pdst - 1;
                         }
                         else if ( 0xc7 == ( 0xc7 & op ) ) // rst
                         {
-                            assert( '*' != i8080_instructions[op][0] );
                             // bits 5..3 are exp, which form an address 0000000000exp000 that is called.
                             // rst is generally invoked by hardware interrupt, which supply one instruction.
                     
@@ -1991,7 +1949,7 @@ _restart_op:
             } //default
         } //switch
 
-        reg.r++; // increment R even for 8080 emulation to avoid 'if'. mask high bit later. 4.61% of runtime; ouch.
+        reg.r++; // increment R even for 8080 emulation to avoid 'if'. mask high bit on read. 4.61% of runtime; ouch.
     } //while
 _all_done:
     return cycles;

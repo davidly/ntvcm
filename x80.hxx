@@ -112,7 +112,7 @@ struct registers
 
     uint16_t * rpAddress( uint8_t rp )
     {
-        // 0 B, 1 D, 2 H, 3 SP
+        // rp == register pair: 0 B, 1 D, 2 H, 3 SP
 
         assert( rp <= 3 );
         return (uint16_t *) ( ( (uint8_t *) this ) + 2 + 2 * rp ); 
