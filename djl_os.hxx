@@ -127,3 +127,57 @@ template <class T> inline T get_min( T a, T b )
         return a;
     return b;
 } //get_min
+
+inline const char * target_platform()
+{
+    #if defined( __riscv )        // g++ on linux
+        return "riscv";
+    #elif defined( __amd64 )      // g++ on linux
+        return "amd64";
+    #elif defined( __aarch64__ )  // g++ on linux
+        return "arm64";
+    #elif defined( _M_AMD64 )     // msft on Windows
+        return "amd64";
+    #elif defined( _M_ARM64 )     // msft on Windows
+        return "arm64";
+    #endif
+
+    return "(other)";
+} //target_platform
+
+inline const char * build_type()
+{
+    #ifdef NDEBUG
+        return "release";
+    #endif
+
+    return "debug";
+} //build_type
+
+inline const char * compiler_used()
+{
+    #if defined( __GNUC__ )
+        return "g++";
+    #elif defined( _MSC_VER )
+        return "msft C++";
+    #elif defined( __clang__ )
+        return "clang";
+    #endif
+
+    return "unknown";
+} //compiler_used
+
+inline const char * build_platform()
+{
+    #if defined( __APPLE__ )
+        return "apple";
+    #elif defined( __linux )
+        return "linux";
+    #elif defined( _MSC_VER )
+        return "windows";
+    #endif
+
+    return "unknown";
+} //build_platform
+
+

@@ -920,6 +920,12 @@ uint8_t x80_invoke_hook()
 
             break;
         }
+        case 3:
+        {
+            // reader input
+
+            break;
+        }
         case 4:
         {
             // punch output
@@ -937,7 +943,6 @@ uint8_t x80_invoke_hook()
             // direct console I/O
             // e = ff means input -- return char in a if available or return 0 otherwise
             // e != ff means output that character
-
 
             if ( 0xff == reg.e )
             {
@@ -1093,6 +1098,8 @@ uint8_t x80_invoke_hook()
                 }
                 else
                 {
+                    // the cp/m 2.2 spec says that filenames may contain question marks. I haven't found an app that uses that.
+
                     fp = fopen( acFilename, "r+b" );
                     if ( fp )
                     {
@@ -1927,56 +1934,6 @@ uint8_t x80_invoke_hook()
     return OPCODE_RET;
 } //x80_invoke_hook
 
-const char * target_platform()
-{
-    #if defined( __riscv )        // g++ on linux
-        return "riscv";
-    #elif defined( __amd64 )      // g++ on linux
-        return "amd64";
-    #elif defined( __aarch64__ )  // g++ on linux
-        return "arm64";
-    #elif defined( _M_AMD64 )     // msft on Windows
-        return "amd64";
-    #elif defined( _M_ARM64 )     // msft on Windows
-        return "arm64";
-    #endif
-
-    return "(other)";
-} //target_platform
-
-const char * build_type()
-{
-    #ifndef NDEBUG
-        return "debug";
-    #endif
-
-    return "release";
-} //build_type
-
-const char * compiler_used()
-{
-    #if defined( __GNUC__ )
-        return "g++";
-    #elif defined( _MSC_VER )
-        return "msft C++";
-    #endif
-
-    return "unknown";
-} //compiler_used
-
-const char * build_platform()
-{
-    #if defined( __APPLE__ )
-        return "apple";
-    #elif defined( __linux )
-        return "linux";
-    #elif defined( _MSC_VER )
-        return "windows";
-    #endif
-
-    return "unknown";
-} //build_platform
-
 void usage( char const * perr = 0 )
 {
     if ( perr )
@@ -1984,7 +1941,7 @@ void usage( char const * perr = 0 )
 
     printf( "NT Virtual CP/M 2.2 Machine: emulates a CP/M 2.2 i8080/Z80 runtime environment\n" );
     printf( "usage: ntvcm [-c] [-p] [-s:X] [-t] <cp/m 2.2 .com file> [filearg1] [filearg2]\n" );
-    printf( "  notes: filearg1 and filearg2 optionally specify filename arguments for the command\n" );
+    printf( "  notes: filearg1 and filearg2 optionally specify filename arguments for the CP/M command\n" );
     printf( "         -b     turn bios console key backspace/BS/0x08 to delete/DEL/0x7f. for Turbo Pascal\n" );
     printf( "         -c     never auto-detect ESC characters and change to to 80x24 mode\n" );
     printf( "         -C     always switch to 80x24 mode (Windows only)\n" );
@@ -2010,7 +1967,7 @@ void usage( char const * perr = 0 )
     printf( "       ntvcm test.com\n" );
     printf( "  e.g. to run Star Trek in mbasic in 80x24 mode using i8080 emulation:\n" );
     printf( "       ntvcm -8 -C mbasic startrek.bas\n" );
-    printf( "  built for %s, %s, on %s, by %s on %s\n", target_platform(), build_type(), __TIMESTAMP__, compiler_used(), build_platform() );
+    printf( "  built for %s %s on %s, by %s on %s\n", target_platform(), build_type(), __TIMESTAMP__, compiler_used(), build_platform() );
     exit( -1 );
 } //usage
 
