@@ -234,7 +234,7 @@ uint8_t op_dec( uint8_t x )
     return result;
 } //op_dec
 
-void op_add( uint8_t x, bool carry = false )
+force_inlined void op_add( uint8_t x, bool carry = false )
 {
     uint16_t carry_int = carry ? 1 : 0;
     uint16_t r16 = (uint16_t) reg.a + (uint16_t) x + carry_int;
@@ -265,7 +265,7 @@ void op_adc( uint8_t x )
     op_add( x, reg.fCarry );
 } //op_adc
 
-uint8_t op_sub( uint8_t x, bool borrow = false )
+force_inlined uint8_t op_sub( uint8_t x, bool borrow = false )
 {
     // com == ones-complement
     uint8_t com_x = ~x;
@@ -1732,10 +1732,37 @@ _restart_op:
 
         switch ( op )                   // 47% of runtime is completing cycle addition & setting up for the jump table jump; 10 instructions
         {
-            case 0x00: /*nop*/ break;
-            case 0x01: /*lxi b, d16*/ reg.SetB( pcword() ); break;
-            case 0x02: /*stax b*/ memory[ reg.B() ] = reg.a; break;
-            case 0x07: /*rlc*/
+            case 0x00: break; // nop
+            case 0x01: case 0x11: case 0x21: case 0x31: // lxi rp, d16
+            {
+                * reg.rpAddress( op >> 4 ) = pcword();
+                break;
+            }
+            case 0x02: memory[ reg.B() ] = reg.a; break; // stax b
+            case 0x03: case 0x13: case 0x23: case 0x33: // inx. no status flag updates
+            {
+                uint16_t * pdst = reg.rpAddressFromOp( op );
+                *pdst = 1 + *pdst;
+                break;
+            }
+            case 0x04: case 0x14: case 0x24: case 0x34: case 0x0c: case 0x1c: case 0x2c: case 0x3c: // inr r. does not set carry
+            {
+                uint8_t * pdst = dst_address( op );
+                *pdst = op_inc( *pdst );
+                break;
+            }
+            case 0x05: case 0x15: case 0x25: case 0x35: case 0x0d: case 0x1d: case 0x2d: case 0x3d: // dcr r. does not set carry
+            {
+                uint8_t * pdst = dst_address( op );
+                *pdst = op_dec( * pdst );          // 5% of runtime
+                break;
+            }
+            case 0x06: case 0x16: case 0x26: case 0x36: case 0x0e: case 0x1e: case 0x2e: case 0x3e: // mvi r, d8
+            {
+                * dst_address( op ) = pcbyte();
+                break;
+            }
+            case 0x07: // rlc
             {
                 reg.fCarry = ( 0 != ( reg.a & 0x80 ) );
                 reg.a <<= 1;
@@ -1750,8 +1777,19 @@ _restart_op:
                 }
                 break;
             }
-            case 0x0a: /*ldax b*/ reg.a = memory[ reg.B() ]; break;
-            case 0x0f: /*rrc*/
+            case 0x09: case 0x19: case 0x29: case 0x39: // dad
+            {
+                op_dad( * reg.rpAddressFromOp( op ) );
+                break;
+            }
+            case 0x0a: reg.a = memory[ reg.B() ]; break; // ldax b
+            case 0x0b: case 0x1b: case 0x2b: case 0x3b: // dcx. no status flag updates
+            {
+                uint16_t * pdst = reg.rpAddressFromOp( op );
+                *pdst = *pdst - 1;
+                break;
+            }
+            case 0x0f: // rrc
             {
                 reg.fCarry = ( 0 != ( reg.a & 1 ) );
                 reg.a >>= 1;
@@ -1764,9 +1802,8 @@ _restart_op:
                 }
                 break;
             }
-            case 0x11: /*lxi d, d16*/ reg.SetD( pcword() ); break;
-            case 0x12: /*stax d*/ memory[ reg.D() ] = reg.a; break;
-            case 0x17: /*ral*/
+            case 0x12: memory[ reg.D() ] = reg.a; break; // stax d
+            case 0x17: // ral
             {
                 bool c = reg.fCarry;
                 reg.fCarry = ( 0 != ( 0x80 & reg.a ) );
@@ -1782,8 +1819,8 @@ _restart_op:
                 }
                 break;
             }
-            case 0x1a: /*ldax d*/ reg.a = memory[ reg.D() ]; break;
-            case 0x1f: /*rar*/
+            case 0x1a: reg.a = memory[ reg.D() ]; break; // ldax d
+            case 0x1f: // rar
             {
                 bool c = reg.fCarry;
                 reg.fCarry = ( 0 != ( reg.a & 1 ) );
@@ -1799,11 +1836,10 @@ _restart_op:
                 }
                 break;
             }
-            case 0x21: /*lxi h, d16*/ reg.SetH( pcword() ); break;
-            case 0x22: /*shld*/ { uint16_t offset = pcword(); setmword( offset, reg.H() ); break; }
-            case 0x27: /*daa*/ { op_daa(); break; }
-            case 0x2a: /*lhld*/ { reg.SetH( mword( pcword() ) ); break; }
-            case 0x2f: /*cma*/
+            case 0x22: { uint16_t offset = pcword(); setmword( offset, reg.H() ); break; } // shld
+            case 0x27: { op_daa(); break; } // daa
+            case 0x2a: { reg.SetH( mword( pcword() ) ); break; } // lhld
+            case 0x2f: // cma
             {
                 reg.a = ~reg.a;
                 if ( reg.fZ80Mode )
@@ -1814,9 +1850,8 @@ _restart_op:
                 }
                 break;
             }
-            case 0x31: /*lxi sp, d16*/ reg.sp = pcword(); break;
-            case 0x32: /*sta a16*/ memory[ pcword() ] = reg.a; break;
-            case 0x37: /*stc*/
+            case 0x32: memory[ pcword() ] = reg.a; break; // sta a16
+            case 0x37: // stc
             {
                 reg.fCarry = 1;
                 if ( reg.fZ80Mode )
@@ -1826,8 +1861,8 @@ _restart_op:
                 }
                 break;
             }
-            case 0x3a: /*lda a16*/ { reg.a = memory[ pcword() ]; break; }
-            case 0x3f: /*cmc*/
+            case 0x3a: { reg.a = memory[ pcword() ]; break; } // lda a16
+            case 0x3f: // cmc
             {
                 reg.fCarry = !reg.fCarry;
                 if ( reg.fZ80Mode )
@@ -1838,114 +1873,105 @@ _restart_op:
                 }
                 break;
             }
-            case 0x64: /*hook*/ { op = x80_invoke_hook(); goto _restart_op; }
-            case 0x76: /*hlt*/ { x80_invoke_halt(); goto _all_done; }
-            case 0xc3: /*jmp a16*/ { reg.pc = pcword(); break; }
-            case 0xc9: /*ret*/ { reg.pc = popword(); break; }
-            case 0xcd: /*call a16*/ { uint16_t v = pcword(); pushword( reg.pc ); reg.pc = v; break; }
-            case 0xd3: /*out d8*/ { x80_invoke_out( pcbyte() ); break; }
-            case 0xdb: /*in d8*/ { x80_invoke_in( pcbyte() ); break; }
-            case 0xe3: /*xthl*/ { uint16_t t = reg.H(); reg.SetH( mword( reg.sp ) ); setmword( reg.sp, t ); break; }
-            case 0xe9: /*pchl*/ { reg.pc = reg.H(); break; }
-            case 0xeb: /*xchg*/ { uint16_t t = reg.H(); reg.SetH( reg.D() ); reg.SetD( t ); break; }
-            case 0xf3: /*di*/ { reg.fINTE = false; break; }
-            case 0xf9: /*sphl*/ { reg.sp = reg.H(); break; }
-            case 0xfb: /*ei*/ { reg.fINTE = true; break; }
-            default: // order checks below by usage frequency for performance
+            case 0x40: case 0x41: case 0x42: case 0x43: case 0x44: case 0x45: case 0x46: case 0x47: // mov r, r
+            case 0x48: case 0x49: case 0x4a: case 0x4b: case 0x4c: case 0x4d: case 0x4e: case 0x4f:
+            case 0x50: case 0x51: case 0x52: case 0x53: case 0x54: case 0x55: case 0x56: case 0x57:
+            case 0x58: case 0x59: case 0x5a: case 0x5b: case 0x5c: case 0x5d: case 0x5e: case 0x5f:
+            case 0x60: case 0x61: case 0x62: case 0x63:            case 0x65: case 0x66: case 0x67: // 0x64 is hook
+            case 0x68: case 0x69: case 0x6a: case 0x6b: case 0x6c: case 0x6d: case 0x6e: case 0x6f:
+            case 0x70: case 0x71: case 0x72: case 0x73: case 0x74: case 0x75:            case 0x77: // 0x76 is hlt
+            case 0x78: case 0x79: case 0x7a: case 0x7b: case 0x7c: case 0x7d: case 0x7e: case 0x7f:
             {
-                if ( 0x80 == ( op & 0xc0 ) ) // math
-                    op_math( op, src_value( op ) );  // 4% of runtime
-                else if  ( op >= 0x40 && op <= 0x7f ) // mov r, r.  hlt is in this range but handled above.
-                    *dst_address( op ) = src_value( op ); // 5% of runtime
+                *dst_address( op ) = src_value( op ); // 5% of runtime
+                break;
+            }
+            case 0x64: { op = x80_invoke_hook(); goto _restart_op; } // hook
+            case 0x76: { x80_invoke_halt(); goto _all_done; } // hlt
+            case 0x80: case 0x81: case 0x82: case 0x83: case 0x84: case 0x85: case 0x86: case 0x87: // math
+            case 0x88: case 0x89: case 0x8a: case 0x8b: case 0x8c: case 0x8d: case 0x8e: case 0x8f:
+            case 0x90: case 0x91: case 0x92: case 0x93: case 0x94: case 0x95: case 0x96: case 0x97:
+            case 0x98: case 0x99: case 0x9a: case 0x9b: case 0x9c: case 0x9d: case 0x9e: case 0x9f:
+            case 0xa0: case 0xa1: case 0xa2: case 0xa3: case 0xa4: case 0xa5: case 0xa6: case 0xa7:
+            case 0xa8: case 0xa9: case 0xaa: case 0xab: case 0xac: case 0xad: case 0xae: case 0xaf:
+            case 0xb0: case 0xb1: case 0xb2: case 0xb3: case 0xb4: case 0xb5: case 0xb6: case 0xb7:
+            case 0xb8: case 0xb9: case 0xba: case 0xbb: case 0xbc: case 0xbd: case 0xbe: case 0xbf:
+            {
+                op_math( op, src_value( op ) );  // 4% of runtime
+                break;
+            }
+            case 0xc0: case 0xd0: case 0xe0: case 0xf0: case 0xc8: case 0xd8: case 0xe8: case 0xf8: // conditional return
+            {
+                if ( check_conditional( op ) )
+                    reg.pc = popword();
                 else
+                    cycles -= cyclesnt;
+                break;
+            }
+            case 0xc1: case 0xd1: case 0xe1: case 0xf1: // pop
+            {
+                if ( 0xf1 == op )
+                    reg.SetPSW( popword() );
+                else
+                    * reg.rpAddressFromOp( op ) = popword();
+                break;
+            }
+            case 0xc2: case 0xd2: case 0xe2: case 0xf2: case 0xca: case 0xda: case 0xea: case 0xfa: // conditional jmp
+            {
+                uint16_t address = pcword(); // must be consumed regardless of whether jump is taken
+                if ( check_conditional( op ) )
+                    reg.pc = address;
+                else
+                    cycles -= cyclesnt;
+                break;
+            }
+            case 0xc3: { reg.pc = pcword(); break; } // jmp a16
+            case 0xc4: case 0xd4: case 0xe4: case 0xf4: case 0xcc: case 0xdc: case 0xec: case 0xfc: // conditional call
+            {
+                uint16_t address = pcword(); // must be consumed regardless of whether call is taken
+                if ( check_conditional( op ) )
                 {
-                    uint8_t op2reg3 = ( op & 0xc7 ); // two bits, 3 reg bits, 3 bits. 2% of runtime
-                    if ( 0xc6 == op2reg3 ) // immediate math. 0 adi, 1 aci, 2 sui, 3 sbi, 4 ani, 5 xri, 6 ori, 7 cpi  
-                        op_math( op, pcbyte() );         // 4% of runtime
-                    else if ( 4 == op2reg3 ) // inr r. does not set carry
-                    {
-                        uint8_t * pdst = dst_address( op );
-                        *pdst = op_inc( *pdst );
-                    }
-                    else if ( 6 == op2reg3 ) // mvi r, d8
-                    {
-                        uint8_t *pdst = dst_address( op );
-                        *pdst = pcbyte();
-                    }
-                    else if ( 0xc2 == op2reg3 ) // conditional jump
-                    {
-                        uint16_t address = pcword(); // must be consumed regardless of whether jump is taken
-                        if ( check_conditional( op ) )
-                            reg.pc = address;
-                        else
-                            cycles -= cyclesnt;
-                    }
-                    else if ( 0xc0 == op2reg3 ) // conditional return
-                    {
-                        if ( check_conditional( op ) )
-                            reg.pc = popword();
-                        else
-                            cycles -= cyclesnt;
-                    }
-                    else if ( 5 == op2reg3 ) // dcr r. does not set carry
-                    {
-                        uint8_t * pdst = dst_address( op );
-                        *pdst = op_dec( * pdst );          // 5% of runtime
-                    }
-                    else if ( 0xc4 == op2reg3 ) // conditional call
-                    {
-                        uint16_t address = pcword(); // must be consumed regardless of whether call is taken
-                        if ( check_conditional( op ) )
-                        {
-                            pushword( reg.pc );
-                            reg.pc = address;
-                        }
-                        else
-                            cycles -= cyclesnt;
-                    }
-                    else
-                    {
-                        uint8_t op2rp4 = ( op & 0xcf );  // two bits, 2 rp bits, 4 bits
-                        if ( 9 == op2rp4 ) // dad
-                            op_dad( * reg.rpAddressFromOp( op ) );
-                        else if ( 0xc1 == op2rp4 ) // pop
-                        {
-                            if ( 0xf1 == op )
-                                reg.SetPSW( popword() );
-                            else
-                                * reg.rpAddressFromOp( op ) = popword();
-                        }
-                        else if ( 0xc5 == op2rp4 ) // push
-                        {
-                            if ( 0xf5 == op )
-                                pushword( reg.PSW() );
-                            else
-                                pushword( * reg.rpAddressFromOp( op ) );
-                        }
-                        else if ( 3 == op2rp4 ) // inx. no status flag updates
-                        {
-                            uint16_t * pdst = reg.rpAddressFromOp( op );
-                            *pdst = 1 + *pdst;
-                        }
-                        else if ( 0x0b == op2rp4 ) // dcx. no status flag updates
-                        {
-                            uint16_t * pdst = reg.rpAddressFromOp( op );
-                            *pdst = *pdst - 1;
-                        }
-                        else if ( 0xc7 == ( 0xc7 & op ) ) // rst
-                        {
-                            // bits 5..3 are exp, which form an address 0000000000exp000 that is called.
-                            // rst is generally invoked by hardware interrupts, which supply one instruction rst.
-                    
-                            pushword( reg.pc );
-                            reg.pc = 0x38 & (uint16_t) op;
-                        }
-                        else if ( reg.fZ80Mode )
-                            cycles += z80_emulate( op ); // in reality most Z80 apps use 8080 instructions most of the time
-                        else
-                            x80_hard_exit( "Error: 8080 undocumented instruction: %#x, next byte %#x\n", op, memory[ reg.pc + 1 ] );
-                    }
+                    pushword( reg.pc );
+                    reg.pc = address;
                 }
+                else
+                    cycles -= cyclesnt;
+                break;
+            }
+            case 0xc5: case 0xd5: case 0xe5: case 0xf5: // push
+            {
+                pushword( ( 0xf5 == op ) ? reg.PSW() : * reg.rpAddressFromOp( op ) );
+                break;
+            }
+            case 0xc6: case 0xd6: case 0xe6: case 0xf6: case 0xce: case 0xde: case 0xee: case 0xfe: // adi aci sui sbi ani xri ori cpi
+            {
+                op_math( op, pcbyte() );         // 4% of runtime
+                break;
+            }
+            case 0xc7: case 0xd7: case 0xe7: case 0xf7: case 0xcf: case 0xdf: case 0xef: case 0xff: // rst
+            {
+                // bits 5..3 are exp, which form an address 0000000000exp000 that is called.
+                // rst is generally invoked by hardware interrupts, which supply one instruction rst.
+            
+                pushword( reg.pc );
+                reg.pc = 0x38 & (uint16_t) op;
+                break;
+            }
+            case 0xc9: { reg.pc = popword(); break; } // ret
+            case 0xcd: { uint16_t v = pcword(); pushword( reg.pc ); reg.pc = v; break; } // call a16
+            case 0xd3: { x80_invoke_out( pcbyte() ); break; } // out d8
+            case 0xdb: { x80_invoke_in( pcbyte() ); break; } // in d8
+            case 0xe3: { uint16_t t = reg.H(); reg.SetH( mword( reg.sp ) ); setmword( reg.sp, t ); break; } // xthl
+            case 0xe9: { reg.pc = reg.H(); break; } // pchl
+            case 0xeb: { uint16_t t = reg.H(); reg.SetH( reg.D() ); reg.SetD( t ); break; } // xchg
+            case 0xf3: { reg.fINTE = false; break; } // di
+            case 0xf9: { reg.sp = reg.H(); break; } // sphl
+            case 0xfb: { reg.fINTE = true; break; } // ei
+            default:
+            {
+                if ( reg.fZ80Mode )
+                    cycles += z80_emulate( op );
+                else
+                    x80_hard_exit( "Error: 8080 undocumented instruction: %#x, next byte %#x\n", op, memory[ reg.pc + 1 ] );
             } //default
         } //switch
 
