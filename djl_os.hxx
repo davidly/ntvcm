@@ -10,7 +10,9 @@
 
 #ifdef _MSC_VER
 
-    #define UNICODE
+    #ifndef UNICODE
+        #define UNICODE
+    #endif
     #define WIN32_LEAN_AND_MEAN
     #include <windows.h>
     #include <conio.h>
@@ -18,6 +20,7 @@
     #include <intrin.h>
 
     #define not_inlined __declspec(noinline)
+    #define force_inlined __forceinline
 
     inline void sleep_ms( uint64_t ms ) { SleepEx( (DWORD) ms, FALSE ); }
 
@@ -45,7 +48,8 @@
     #include <unistd.h>
     #include <ctype.h>
 
-    #define not_inlined
+    #define not_inlined noinline
+    #define force_inlined inline
 
     inline void bump_thread_priority() {}
 
@@ -189,7 +193,15 @@ inline const char * build_platform()
 inline const char * build_string()
 {
     static char bs[ 100 ];
-    sprintf( bs, "built for %s %s on %s by %s on %s\n", target_platform(), build_type(), __TIMESTAMP__, compiler_used(), build_platform() );
+    sprintf( bs, "built for %s %s on %s %s by %s on %s\n", target_platform(), build_type(), __DATE__, __TIME__, compiler_used(), build_platform() );
     return bs;
 } //build_string
+
+#if defined( __GNUC__ ) || defined( __clang__ )
+    #define assume_false return( 0 )   // clearly terrible, but this code will never execute. ever.
+    #define assume_false_return return // clearly terrible, but this code will never execute. ever.
+#else
+    #define assume_false __assume( false )
+    #define assume_false_return __assume( false )
+#endif
 
