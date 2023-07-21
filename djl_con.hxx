@@ -26,7 +26,7 @@ class ConsoleConfiguration
 
     public:
         #ifdef _MSC_VER
-            ConsoleConfiguration() : consoleOutputHandle( 0 ), consoleInputHandle( 0 ), oldConsoleMode( 0 ), setWidth( 0 )
+            ConsoleConfiguration() : consoleOutputHandle( 0 ), consoleInputHandle( 0 ), oldConsoleMode( 0 ), setWidth( 0 ), oldOutputCP( 0 )
             {
                 oldWindowPlacement = {0};
                 oldScreenInfo = {0};
