@@ -528,23 +528,23 @@ char kaypro_to_cp437( uint8_t c )
     // these are mostly box-drawing characters
 
     if ( 0xb0 == c )
-        return 0xcd;
+        return (char) 0xcd;
     if ( 0xd0 == c )
-        return 0xc9;
+        return (char) 0xc9;
     if ( 0xd5 == c )
-        return 0xba;
+        return (char) 0xba;
     if ( 0xdf == c )
-        return 0xbb;
+        return (char) 0xbb;
     if ( 0x85 == c )
-        return 0xc8;
+        return (char) 0xc8;
     if ( 0x8c == c )
-        return 0xcd;
+        return (char) 0xcd;
     if ( 0x8a == c )
-        return 0xbc;
+        return (char) 0xbc;
     if ( 0xbc == c )
-        return 0xdf;
+        return (char) 0xdf;
     if ( 0xbf == c )
-        return 0xdb;
+        return (char) 0xdb;
 
 #else // for linux, use ascii-art
 
@@ -852,7 +852,7 @@ uint8_t x80_invoke_hook()
             reg.a = map_input( input );
             tracer.Trace( "  conin is returning %02xh\n", reg.a );
         }
-        else if ( 0xff0c == address || 0xff84 )
+        else if ( 0xff0c == address || 0xff84 == address )
         {
             // conout
 
@@ -2295,8 +2295,11 @@ int main( int argc, char * argv[] )
     reg.ix = reg.iy = 0;
     g_haltExecuted = false;
 
-    x80_trace_state();
-    tracer.Trace( "starting execution of app '%s' size %d\n", acCOM, file_size );
+    if ( trace )
+    {
+        x80_trace_state();
+        tracer.Trace( "starting execution of app '%s' size %d\n", acCOM, file_size );
+    }
 
     if ( force80x24 )
         g_consoleConfig.EstablishConsole( 80, 24 );

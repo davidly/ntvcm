@@ -301,7 +301,7 @@ void op_sbb( uint8_t x )
     reg.a = op_sub( x, reg.fCarry );
 } //op_sbb
 
-void op_cmp( uint8_t x )
+force_inlined void op_cmp( uint8_t x )
 {
     op_sub( x, false );
     if ( reg.fZ80Mode )
@@ -459,24 +459,24 @@ not_inlined void op_daa()
 uint8_t * dst_address_rm( uint8_t rm )
 {
     assert( rm <= 7 );
-    if ( 6 == rm )
-        return & memory[ reg.H() ];
-  
-    return reg.regOffset( rm );
+    if ( 6 != rm )
+        return reg.regOffset( rm );
+
+    return & memory[ reg.H() ];
 } //dst_address_rm
 
 uint8_t * dst_address( uint8_t op )
 {
-    uint8_t rm = 0x7 & ( op >> 3 );
+    uint8_t rm = 7 & ( op >> 3 );
     return dst_address_rm( rm );
 } //dst_address
 
 uint8_t src_value_rm( uint8_t rm )
 {
-    if ( 6 == rm )
-        return memory[ reg.H() ];
-  
-    return * ( reg.regOffset( rm ) );
+    if ( 6 != rm )
+        return * ( reg.regOffset( rm ) );
+
+    return memory[ reg.H() ];
 } //src_value_rm
 
 uint8_t src_value( uint8_t op )
@@ -1735,29 +1735,29 @@ _restart_op:
             case 0x00: break; // nop
             case 0x01: case 0x11: case 0x21: case 0x31: // lxi rp, d16
             {
-                * reg.rpAddress( op >> 4 ) = pcword();
+                * reg.rpAddressFromLowOp( op ) = pcword();
                 break;
             }
             case 0x02: memory[ reg.B() ] = reg.a; break; // stax b
             case 0x03: case 0x13: case 0x23: case 0x33: // inx. no status flag updates
             {
-                uint16_t * pdst = reg.rpAddressFromOp( op );
+                uint16_t * pdst = reg.rpAddressFromLowOp( op );
                 *pdst = 1 + *pdst;
                 break;
             }
-            case 0x04: case 0x14: case 0x24: case 0x34: case 0x0c: case 0x1c: case 0x2c: case 0x3c: // inr r. does not set carry
+            case 0x04: case 0x14: case 0x24: case 0x34: case 0x0c: case 0x1c: case 0x2c: case 0x3c: // inr rm. does not set carry
             {
                 uint8_t * pdst = dst_address( op );
                 *pdst = op_inc( *pdst );
                 break;
             }
-            case 0x05: case 0x15: case 0x25: case 0x35: case 0x0d: case 0x1d: case 0x2d: case 0x3d: // dcr r. does not set carry
+            case 0x05: case 0x15: case 0x25: case 0x35: case 0x0d: case 0x1d: case 0x2d: case 0x3d: // dcr rm. does not set carry
             {
                 uint8_t * pdst = dst_address( op );
                 *pdst = op_dec( * pdst );          // 5% of runtime
                 break;
             }
-            case 0x06: case 0x16: case 0x26: case 0x36: case 0x0e: case 0x1e: case 0x2e: case 0x3e: // mvi r, d8
+            case 0x06: case 0x16: case 0x26: case 0x36: case 0x0e: case 0x1e: case 0x2e: case 0x3e: // mvi rm, d8
             {
                 * dst_address( op ) = pcbyte();
                 break;
@@ -1873,7 +1873,7 @@ _restart_op:
                 }
                 break;
             }
-            case 0x40: case 0x41: case 0x42: case 0x43: case 0x44: case 0x45: case 0x46: case 0x47: // mov r, r
+            case 0x40: case 0x41: case 0x42: case 0x43: case 0x44: case 0x45: case 0x46: case 0x47: // mov rm, r
             case 0x48: case 0x49: case 0x4a: case 0x4b: case 0x4c: case 0x4d: case 0x4e: case 0x4f:
             case 0x50: case 0x51: case 0x52: case 0x53: case 0x54: case 0x55: case 0x56: case 0x57:
             case 0x58: case 0x59: case 0x5a: case 0x5b: case 0x5c: case 0x5d: case 0x5e: case 0x5f:
@@ -1882,7 +1882,7 @@ _restart_op:
             case 0x70: case 0x71: case 0x72: case 0x73: case 0x74: case 0x75:            case 0x77: // 0x76 is hlt
             case 0x78: case 0x79: case 0x7a: case 0x7b: case 0x7c: case 0x7d: case 0x7e: case 0x7f:
             {
-                *dst_address( op ) = src_value( op ); // 5% of runtime
+                * dst_address( op ) = src_value( op ); // 5% of runtime
                 break;
             }
             case 0x64: { op = x80_invoke_hook(); goto _restart_op; } // hook
@@ -1907,12 +1907,9 @@ _restart_op:
                     cycles -= cyclesnt;
                 break;
             }
-            case 0xc1: case 0xd1: case 0xe1: case 0xf1: // pop
+            case 0xc1: case 0xd1: case 0xe1: // pop rp
             {
-                if ( 0xf1 == op )
-                    reg.SetPSW( popword() );
-                else
-                    * reg.rpAddressFromOp( op ) = popword();
+                * reg.rpAddressFromOp( op ) = popword();
                 break;
             }
             case 0xc2: case 0xd2: case 0xe2: case 0xf2: case 0xca: case 0xda: case 0xea: case 0xfa: // conditional jmp
@@ -1937,9 +1934,9 @@ _restart_op:
                     cycles -= cyclesnt;
                 break;
             }
-            case 0xc5: case 0xd5: case 0xe5: case 0xf5: // push
+            case 0xc5: case 0xd5: case 0xe5: // push rp
             {
-                pushword( ( 0xf5 == op ) ? reg.PSW() : * reg.rpAddressFromOp( op ) );
+                pushword( * reg.rpAddressFromOp( op ) );
                 break;
             }
             case 0xc6: case 0xd6: case 0xe6: case 0xf6: case 0xce: case 0xde: case 0xee: case 0xfe: // adi aci sui sbi ani xri ori cpi
@@ -1963,7 +1960,9 @@ _restart_op:
             case 0xe3: { uint16_t t = reg.H(); reg.SetH( mword( reg.sp ) ); setmword( reg.sp, t ); break; } // xthl
             case 0xe9: { reg.pc = reg.H(); break; } // pchl
             case 0xeb: { uint16_t t = reg.H(); reg.SetH( reg.D() ); reg.SetD( t ); break; } // xchg
+            case 0xf1: { reg.SetPSW( popword() ); break; } // pop psw
             case 0xf3: { reg.fINTE = false; break; } // di
+            case 0xf5: { pushword( reg.PSW() ); break; } // push psw
             case 0xf9: { reg.sp = reg.H(); break; } // sphl
             case 0xfb: { reg.fINTE = true; break; } // ei
             default:

@@ -7,25 +7,25 @@
 #define OPCODE_HOOK 0x64  // mov h, h. When executed, x80_invoke_hook is called
 #define OPCODE_HLT 0x76   // for ending execution. When executed, x80_invoke_halt is called
 
-const uint8_t reg_offsets[8] = { 3, 2, 5, 4, 7, 6, 0, 1 }; //bcdehlfa
+const uint8_t reg_offsets[8] = { 1, 0, 3, 2, 5, 4, 8, 9 }; //bcdehlfa
 
 struct registers
 {
     // the memory layout of these registers is assumed by the code below
 
-    uint8_t f, a;
     uint8_t c, b;
     uint8_t e, d;
     uint8_t l, h;
     uint16_t sp;
+    uint8_t f, a;
     uint16_t pc;
 
     // Z80-specific. p == prime registers swapped via exchange instructions
 
-    uint8_t fp, ap;
     uint8_t cp, bp;
     uint8_t ep, dp;
     uint8_t lp, hp;
+    uint8_t fp, ap;
 
     uint16_t ix;
     uint16_t iy;
@@ -113,21 +113,25 @@ struct registers
     uint16_t * rpAddress( uint8_t rp )
     {
         // rp == register pair: 0 B, 1 D, 2 H, 3 SP
-
         assert( rp <= 3 );
-        return (uint16_t *) ( ( (uint8_t *) this ) + 2 + 2 * rp ); 
+        return (uint16_t *) ( ( (uint8_t *) this ) + ( 2 * rp ) );
     } //rpAddress
 
     uint16_t * rpAddressFromOp( uint8_t op )
     {
-        uint8_t rp = ( op >> 4 ) & 0x3;
-        return rpAddress( rp );
+        return (uint16_t *) ( ( (uint8_t *) this ) + ( ( op >> 3 ) & 6 ) );
     } //rpAddressFromOp
 
-    uint8_t * regOffset( uint8_t m )
+    uint16_t * rpAddressFromLowOp( uint8_t op )
     {
-        assert( 6 != m ); // that's a memory access, not a register. f can't be used directly.
-        return ( ( ( uint8_t *) this ) + reg_offsets[ m ] );
+        assert( ! ( op & 0x8080 ) ); // save masking if the high bits on each nibble are 0
+        return (uint16_t *) ( ( (uint8_t *) this ) + ( ( op >> 3 ) ) );
+    } //rpAddressFromLowOp
+
+    uint8_t * regOffset( uint8_t rm )
+    {
+        assert( 6 != rm ); // that's a memory access, not a register. f can't be used directly.
+        return ( ( ( uint8_t *) this ) + reg_offsets[ rm ] );
     } //regOffset
 
     void clearHN()
