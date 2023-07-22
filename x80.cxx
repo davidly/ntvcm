@@ -373,7 +373,7 @@ void op_dad( uint16_t x )
         uint32_t auxResult = ( reg.H() & 0xfff ) + ( x & 0xfff );
         reg.fAuxCarry = ( 0 != ( auxResult & 0xf000 ) );
         reg.fWasSubtract = false;
-        reg.z80_assignYX( result >> 8 );
+        reg.z80_assignYX( (uint16_t) ( result >> 8 ) );
     }
 
     reg.SetH( (uint16_t) ( result & 0xffff ) );
@@ -612,9 +612,9 @@ uint16_t z80_op_add_16( uint16_t a, uint16_t b )
 
     uint32_t result = ( (uint32_t) a + (uint32_t) b );
     reg.fCarry = ( 0 != ( result & 0xffff0000 ) );
-    reg.z80_assignYX( result >> 8 );
+    reg.z80_assignYX( (uint16_t) ( result >> 8 ) );
 
-    return result;
+    return (uint16_t) result;
 } //z80_op_add_16
 
 uint16_t z80_op_adc_16( uint16_t l, uint16_t r )
@@ -970,10 +970,9 @@ uint64_t z80_emulate( uint8_t op )    // this is just for instructions that aren
             else if ( 0x46 == ( op2 & 0x47 ) ) // ld r, (i + #)
             {
                 cycles = 19;
-                uint8_t index = pcbyte();
+                pcbyte(); // consume op3
                 uint16_t address = reg.z80_getIndex( op ) + op3int;
-                uint8_t src = ( ( op2 >> 3 ) & 0x7 );
-                * dst_address_rm( src ) = memory[ address ];
+                * dst_address( op2 ) = memory[ address ];
             }
             else if ( 0x70 == ( op2 & 0xf8 ) )  // ld (i+#), r/#
             {
@@ -1652,7 +1651,6 @@ void replace_with_num( char * pc, const char * psearch, uint16_t num, uint8_t wi
 {
     char actemp[ 60 ];
     sprintf( actemp, ( 16 == width ) ? "0%04xh" : "0%02xh", (uint32_t) num );
-    size_t len = strlen( actemp );
     strcat( actemp, pc + strlen( psearch ) );
     strcpy( pc, actemp );
 } //replace_with_num
@@ -1735,7 +1733,7 @@ uint64_t x80_emulate( uint64_t maxcycles )
 _restart_op:
         cycles += acycles[ op ];
 
-        switch ( op )                   // 50% of runtime is completing cycle addition & setting up for the jump table jump;
+        switch ( op )                   // 50% of runtime is completing cycle addition & setting up for the jump table jump
         {
             case 0x00: break; // nop
             case 0x01: case 0x11: case 0x21: case 0x31: { * reg.rpAddressFromLowOp( op ) = pcword(); break; } // lxi rp, d16
@@ -1868,7 +1866,7 @@ _restart_op:
             case 0x60: case 0x61: case 0x62: case 0x63:            case 0x65: case 0x66: case 0x67: { reg.h = src_value( op ); break; } // mov h, rm 0x64 is hook
             case 0x68: case 0x69: case 0x6a: case 0x6b: case 0x6c: case 0x6d: case 0x6e: case 0x6f: { reg.l = src_value( op ); break; } // mov l, rm
             case 0x70: case 0x71: case 0x72: case 0x73: case 0x74: case 0x75:            case 0x77: { memory[ reg.H() ] = src_value( op ); break; } // mov m, rm 0x76 is hlt
-            case 0x78: case 0x79: case 0x7a: case 0x7b: case 0x7c: case 0x7d: case 0x7e: case 0x7f:{ reg.a = src_value( op ); break; } // mov a, rm
+            case 0x78: case 0x79: case 0x7a: case 0x7b: case 0x7c: case 0x7d: case 0x7e: case 0x7f: { reg.a = src_value( op ); break; } // mov a, rm
             case 0x64: { op = x80_invoke_hook(); goto _restart_op; } // hook
             case 0x76: { x80_invoke_halt(); goto _all_done; } // hlt
             case 0x80: case 0x81: case 0x82: case 0x83: case 0x84: case 0x85: case 0x86: case 0x87: { op_add( src_value( op ) ); break; }

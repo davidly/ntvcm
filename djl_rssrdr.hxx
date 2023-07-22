@@ -132,7 +132,7 @@ class CRssFeed
                     do
                     {
                         DWORD cbRead = 0;
-                        BOOL fOK = InternetReadFile( xhUrl.Get(), buffer.data(), buffer.size() - 1, &cbRead );
+                        BOOL fOK = InternetReadFile( xhUrl.Get(), buffer.data(), (DWORD) ( buffer.size() - 1 ), &cbRead );
                         if ( fOK && ( 0 != cbRead ) )
                         {
                             buffer[ cbRead ] = 0;
@@ -246,7 +246,7 @@ class CRssFeed
                 vector<char> file_data;
                 file_data.resize( file_size + 1 );
                 file_data[ file_size ] = 0;
-                int x = fread( file_data.data(), file_size, 1, fp );
+                size_t x = fread( file_data.data(), file_size, 1, fp );
                 fclose( fp );
 
                 if ( x )
@@ -260,8 +260,8 @@ class CRssFeed
         
         static void replace_string( char * p, const char * before, const char * after )
         {
-            int blen = strlen( before );
-            int alen = strlen( after );
+            size_t blen = strlen( before );
+            size_t alen = strlen( after );
         
             if ( blen < alen )
                 return;

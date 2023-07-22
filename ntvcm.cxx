@@ -754,7 +754,7 @@ uint8_t map_input( uint8_t input )
 #ifdef _MSC_VER
     if ( 0xe0 == input ) // likely Windows
     {
-        uint8_t next = ConsoleConfiguration::portable_getch();
+        uint8_t next = (uint8_t) ConsoleConfiguration::portable_getch();
 
         // map the arrow keys to ^ XSED used in many apps. map a handful of other characters
 
@@ -848,7 +848,7 @@ uint8_t x80_invoke_hook()
         {
             // conin
 
-            uint8_t input = ConsoleConfiguration::portable_getch();
+            uint8_t input = (uint8_t) ConsoleConfiguration::portable_getch();
             reg.a = map_input( input );
             tracer.Trace( "  conin is returning %02xh\n", reg.a );
         }
@@ -902,7 +902,7 @@ uint8_t x80_invoke_hook()
         {
             // console input
 
-            uint8_t input = ConsoleConfiguration::portable_getch();
+            uint8_t input = (uint8_t) ConsoleConfiguration::portable_getch();
             reg.a = map_input( input );
 
             break;
@@ -951,7 +951,7 @@ uint8_t x80_invoke_hook()
                 if ( ConsoleConfiguration::throttled_kbhit() )
                 {
                     kbd_poll_busyloops = 0;
-                    uint8_t input = ConsoleConfiguration::portable_getch();
+                    uint8_t input = (uint8_t) ConsoleConfiguration::portable_getch();
                     tracer.Trace( "  read character %u == %02x == '%c'\n", input, input, printable_ch( input ) );
                     reg.a = map_input( input );
                 }
@@ -1633,7 +1633,7 @@ uint8_t x80_invoke_hook()
                     if ( file_size > file_offset )
                     {
                         uint32_t to_read = get_min( file_size - file_offset, (uint32_t) 128 );
-                        bool ok = !fseek( fp, file_offset, SEEK_SET );
+                        ok = !fseek( fp, file_offset, SEEK_SET );
                         if ( ok )
                         {
                             tracer.Trace( "  reading random at offset %#x\n", file_offset );
@@ -1696,7 +1696,7 @@ uint8_t x80_invoke_hook()
 
                     if ( file_offset > file_size )
                     {
-                        bool ok = !fseek( fp, file_offset, SEEK_SET );
+                        ok = !fseek( fp, file_offset, SEEK_SET );
                         if ( ok )
                             file_size = ftell( fp );
                         else
@@ -1705,7 +1705,7 @@ uint8_t x80_invoke_hook()
     
                     if ( file_size >= file_offset )
                     {
-                        bool ok = !fseek( fp, file_offset, SEEK_SET );
+                        ok = !fseek( fp, file_offset, SEEK_SET );
                         if ( ok )
                         {
                             tracer.Trace( "  writing random at offset %#x\n", file_offset );
@@ -1767,7 +1767,7 @@ uint8_t x80_invoke_hook()
                     fseek( fp, 0, SEEK_END );
                     uint32_t file_size = ftell( fp );
                     fseek( fp, curr, SEEK_SET );
-                    pfcb->SetRandomIOOffset( file_size / 128 );
+                    pfcb->SetRandomIOOffset( (uint16_t) ( file_size / 128 ) );
                     reg.a = 0;
 
                     tracer.Trace( "  file size is %u == %u records; r1 %#x r0 %#x\n", file_size, file_size / 128, pfcb->r1, pfcb->r0 );
@@ -1801,7 +1801,7 @@ uint8_t x80_invoke_hook()
                 if ( fp )
                 {
                     uint32_t curr = ftell( fp );
-                    pfcb->SetRandomIOOffset( curr / 128 );
+                    pfcb->SetRandomIOOffset( (uint16_t) ( curr / 128 ) );
                     reg.a = 0;
 
                     tracer.Trace( "  random record current is %u == %u records; r1 %#x r0 %#x\n", curr, curr / 128, pfcb->r1, pfcb->r0 );
@@ -1837,7 +1837,7 @@ uint8_t x80_invoke_hook()
                     uint32_t file_size = ftell( fp );
                     if ( file_size >= file_offset )
                     {
-                        bool ok = !fseek( fp, file_offset, SEEK_SET );
+                        ok = !fseek( fp, file_offset, SEEK_SET );
                         if ( ok )
                         {
                             tracer.Trace( "  writing random at offset %#x\n", file_offset );
@@ -1875,9 +1875,9 @@ uint8_t x80_invoke_hook()
             time_t time_now = system_clock::to_time_t( now );
             struct tm * plocal = localtime( & time_now );
 
-            ptime->hour = plocal->tm_hour;
-            ptime->minute = plocal->tm_min;
-            ptime->second = plocal->tm_sec;
+            ptime->hour = (uint16_t) plocal->tm_hour;
+            ptime->minute = (uint16_t) plocal->tm_min;
+            ptime->second = (uint16_t) plocal->tm_sec;
             ptime->millisecond = (uint16_t) ( ms / 10 ); // hundredths of a second;
             reg.a = 0;
 
@@ -2108,7 +2108,7 @@ int main( int argc, char * argv[] )
 
         if ( 0 == pcCOM && ( '-' == c || '/' == c ) )
         {
-            char ca = tolower( parg[1] );
+            char ca = (char) tolower( parg[1] );
 
             if ( 's' == ca )
             {
@@ -2261,7 +2261,7 @@ int main( int argc, char * argv[] )
     //   f200-????: bios (0xf203 stored at address 0x1)
 
     memset( memory + 0xff00, OPCODE_HOOK, 0xff );
-    for ( uint32_t v = 0; v < 17; v++ )
+    for ( uint16_t v = 0; v < 17; v++ )
         setmword( 0xff01 + ( v * 3 ), 0xff80 + v );
 
     int file_size = 0;
