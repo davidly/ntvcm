@@ -5,7 +5,10 @@
 // i8080 and Z80 emulator
 
 #define OPCODE_HOOK 0x64  // mov h, h. When executed, x80_invoke_hook is called
-#define OPCODE_HLT 0x76   // for ending execution. When executed, x80_invoke_halt is called
+#define OPCODE_HLT  0x76  // for ending execution. When executed, x80_invoke_halt is called
+#define OPCODE_NOP  0x00
+#define OPCODE_RET  0xC9
+
 
 const size_t reg_offsets[8] = { 1, 0, 3, 2, 5, 4, 8, 9 }; //bcdehlfa
 
@@ -116,7 +119,7 @@ struct registers
     {
         // rp == register pair: 0 B, 1 D, 2 H, 3 SP
         assert( rp <= 3 );
-        return (uint16_t *) ( ( (uint8_t *) this ) + ( 2 * rp ) );
+        return ( ( (uint16_t *) this ) + rp );
     } //rpAddress
 
     uint16_t * rpAddressFromOp( uint8_t op )

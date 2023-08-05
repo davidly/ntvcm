@@ -46,10 +46,6 @@
 
 #include "x80.hxx"
 
-#define OPCODE_NOP  0x00
-#define OPCODE_RET  0xC9
-#define OPCODE_HALT 0x76
-
 // CP/M constants for memory addresses where OS-global state is stored
 
 #define FCB_ARG1_OFFSET            0x5c
@@ -833,7 +829,7 @@ uint8_t x80_invoke_hook()
         {
             // boot, which means exit the app
 
-            return OPCODE_HALT;
+            return OPCODE_HLT;
         }
         else if ( 0xff06 == address || 0xff82 == address )
         {
@@ -896,7 +892,7 @@ uint8_t x80_invoke_hook()
         {
             // system reset. end execution of the app.
 
-            return OPCODE_HALT;
+            return OPCODE_HLT;
         }
         case 1:
         {
