@@ -33,7 +33,7 @@ I've done some testing on Linux and MacOS with the same set of test apps as Wind
 Performance of the CPU emulator is in the ballpark of other emulators I looked at. I wrote the code to be more readable than other emulators, whose use of lookup tables and macros I found to be nearly inscrutable (though I'm sure that's just me). I also wanted both 8080 and Z80
 modes, which hurts the performance of each. An interesting fact is that on modern CPUs, code for computing parity of a byte is faster than a 256-element lookup table. 
 
-zexall.com runs 5.748 billion instructions shared with the 8080, and just 16 million instructions unique to the Z80; optimizing the emulator for the 8080 will have the most impact. On my machine, zexall.com runs in about 22 seconds using the Microsoft compiler and 20 seconds using the Gnu compiler. On a real 4Mhz Z80 it'd take about 3 hours and 14 minutes.
+zexall.com runs 5.748 billion instructions shared with the 8080, and just 16 million instructions unique to the Z80; optimizing the emulator for the 8080 will have the most impact. On my machine, zexall.com runs in about 18.4 seconds using the Microsoft compiler and 16.7 seconds using the Gnu compiler. On a real 4Mhz Z80 it'd take about 3 hours and 14 minutes.
 
 Cycle counts are pretty close, but not precise. I used documented numbers, which are sometimes incorrect. And I made guesses for cycle counts for undocumented Z80 instructions.
 
@@ -150,7 +150,7 @@ Example usage:
     ld (<bc,de>),a................  OK
     Tests complete
     
-    elapsed milliseconds:           22,371
+    elapsed milliseconds:           18,366
     Z80  cycles:            46,716,093,718
     clock rate:                  unbounded
     approx ms at 4Mhz:          11,679,023 == 0 days, 3 hours, 14 minutes, 39 seconds, 23 milliseconds
