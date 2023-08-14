@@ -580,10 +580,10 @@ void output_character( uint8_t c )
     // for terminal emulation, I only implement translations for actual sequences apps use.
     // if the output character is ESC, assume the app wants 80x24.
 
-    if ( 0x1b == c && !g_forceConsole && !g_consoleConfig.IsEstablished() )
+    if ( 0x1b == c && !g_forceConsole && !g_consoleConfig.IsOutputEstablished() )
     {
         tracer.Trace( "  establishing 80x24\n" );
-        g_consoleConfig.EstablishConsole( 80, 24 );
+        g_consoleConfig.EstablishConsoleOutput( 80, 24 );
     }
 
     if ( g_kayproToCP437 )
@@ -845,6 +845,7 @@ uint8_t x80_invoke_hook()
             // conin
 
             uint8_t input = (uint8_t) ConsoleConfiguration::portable_getch();
+            tracer.Trace( "  conin got %02xh from getch()\n", input );
             reg.a = map_input( input );
             tracer.Trace( "  conin is returning %02xh\n", reg.a );
         }
@@ -906,6 +907,7 @@ uint8_t x80_invoke_hook()
         case 2:
         {
             // console output
+            // CP/M checks for a ^c from the keyboard and end the application if found. This code doesn't do that yet.
 
             uint8_t ch = reg.e;
             if ( 0x0d != ch )             // skip carriage return because line feed turns into cr+lf
@@ -979,9 +981,10 @@ uint8_t x80_invoke_hook()
         }
         case 9:
         {
+            // print string terminated by a dollar sign $. string is pointed to by DE
+
             uint16_t i = reg.D();
             uint32_t count = 0;
-
             //tracer.TraceBinaryData( memory + i, 0x20, 0 );
     
             while ( '$' != memory[i] )
@@ -1017,7 +1020,13 @@ uint8_t x80_invoke_hook()
             {
                 pbuf[ 2 ] = 0;
                 uint8_t out_len;
-                ConsoleConfiguration::cpm_read_console( pbuf + 2, in_len, out_len );
+                char last = ConsoleConfiguration::cpm_read_console( pbuf + 2, in_len, out_len );
+                if ( 3 == last )
+                {
+                    tracer.Trace( "  bdos read console buffer read a ^c, so it's terminating the app\n" );
+                    return OPCODE_HLT;
+                }
+
                 pbuf[ 1 ] = out_len;
 
                 tracer.Trace( "  read console len %u, string '%.*s'\n", out_len, (size_t) out_len, pbuf + 2 );
@@ -2298,7 +2307,7 @@ int main( int argc, char * argv[] )
     }
 
     if ( force80x24 )
-        g_consoleConfig.EstablishConsole( 80, 24 );
+        g_consoleConfig.EstablishConsoleOutput( 80, 24 );
 
     uint64_t total_cycles = 0;
     CPUCycleDelay delay( clockrate );
