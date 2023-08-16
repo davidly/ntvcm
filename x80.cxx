@@ -1735,7 +1735,7 @@ uint64_t x80_emulate( uint64_t maxcycles )
         {
             case 0x00: break; // nop
             case 0x01: case 0x11: case 0x21: case 0x31: { * reg.rpAddressFromLowOp( op ) = pcword(); break; } // lxi rp, d16
-            case 0x02: memory[ reg.B() ] = reg.a; break; // stax b
+            case 0x02: { memory[ reg.B() ] = reg.a; break; } // stax b
             case 0x03: case 0x13: case 0x23: case 0x33: // inx. no status flag updates
             {
                 uint16_t * pdst = reg.rpAddressFromLowOp( op );
@@ -1772,7 +1772,7 @@ uint64_t x80_emulate( uint64_t maxcycles )
                 break;
             }
             case 0x09: case 0x19: case 0x29: case 0x39: { op_dad( * reg.rpAddressFromOp( op ) ); break; } // dad
-            case 0x0a: reg.a = memory[ reg.B() ]; break; // ldax b
+            case 0x0a: { reg.a = memory[ reg.B() ]; break; } // ldax b
             case 0x0b: case 0x1b: case 0x2b: case 0x3b: // dcx. no status flag updates
             {
                 uint16_t * pdst = reg.rpAddressFromOp( op );
@@ -1792,7 +1792,7 @@ uint64_t x80_emulate( uint64_t maxcycles )
                 }
                 break;
             }
-            case 0x12: memory[ reg.D() ] = reg.a; break; // stax d
+            case 0x12: { memory[ reg.D() ] = reg.a; break; } // stax d
             case 0x17: // ral
             {
                 bool c = reg.fCarry;
@@ -1806,7 +1806,7 @@ uint64_t x80_emulate( uint64_t maxcycles )
                 }
                 break;
             }
-            case 0x1a: reg.a = memory[ reg.D() ]; break; // ldax d
+            case 0x1a: { reg.a = memory[ reg.D() ]; break; } // ldax d
             case 0x1f: // rar
             {
                 bool c = reg.fCarry;
@@ -1834,7 +1834,7 @@ uint64_t x80_emulate( uint64_t maxcycles )
                 }
                 break;
             }
-            case 0x32: memory[ pcword() ] = reg.a; break; // sta a16
+            case 0x32: { memory[ pcword() ] = reg.a; break; } // sta a16
             case 0x37: // stc
             {
                 reg.fCarry = 1;

@@ -2294,7 +2294,7 @@ int main( int argc, char * argv[] )
     memory[7] = 0xfe;
 
     // The real bios function table is a list of 3-byte entries containing jmp and the address of
-    // each of bios functions 16 functions (17 including the -1 entry to exit).
+    // each of the 16 bios functions (17 including the -1 entry to exit).
     // Here, just hook the jmp instruction and put a pointer to the hook opcode in each address.
     // Apps like mbasic.com don't call bios functions; they take the address from the vector and
     // call it directly to save a tiny bit of performance.
