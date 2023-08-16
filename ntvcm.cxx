@@ -469,6 +469,8 @@ const char * get_bdos_function( uint8_t id )
         return "initialize rss feed";
     if ( 108 == id )
         return "fetch rss item";
+    if ( 109 == id )
+        return "rand";
 
     return "unknown";
 } //get_bdos_function
@@ -811,6 +813,51 @@ uint8_t map_input( uint8_t input )
     return output;
 } //map_input
 
+
+bool cpm_read_console( char * buf, size_t bufsize, uint8_t & out_len )
+{
+    char ch = 0;
+    out_len = 0;
+    while ( out_len < (uint8_t) bufsize )
+    {
+        ch = (char) ConsoleConfiguration::portable_getch();
+        tracer.Trace( "  cpm_read_console read character %02x -- '%c'\n", ch, printable_ch( ch ) );
+
+        // CP/M read console buffer treats these control characters as special: c, e, h, j, m, r, u, x
+        // per http://www.gaby.de/cpm/manuals/archive/cpm22htm/ch5.htm
+        // Only c, h, j, and m are currently handled correctly.
+        // ^c means exit the currently running app in CP/M if it's the first character in the buffer
+
+        if ( ( 3 == ch ) && ( 0 == out_len ) )
+            return true;
+
+        if ( '\n' == ch || '\r' == ch )
+        {
+            printf( "\r" );
+            fflush( stdout ); // fflush is required on linux or it'll be buffered not seen until the app ends.
+            break;
+        }
+
+        if ( 0x7f == ch || 8 == ch ) // backspace (it's not 8 for some reason)
+        {
+            if ( out_len > 0 )
+            {
+                printf( "\x8 \x8" );
+                fflush( stdout );
+                out_len--;
+            }
+        }
+        else
+        {
+            printf( "%c", ch );
+            fflush( stdout );
+            buf[ out_len++ ] = ch;
+        }
+    }
+
+    return false;
+} //cpm_read_console
+
 uint8_t x80_invoke_hook()
 {
     static uint64_t kbd_poll_busyloops = 0;
@@ -1020,15 +1067,14 @@ uint8_t x80_invoke_hook()
             {
                 pbuf[ 2 ] = 0;
                 uint8_t out_len;
-                char last = ConsoleConfiguration::cpm_read_console( pbuf + 2, in_len, out_len );
-                if ( 3 == last )
+                bool reboot = cpm_read_console( pbuf + 2, in_len, out_len );
+                if ( reboot )
                 {
-                    tracer.Trace( "  bdos read console buffer read a ^c, so it's terminating the app\n" );
+                    tracer.Trace( "  bdos read console buffer read a ^c at the first position, so it's terminating the app\n" );
                     return OPCODE_HLT;
                 }
 
                 pbuf[ 1 ] = out_len;
-
                 tracer.Trace( "  read console len %u, string '%.*s'\n", out_len, (size_t) out_len, pbuf + 2 );
             }
             else
@@ -1928,6 +1974,13 @@ uint8_t x80_invoke_hook()
             break;
         }
 #endif //NTVCM_RSS_SUPPORT
+        case 109:
+        {
+            // non-standard BDOS call puts a random number in A
+
+            reg.a = (uint8_t) rand();
+            break;
+        }
         default:
         {
             tracer.Trace( "UNIMPLEMENTED BDOS FUNCTION!!!!!!!!!!!!!!!: %d = %#x\n", reg.c, reg.c );
