@@ -471,6 +471,8 @@ const char * get_bdos_function( uint8_t id )
         return "fetch rss item";
     if ( 109 == id )
         return "rand";
+    if ( 110 == id )
+        return "enable/disable instruction tracing";
 
     return "unknown";
 } //get_bdos_function
@@ -813,7 +815,6 @@ uint8_t map_input( uint8_t input )
     return output;
 } //map_input
 
-
 bool cpm_read_console( char * buf, size_t bufsize, uint8_t & out_len )
 {
     char ch = 0;
@@ -834,7 +835,7 @@ bool cpm_read_console( char * buf, size_t bufsize, uint8_t & out_len )
         if ( '\n' == ch || '\r' == ch )
         {
             printf( "\r" );
-            fflush( stdout ); // fflush is required on linux or it'll be buffered not seen until the app ends.
+            fflush( stdout ); // fflush is required on linux or it'll be buffered and not seen until the app ends.
             break;
         }
 
@@ -865,7 +866,7 @@ uint8_t x80_invoke_hook()
 
     if ( address >= 0xff00 )
     {
-        tracer.Trace( "bios function %#x: %s\n", address, get_bios_function( address ) );
+        tracer.Trace( "bios function %#x: %s, bc %02x, de %02x, hl %02x\n", address, get_bios_function( address ), reg.B(), reg.D(), reg.H() );
         //x80_trace_state();
 
         // BIOS call. 0xff00-0xff33 are for actual, documented BIOS calls.
@@ -926,7 +927,7 @@ uint8_t x80_invoke_hook()
     }
 
     uint8_t function = reg.c;
-    tracer.Trace( "bdos function %d: %s\n", function, get_bdos_function( function ) );
+    tracer.Trace( "bdos function %d: %s, bc %02x, de %02x, hl %02x\n", function, get_bdos_function( function ), reg.B(), reg.D(), reg.H() );
     //x80_trace_state();
 
     if ( ( 6 != reg.c ) || ( 0xff != reg.e ) )
@@ -954,7 +955,7 @@ uint8_t x80_invoke_hook()
         case 2:
         {
             // console output
-            // CP/M checks for a ^c from the keyboard and end the application if found. This code doesn't do that yet.
+            // CP/M checks for a ^c from the keyboard and ends the application if found. This code doesn't do that yet.
 
             uint8_t ch = reg.e;
             if ( 0x0d != ch )             // skip carriage return because line feed turns into cr+lf
@@ -1004,7 +1005,7 @@ uint8_t x80_invoke_hook()
                 {
                     if ( kbd_poll_busyloops > 20 )
                     {
-                        // some apps like forth and multiplan call this in a busy loops.
+                        // some apps like forth and multiplan call this in a busy loop.
                         // don't sleep every call because sometimes they alternate calling this with updating the display.
 
                         sleep_ms( 1 );
@@ -1430,7 +1431,7 @@ uint8_t x80_invoke_hook()
                     tracer.Trace( "  file size: %u, current %u\n", file_size, curr );
 
                     uint32_t to_read = get_min( file_size - curr, (uint32_t) 128 );
-                    memset( g_DMA, 0x1a, 128 ); // fill with ^Z, the EOF marker in CP/M
+                    memset( g_DMA, 0x1a, 128 ); // fill with ^z, the EOF marker in CP/M
         
                     size_t numread = fread( g_DMA, to_read, 1, fp );
                     if ( numread > 0 )
@@ -1667,7 +1668,7 @@ uint8_t x80_invoke_hook()
                     uint16_t record = pfcb->GetRandomIOOffset();
                     tracer.Trace( "  read random record %#x\n", record );
                     uint32_t file_offset = record * 128;
-                    memset( g_DMA, 0x1a, 128 ); // fill with ^Z, the EOF marker in CP/M
+                    memset( g_DMA, 0x1a, 128 ); // fill with ^z, the EOF marker in CP/M
     
                     fseek( fp, 0, SEEK_END );
                     uint32_t file_size = ftell( fp );
@@ -1979,6 +1980,13 @@ uint8_t x80_invoke_hook()
             // non-standard BDOS call puts a random number in A
 
             reg.a = (uint8_t) rand();
+            break;
+        }
+        case 110:
+        {
+            // non-standard BDOS call: enable/disable tracing if DE is non-zero/zero
+
+            x80_trace_instructions( 0 != reg.D() );
             break;
         }
         default:
