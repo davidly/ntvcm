@@ -612,7 +612,7 @@ void output_character( uint8_t c )
             else
             {
                 uint8_t col = c - 31;
-                printf( "\x1b[%d;%dH", s_row, col );
+                printf( "\x1b[%u;%uH", s_row, col );
                 tracer.Trace( "  moved cursor to %d %d\n", s_row, col );
                 s_escapedY = false;
                 s_row = 0xff;
@@ -665,7 +665,7 @@ void output_character( uint8_t c )
                 else
                 {
                     uint8_t col = c - 31;
-                    printf( "\x1b[%d;%dH", s_row, col );
+                    printf( "\x1b[%u;%uH", s_row, col );
                     tracer.Trace( "  moved cursor to %d %d\n", s_row, col );
                     s_escapedChar = 0;
                     s_row = 0xff;
@@ -1991,8 +1991,8 @@ uint8_t x80_invoke_hook()
         }
         default:
         {
-            tracer.Trace( "UNIMPLEMENTED BDOS FUNCTION!!!!!!!!!!!!!!!: %d = %#x\n", reg.c, reg.c );
-            printf( "UNIMPLEMENTED BDOS FUNCTION!!!!!!!!!!!!!!!: %d = %#x\n", reg.c, reg.c );
+            tracer.Trace( "UNIMPLEMENTED BDOS FUNCTION!!!!!!!!!!!!!!!: %u = %#x\n", reg.c, reg.c );
+            printf( "UNIMPLEMENTED BDOS FUNCTION!!!!!!!!!!!!!!!: %u = %#x\n", reg.c, reg.c );
 
             x80_trace_state();
             reg.a = 0xff;
@@ -2245,7 +2245,10 @@ int main( int argc, char * argv[] )
         set_process_affinity( processAffinityMask );
 
     if ( 0 == pcCOM )
+    {
         usage( "no CP/M command specified" );
+        assume_false;
+    }
 
     * pCommandTailLen = (char) strlen( pCommandTail );
 

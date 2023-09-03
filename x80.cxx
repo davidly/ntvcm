@@ -1433,7 +1433,7 @@ void z80_render( char * ac, uint8_t op, uint16_t address )
         else if ( 0x35 == op2 )
             sprintf( ac, "dec (%s%s%d)\n", i, op3int >= 0 ? "+" : "", op3int );
         else if ( 0x36 == op2 )
-            sprintf( ac, "ld (%s+%d), %#xh", i, op3, op4 );
+            sprintf( ac, "ld (%s%s%d), %#xh", i, op3int >= 0 ? "+" : "", op3int, op4 );
         else if ( ( op2 >= 0x40 && op2 <= 0x6f ) || ( op2 >= 0x78 && op2 <= 0x7f ) )
         {
             char acto[ 4 ] = {0};
@@ -1489,11 +1489,11 @@ void z80_render( char * ac, uint8_t op, uint16_t address )
             uint8_t top2bits = mod & 0xc0;
 
             if ( 0x40 == top2bits ) // bit
-                sprintf( ac, "bit %d, ( %s%s%d )", bit, i, index32 >= 0 ? "+" : "", index32 ); 
+                sprintf( ac, "bit %u, ( %s%s%d )", bit, i, index32 >= 0 ? "+" : "", index32 ); 
             else if ( 0x80 == top2bits ) // reset
-                sprintf( ac, "res %d, ( %s%s%d )", bit, i, index32 >= 0 ? "+" : "", index32 ); 
+                sprintf( ac, "res %u, ( %s%s%d )", bit, i, index32 >= 0 ? "+" : "", index32 ); 
             else if ( 0xc0 == top2bits ) // set
-                sprintf( ac, "set %d, ( %s%s%d )", bit, i, index32 >= 0 ? "+" : "", index32 );
+                sprintf( ac, "set %u, ( %s%s%d )", bit, i, index32 >= 0 ? "+" : "", index32 );
             else if ( 0x26 == op4 ) // sla
                 sprintf( ac, "sla (%s%s%d)", i, index32 >= 0 ? "+" : "", index32 );
             else if ( 0x2e == op4 ) // sra
@@ -1614,19 +1614,19 @@ void z80_render( char * ac, uint8_t op, uint16_t address )
         {
             uint8_t rm = op2 & 0x7;
             uint8_t bit = ( op2 >> 3 ) & 0x7;
-            sprintf( ac, "bit %d, %s", bit, reg_strings[ rm ] );
+            sprintf( ac, "bit %u, %s", bit, reg_strings[ rm ] );
         }
         else if ( op2 >= 0x80 && op2 <= 0xbf ) // res bit #, rm
         {
             uint8_t rm = op2 & 0x7;
             uint8_t bit = ( op2 >> 3 ) & 0x7;
-            sprintf( ac, "res %d, %s", bit, reg_strings[ rm ] ); 
+            sprintf( ac, "res %u, %s", bit, reg_strings[ rm ] ); 
         }
         else if ( op2 >= 0xc0 && op2 <= 0xff ) // set bit #, rm
         {
             uint8_t rm = op2 & 0x7;
             uint8_t bit = ( op2 >> 3 ) & 0x7;
-            sprintf( ac, "set %d, %s", bit, reg_strings[ rm ] ); 
+            sprintf( ac, "set %u, %s", bit, reg_strings[ rm ] ); 
         }
     }
     else if ( 0x08 == op )
