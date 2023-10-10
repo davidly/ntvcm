@@ -30,13 +30,17 @@
 #include <vector>
 #include <cstring>
 #include <assert.h>
+#include <ctype.h>
 
 #include <sys/stat.h>
 
 #include <djl_os.hxx>
 #include <djltrace.hxx>
 #include <djl_con.hxx>
+
+#ifndef WATCOM
 #include <djl_cycle.hxx>
+#endif
 
 // On non-Windows platforms djl_rssrdr.hxx has a dependency on:
 //     httplib.h from https://github.com/yhirose/cpp-httplib
@@ -139,7 +143,7 @@ static bool g_forceLowercase = false;
 static bool g_backspaceToDel = false;
 static bool g_kayproToCP437 = false;
 
-enum terminal_escape: uint32_t { termVT100, termVT52, termKayproII };
+enum terminal_escape { termVT100, termVT52, termKayproII };
 static terminal_escape g_termEscape = termVT100;
 
 bool ValidCPMFilename( char * pc )
@@ -182,6 +186,11 @@ bool ValidCPMFilename( char * pc )
             g_hFindFirst = INVALID_HANDLE_VALUE;
         }
     } //CloseFindFirst
+
+#elif defined( WATCOM )
+
+    void CloseFindFirst() {}
+
 #else
     #include <dirent.h>
     static DIR * g_FindFirst = 0;
@@ -1268,6 +1277,7 @@ uint8_t x80_invoke_hook()
 
                     tracer.Trace( "WARNING: find first file couldn't find a single match\n" );
                 }
+#elif defined(WATCOM)
 #else
                 LINUX_FIND_DATA fd = {0};
                 g_FindFirst = FindFirstFileLinux( acFilename, fd );
@@ -1335,6 +1345,7 @@ uint8_t x80_invoke_hook()
                 }
                 else
                     tracer.Trace( "ERROR: search for next without a prior successful search for first\n" );
+#elif defined(WATCOM)
 #else
                 if ( 0 != g_FindFirst )
                 {
@@ -1913,6 +1924,7 @@ uint8_t x80_invoke_hook()
             // non-standard BDOS call GetTime. DE points to a CPMTime structure
 
             tracer.Trace( "  get time (non-standard BDOS call)\n" );
+#ifndef WATCOM
             CPMTime * ptime = (CPMTime *) ( memory + reg.D() );
 
             system_clock::time_point now = system_clock::now();
@@ -1924,6 +1936,7 @@ uint8_t x80_invoke_hook()
             ptime->minute = (uint16_t) plocal->tm_min;
             ptime->second = (uint16_t) plocal->tm_sec;
             ptime->millisecond = (uint16_t) ( ms / 10 ); // hundredths of a second;
+#endif
             reg.a = 0;
 
             break;
@@ -2126,7 +2139,8 @@ int main( int argc, char * argv[] )
 {
     bump_thread_priority(); // for performance benchmarking only
 
-    memset( memory, 0, sizeof( memory ) );
+    memset( memory, 0, sizeof( memory ) - 1 ); // -1 for 16-bit systems
+    memory[ sizeof( memory ) - 1 ] = 0;
     memset( &reg, 0, sizeof( reg ) );
     reg.fZ80Mode = true;
 
@@ -2370,8 +2384,10 @@ int main( int argc, char * argv[] )
         g_consoleConfig.EstablishConsoleOutput( 80, 24 );
 
     uint64_t total_cycles = 0;
+#ifndef WATCOM
     CPUCycleDelay delay( clockrate );
     high_resolution_clock::time_point tStart = high_resolution_clock::now();
+#endif
 
     do
     {
@@ -2380,10 +2396,15 @@ int main( int argc, char * argv[] )
         if ( g_haltExecuted )
             break;
 
+#ifndef WATCOM
         delay.Delay( total_cycles );
+#endif
     } while ( true );
 
+#ifndef WATCOM
     high_resolution_clock::time_point tDone = high_resolution_clock::now();
+#endif
+
     g_consoleConfig.RestoreConsole( clearDisplayOnExit );
 
     CloseFindFirst();
@@ -2391,6 +2412,10 @@ int main( int argc, char * argv[] )
     if ( showPerformance )
     {
         char ac[ 100 ];
+#ifdef WATCOM
+        printf( "%s cycles:      %20s\n", reg.fZ80Mode ? "Z80 " : "8080", RenderNumberWithCommas( total_cycles, ac ) );
+        fflush( stdout );
+#else
         long long totalTime = duration_cast<std::chrono::milliseconds>( tDone - tStart ).count();
         printf( "\n" );
         printf( "elapsed milliseconds: %16s\n", RenderNumberWithCommas( totalTime, ac ) );
@@ -2414,6 +2439,7 @@ int main( int argc, char * argv[] )
         }
         else
             printf( "      %20s Hz\n", RenderNumberWithCommas( clockrate, ac ) );
+#endif
     }
 
 #ifdef NTVCM_RSS_SUPPORT
@@ -2421,5 +2447,6 @@ int main( int argc, char * argv[] )
 #endif //NTVCM_RSS_SUPPORT
 
     tracer.Shutdown();
+    return 0;
 } //main
 

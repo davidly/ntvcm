@@ -10,10 +10,12 @@ class ConsoleConfiguration
         ConsoleConfiguration() {}
         ~ConsoleConfiguration() {}
         void EstablishConsoleOutput( int16_t width = 80, int16_t height = 24 ) {}
-        int portable_kbhit() { return kbhit(); }
-        int portable_getch() { return getch(); }
+        static int portable_kbhit() { return kbhit(); }
+        static int throttled_kbhit() { return kbhit(); }
+        static int portable_getch() { return getch(); }
         static char * portable_gets_s( char * buf, size_t bufsize ) { return gets( buf ); }
         void RestoreConsole( bool clearScreen = true ) {}
+        bool IsOutputEstablished() { return true; }
 };
 
 #else
