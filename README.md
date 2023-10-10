@@ -1,5 +1,5 @@
 # ntvcm
-NT Virtual CP/M Machine. Emulates CP/M 2.2 and the 8080/Z80 on Linux, MacOS, and Windows to run .com files. 
+NT Virtual CP/M Machine. Emulates CP/M 2.2 and the 8080/Z80 on Linux, MacOS, Windows, and real-mode DOS to run .com files. 
 
 Tested with:
 
@@ -43,6 +43,8 @@ Non-standard BDOS calls are added for sleeping for a specified number of millise
 to your machine for NTVCM to build. Or, remove the RSS feature by not defining NTVCM_RSS_SUPPORT in your build script. Each build script includes lines for building with and without. I've been unable to build on MacOS with RSS enabled. rssrdr.c in the Aztec folder is a sample CP/M RSS reader app that can be built with that compiler using m.bat in that folder.
 
 NTVCM can be built to target RISC-V using g++ then run in the [RVOS RISC-V / Linux emulator](https://github.com/davidly/rvos). RVOS can run that RISC-V image on Windows/MacOS/Linux on AMD64 or ARM64.
+
+NTVCM can be built to target real-mode DOS using the Watcom compiler. details in mwatcom.bat. Find First/Next and full-screen apps are not yet supported, but normal console mode apps work.
 
 The two versions of Turbo Pascal and the apps they generate use a tiny fraction of Z80 instructions. It took a day to implement the instructions for Turbo Pascal, and three more days to implement the full instruction set. Getting the undocumented featuers to work took an extra couple days. The invaluable resources required to do that are listed in x80.cxx. No single resource was 100% correct or complete. It takes a village :)
 
