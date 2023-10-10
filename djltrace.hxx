@@ -18,8 +18,10 @@
 #include <memory>
 #include <vector>
 #include <cstring>
+#include <djl_os.hxx>
 
-#ifndef _MSC_VER
+#if !defined(_WIN32) && !defined(WATCOM)
+
     #include <sys/unistd.h>
     #ifdef __APPLE__
         #include <unistd.h>
@@ -32,7 +34,9 @@ class CDJLTrace
 {
     private:
         FILE * fp;
+#ifndef WATCOM
         std::mutex mtx;
+#endif
         bool quiet; // no pid
         bool flush; // flush after each write
 
@@ -135,13 +139,15 @@ class CDJLTrace
         {
             if ( NULL != fp )
             {
+#ifndef WATCOM
                 lock_guard<mutex> lock( mtx );
+#endif
 
                 va_list args;
                 va_start( args, format );
                 if ( !quiet )
                     fprintf( fp, "PID %6u -- ",
-#ifdef _MSC_VER
+#ifdef _WIN32
                              (unsigned) _getpid() );
 #else
                              getpid() );
@@ -159,8 +165,9 @@ class CDJLTrace
         {
             if ( NULL != fp )
             {
+#ifndef WATCOM
                 lock_guard<mutex> lock( mtx );
-
+#endif
                 va_list args;
                 va_start( args, format );
                 vfprintf( fp, format, args );
@@ -175,13 +182,15 @@ class CDJLTrace
             #ifdef DEBUG
             if ( NULL != fp && condition )
             {
+#ifndef WATCOM
                 lock_guard<mutex> lock( mtx );
+#endif
 
                 va_list args;
                 va_start( args, format );
                 if ( !quiet )
                     fprintf( fp, "PID %6u -- ",
-#ifdef _MSC_VER
+#ifdef _WIN32
                              _getpid() );
 #else
                              getpid() );
@@ -192,8 +201,10 @@ class CDJLTrace
                     fflush( fp );
             }
             #else
+#ifndef WATCOM
             condition; // unused
             format; // unused
+#endif
             #endif
         } //TraceDebug
 
@@ -237,7 +248,7 @@ class CDJLTrace
                 {
                     char ch = buf[ o - offset ];
         
-                    if ( ch < ' ' || 127 == ch )
+                    if ( (int8_t) ch < ' ' || 127 == ch )
                         ch = '.';
         
                     *pline++ = ch;

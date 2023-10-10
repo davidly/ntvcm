@@ -29,6 +29,9 @@
 #include <string.h>
 #include <vector>
 #include <cstring>
+#include <assert.h>
+
+#include <sys/stat.h>
 
 #include <djl_os.hxx>
 #include <djltrace.hxx>
@@ -776,7 +779,7 @@ uint8_t map_input( uint8_t input )
 #else // Linux / MacOS
     if ( 0x1b == input )
     {
-        if ( ConsoleConfiguration::portable_kbhit() )
+        if ( g_consoleConfig.portable_kbhit() )
         {
             tracer.Trace( "read an escape on linux... getting next char\n" );
             uint8_t nexta = ConsoleConfiguration::portable_getch();
@@ -796,7 +799,7 @@ uint8_t map_input( uint8_t input )
                     output = 1 + 'S' - 'A';
                 else if ( '3' == nextb )         // DEL on linux?
                 {
-                    uint8_t nextc = ConsoleConfiguration::portable_getch();
+                    uint8_t nextc = g_consoleConfig.portable_getch();
                     tracer.Trace( "  nextc: %02x\n", nextc );
                     if ( '~' == nextc )
                         output = 0x7f;
@@ -883,7 +886,7 @@ uint8_t x80_invoke_hook()
         {
             // const console status. A=0 if nothing available, A=0xff if a keystroke is available
 
-            if ( ConsoleConfiguration::throttled_kbhit() )
+            if ( g_consoleConfig.throttled_kbhit() )
                 reg.a = 0xff;
             else
                 reg.a = 0;
@@ -892,7 +895,7 @@ uint8_t x80_invoke_hook()
         {
             // conin
 
-            uint8_t input = (uint8_t) ConsoleConfiguration::portable_getch();
+            uint8_t input = (uint8_t) g_consoleConfig.portable_getch();
             tracer.Trace( "  conin got %02xh from getch()\n", input );
             reg.a = map_input( input );
             tracer.Trace( "  conin is returning %02xh\n", reg.a );
@@ -947,7 +950,7 @@ uint8_t x80_invoke_hook()
         {
             // console input
 
-            uint8_t input = (uint8_t) ConsoleConfiguration::portable_getch();
+            uint8_t input = (uint8_t) g_consoleConfig.portable_getch();
             reg.a = map_input( input );
 
             break;
@@ -994,10 +997,10 @@ uint8_t x80_invoke_hook()
 
             if ( 0xff == reg.e )
             {
-                if ( ConsoleConfiguration::throttled_kbhit() )
+                if ( g_consoleConfig.throttled_kbhit() )
                 {
                     kbd_poll_busyloops = 0;
-                    uint8_t input = (uint8_t) ConsoleConfiguration::portable_getch();
+                    uint8_t input = (uint8_t) g_consoleConfig.portable_getch();
                     tracer.Trace( "  read character %u == %02x == '%c'\n", input, input, printable_ch( input ) );
                     reg.a = map_input( input );
                 }
@@ -1087,7 +1090,7 @@ uint8_t x80_invoke_hook()
         {
             // console status. return A=0 if no characters are waiting or non-zero if a character is waiting
 
-            if ( ConsoleConfiguration::throttled_kbhit() )
+            if ( g_consoleConfig.throttled_kbhit() )
                 reg.a = 0xff;
             else
                 reg.a = 0;
@@ -1227,13 +1230,9 @@ uint8_t x80_invoke_hook()
             {
                 tracer.Trace( "  searchinf for first match of '%s'\n", acFilename );
 
-#ifdef _MSC_VER
-                if ( INVALID_HANDLE_VALUE != g_hFindFirst )
-                {
-                    FindClose( g_hFindFirst );
-                    g_hFindFirst = INVALID_HANDLE_VALUE;
-                }
+                CloseFindFirst();
 
+#ifdef _MSC_VER
                 BOOL found = FALSE;
                 WIN32_FIND_DATAA fd = {0};
                 g_hFindFirst = FindFirstFileA( acFilename, &fd );
@@ -1269,13 +1268,7 @@ uint8_t x80_invoke_hook()
 
                     tracer.Trace( "WARNING: find first file couldn't find a single match\n" );
                 }
-#else           
-                if ( 0 != g_FindFirst )
-                {
-                    closedir( g_FindFirst );
-                    g_FindFirst = 0;
-                }
-
+#else
                 LINUX_FIND_DATA fd = {0};
                 g_FindFirst = FindFirstFileLinux( acFilename, fd );
                 if ( 0 != g_FindFirst )
@@ -1978,8 +1971,11 @@ uint8_t x80_invoke_hook()
         case 109:
         {
             // non-standard BDOS call puts a random number in A
+            // also put random values in hl because the Eco-C C Compiler _bdos function assumes return values are there
 
             reg.a = (uint8_t) rand();
+            reg.h = reg.a;
+            reg.l = (uint8_t) rand();
             break;
         }
         case 110:
