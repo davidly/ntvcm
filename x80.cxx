@@ -1696,15 +1696,11 @@ not_inlined void x80_trace_state()
 
     if ( reg.fZ80Mode )
         tracer.Trace( "pc %04x, op %02x, op2 %02x, op3 %02x, op4 %02x, a %02x, B %04x, D %04x, H %04x, ix %04x, iy %04x, sp %04x, %s, %s\n",
-                      (uint32_t) reg.pc, (uint32_t) op, (uint32_t) op2, (uint32_t) op3, (uint32_t) op4,
-                      (uint32_t) reg.a, (uint32_t) reg.B(), (uint32_t) reg.D(),
-                      (uint32_t) reg.H(), (uint32_t) reg.ix, (uint32_t) reg.iy, (uint32_t) reg.sp,
+                      reg.pc, op, op2, op3, op4, reg.a, reg.B(), reg.D(), reg.H(), reg.ix, reg.iy, reg.sp,
                       reg.renderFlags(), x80_render_operation( reg.pc ) );
     else
         tracer.Trace( "pc %04x, op %02x, op2 %02x, op3 %02x, a %02x, B %04x, D %04x, H %04x, sp %04x, %s, %s\n",
-                      (uint32_t) reg.pc, (uint32_t) op, (uint32_t) op2, (uint32_t) op3,
-                      (uint32_t) reg.a, (uint32_t) reg.B(), (uint32_t) reg.D(),
-                      (uint32_t) reg.H(), (uint32_t) reg.sp,
+                      reg.pc, op, op2, op3, reg.a, reg.B(), reg.D(), reg.H(), reg.sp,
                       reg.renderFlags(), x80_render_operation( reg.pc ) );
 } //x80_trace_state
 
