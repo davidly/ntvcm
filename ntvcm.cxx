@@ -189,7 +189,18 @@ bool ValidCPMFilename( char * pc )
 
 #elif defined( WATCOM )
 
-    void CloseFindFirst() {}
+    #include <dos.h>
+    static bool g_FindActive = false;
+    static struct find_t g_FindFirst;
+
+    void CloseFindFirst()
+    {
+        if ( g_FindActive )
+        {
+            g_FindActive = false;
+            _dos_findclose( & g_FindFirst );
+        }
+    } //CloseFindFirst
 
 #else
     #include <dirent.h>
@@ -207,11 +218,6 @@ bool ValidCPMFilename( char * pc )
             g_FindFirst = 0;
         }
     } //CloseFindFirst
-
-    void FindCloseLinux( DIR * pdir )
-    {
-        closedir( pdir );
-    } //FindCloseLinux
 
     bool FindNextFileLinux( const char * pattern, DIR * pdir, LINUX_FIND_DATA & fd )
     {
@@ -1269,15 +1275,20 @@ uint8_t x80_invoke_hook()
 
                 if ( !found )
                 {
-                    if ( INVALID_HANDLE_VALUE != g_hFindFirst )
-                    {
-                        FindClose( g_hFindFirst );
-                        g_hFindFirst = INVALID_HANDLE_VALUE;
-                    }
-
+                    CloseFindFirst();
                     tracer.Trace( "WARNING: find first file couldn't find a single match\n" );
                 }
 #elif defined(WATCOM)
+                CloseFindFirst();
+                g_FindFirst.name[ 0 ] = 0;
+                unsigned result = _dos_findfirst( acFilename, _A_NORMAL, &g_FindFirst );
+                tracer.Trace( "result of _dos_findfirst: %u, filename %s\n", result, ( 0 == result ) ? & g_FindFirst.name[0] : "n/a" );
+                if ( 0 == result )
+                {
+                    g_FindActive = true;
+                    ParseFoundFile( g_FindFirst.name );
+                    reg.a = 0;
+                }
 #else
                 LINUX_FIND_DATA fd = {0};
                 g_FindFirst = FindFirstFileLinux( acFilename, fd );
@@ -1339,13 +1350,30 @@ uint8_t x80_invoke_hook()
                     if ( !found )
                     {
                         tracer.Trace( "WARNING: find next file found no more, error %d\n", GetLastError() );
-                        FindClose( g_hFindFirst );
-                        g_hFindFirst = INVALID_HANDLE_VALUE;
+                        CloseFindFirst();
                     }
                 }
                 else
                     tracer.Trace( "ERROR: search for next without a prior successful search for first\n" );
 #elif defined(WATCOM)
+                if ( g_FindActive )
+                {
+                    g_FindFirst.name[ 0 ] = 0;
+                    unsigned result = _dos_findnext( &g_FindFirst );
+                    tracer.Trace( "result of _dos_findnext: %u, filename %s\n", result, ( 0 == result ) ? & g_FindFirst.name[0] : "n/a" );
+                    if ( 0 == result )
+                    {
+                        ParseFoundFile( g_FindFirst.name );
+                        reg.a = 0;
+                    }
+                    else
+                    {
+                        tracer.Trace( "WARNING: find next file found no more\n" );
+                        CloseFindFirst();
+                    }
+                }
+                else
+                    tracer.Trace( "ERROR: search for next without a prior successful search for first\n" );
 #else
                 if ( 0 != g_FindFirst )
                 {
@@ -1359,8 +1387,7 @@ uint8_t x80_invoke_hook()
                     else
                     {
                         tracer.Trace( "WARNING: find next file found no more, error %d\n", errno );
-                        FindCloseLinux( g_FindFirst );
-                        g_FindFirst = 0;
+                        CloseFindFirst();
                     }
                 }
                 else
