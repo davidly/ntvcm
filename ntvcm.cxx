@@ -1,7 +1,8 @@
 // NT Virtual CP/M Machine
-// This app runs CP/M 2.2 .com programs on Windows, MacOS, and Linux
+// This app runs CP/M 2.2 .com programs on Windows, MacOS, Linux, and DOS (real-mode 8086 using WATCOM compiler)
 // Written by David Lee in late 2022
-// Notes:   -- Only the subset of CP/M 2.2 required to run asm.com, load.com, and Turbo Pascal 1.00 & 3.01A is implemented.
+// Notes:   -- Only the subset of CP/M 2.2 required to run the apps I tested is implemented.
+//          -- asm.com, load.com, and Turbo Pascal 1.00 & 3.01A are rested.
 //          -- Also tested with Wordstar Release 4 and mbasic.com BASIC-80 Ref 5.21.
 //          -- Also tested with Aztec C 1.06. compiler, assembler, linker, and generated apps work.
 //          -- Also tested with MBasic.
@@ -21,6 +22,10 @@
 // To build on Windows with mingw64 & g++: (performance is >10% faster than the Microsoft compiler)
 //     g++ -Ofast -ggdb -fopenmp -D _MSC_VER ntvcm.cxx x80.cxx -I ../djl -D DEBUG -o ntvcm.exe -static -lwininet
 //     g++ -Ofast -ggdb -fopenmp -D _MSC_VER ntvcm.cxx x80.cxx -I ../djl -D NDEBUG -o ntvcm.exe -static -lwininet
+// To build on Windows targeting DOS:
+//    I used Open Watcom C/C++ x86 16-bit Compile and Link Utility Version 2.0 beta Oct  9 2023 02:19:55 (64-bit)
+//    https://github.com/open-watcom/open-watcom-v2/releases/tag/Current-build
+//    wcl -q -zp=1 -ml -obmr -oh -ei -oi -s -0 -xs -j -oe=128 -ol+ -ot ntvcm.cxx x80.cxx -bcl=DOS -k8192 /I. /DWATCOM /DNDEBUG
 // Note: openmp, wininet, ssl, crypto, and djl_rssrdr.hxx are only required for RSS support.
 //
 
@@ -186,10 +191,9 @@ bool ValidCPMFilename( char * pc )
             g_hFindFirst = INVALID_HANDLE_VALUE;
         }
     } //CloseFindFirst
-
 #elif defined( WATCOM )
-
     #include <dos.h>
+
     static bool g_FindActive = false;
     static struct find_t g_FindFirst;
 
@@ -201,7 +205,6 @@ bool ValidCPMFilename( char * pc )
             _dos_findclose( & g_FindFirst );
         }
     } //CloseFindFirst
-
 #else
     #include <dirent.h>
     static DIR * g_FindFirst = 0;
@@ -593,6 +596,130 @@ char kaypro_to_cp437( uint8_t c )
     return c;
  } //kaypro_to_cp437
 
+#ifdef WATCOM
+
+void append( char * pc, size_t len, char c )
+{
+    pc[ len ] = c;
+    pc[ len + 1 ] = 0;
+} //append
+
+void match_vt100( char * pc, size_t len )
+{
+    assert( 0x1b == pc[ 0 ] );
+    if ( len > 1 )
+    {
+        char orig_last = pc[ len - 1 ];
+        char last = tolower( orig_last );
+        if ( '[' == pc[ 1 ] )
+        {
+            if ( ( 'h' == last ) && ( strchr( pc, ';' ) ) ) // set cursor position
+            {
+                // rows and columns: vt-100 is 1-based, WATCOM library functions are 1-based. DOS is 0-based.
+
+                uint8_t row = atoi( pc + 2 );
+                char * pcol = strchr( pc, ';' ) + 1;
+                uint8_t col = atoi( pcol );
+                //tracer.Trace( "  vt100: setting text position to %u, %u\n", row, col );
+                _settextposition( row, col );
+                pc[ 0 ] = 0;
+            }
+            else if ( !strcmp( pc + 1, "[0m" ) ) // reset all attributes. case-sensitive
+            {
+                //tracer.Trace( "  vt100: reset all attributes\n" );
+                _settextcolor( 7 );
+                pc[ 0 ] = 0;
+            }
+            else if ( !strcmp( pc + 1, "[1m" ) ) // bright. case-sensitive
+            {
+                //tracer.Trace( "  vt100: text attribute bright\n" );
+                _settextcolor( 15 );
+                pc[ 0 ] = 0;
+            }
+            else if ( 'M' == orig_last ) // delete n lines from the buffer at the current line (scroll up what's above)
+            {
+                short n = atoi( pc + 2 );
+                if ( n > 0 )
+                {
+                    short x, y, dx, dy;
+                    _gettextwindow( &x, &y, &dx, &dy );
+                    //tracer.Trace( "original text window: %u %u %u %d\n", x, y, dx, dy );
+                    struct rccoord pos = _gettextposition();
+                    //tracer.Trace( "current row, col %u, %u\n", pos.row, pos.col );
+                    //tracer.Trace( "deleting line by scrolling up %d rows at row %d\n", n, pos.row );
+                    _settextwindow( pos.row, 1, 24, 80 ); // temporary view for the scroll
+                    _scrolltextwindow( n );
+                    _settextwindow( x, y, dx, dy ); // restore to the whole window
+                    _settextposition( pos.row, pos.col ); // restore as the scroll moves this
+                }
+                pc[ 0 ] = 0;
+                pc[ 0 ] = 0;
+            }
+            else if ( !strcmp( pc + 1, "[H" ) ) // home cursor
+            {
+                //tracer.Trace( "  vt100: home cursor\n" );
+                _settextposition( 1, 1 );
+                pc[ 0 ] = 0;
+            }
+            else if ( !strcmp( pc + 1, "[0K" ) ) // clear line from cursor to right
+            {
+                struct rccoord pos = _gettextposition();
+                int to_clear = 81 - pos.col;
+                //tracer.Trace( "  vt100: clear line from cursor to right, position %u, %u, to_clear %u\n", pos.row, pos.col, to_clear );
+                char ac[ 81 ];
+                memset( ac, ' ', to_clear );
+                ac[ to_clear ] = 0;
+                _outtext( ac );
+                _settextposition( pos.row, pos.col ); // restore the cursor position
+                pc[ 0 ] = 0;
+            }
+            else if ( !strcmp( pc + 1, "[2J" ) ) // erase screen and home cursor
+            {
+                //tracer.Trace( "  vt100: erase and home cursor\n" );
+                _clearscreen( 0 );
+                _settextposition( 0, 0 );
+                pc[ 0 ] = 0;
+            }
+            else if ( 'L' == orig_last ) // insert n lines at the current line (scroll down what's below)
+            {
+                short n = atoi( pc + 2 );
+                if ( n > 0 )
+                {
+                    short x, y, dx, dy;
+                    _gettextwindow( &x, &y, &dx, &dy );
+                    struct rccoord pos = _gettextposition();
+                    //tracer.Trace( "current row, col %u, %u\n", pos.row, pos.col );
+                    //tracer.Trace( "inserting line by scrolling down %d rows at row %d\n", n, pos.row );
+                    _settextwindow( pos.row, 1, 24, 80 ); // temporary view for the scroll
+                    _scrolltextwindow( -n );
+                    _settextwindow( x, y, dx, dy ); // restore to the whole window
+                    _settextposition( pos.row, pos.col ); // restore as the scroll moves this
+                }
+                pc[ 0 ] = 0;
+            }
+            else if ( 'k' == last )
+            {
+                tracer.Trace( "  vt100: unhandled K, full string '%s'\n", pc + 1 );
+                pc[ 0 ] = 0;
+            }
+            else if ( last >= 'a' && last <= 'z' )
+            {
+                tracer.Trace( "  vt100: unhandled termination char %c, full string '%s'\n", last, pc + 1 );
+                _outtext( pc );
+                pc[ 0 ] = 0;
+            }
+        }
+        else
+        {
+            tracer.Trace( "  vt100: output unhandled escape sequence doesn't start with a [: '%s'\n", pc + 1 );
+            _outtext( pc );
+            pc[ 0 ] = 0;
+        }
+    }
+} //match_vt100
+
+#endif // WATCOM
+
 // https://en.wikipedia.org/wiki/ANSI_escape_code              vt-100 in 1978, it existed at the same time as CP/M
 // https://en.wikipedia.org/wiki/VT52                          VT52
 // https://mdfs.net/Archive/info-cpm/1985/01/19/053100.htm     Kaypro II / Lear-Siegler ADM-3A
@@ -614,6 +741,61 @@ void output_character( uint8_t c )
     static bool s_escaped = false;      // true if prior char was ESC
     static uint8_t s_row = 0xff;        // not 0xff if prior 3 chars were ESC Y row
 
+#ifdef WATCOM // WATCOM only supports vt100 for now (VT52 and KeyproII don't work)
+
+    if ( !g_consoleConfig.IsOutputEstablished() )
+        printf( "%c", c );
+    else
+    {
+        const size_t max_esc_seq = 10;
+        static char esc_seq[ max_esc_seq + 1 ] = {0}; // current escape sequence
+        size_t esc_len = strlen( esc_seq );
+
+        if ( esc_len >= max_esc_seq )
+        {
+            tracer.Trace( "unhandled vt100 escape sequence; throwing it away\n" );
+            esc_len = 0;
+            esc_seq[ 0 ] = 0;
+            return;
+        }
+
+        if ( 0 != esc_len ) 
+        {
+            append( esc_seq, esc_len, c );
+            match_vt100( esc_seq, esc_len + 1 );
+        }
+        else if ( ( 0x1b == c ) && ( 0 == esc_len ) )
+            append( esc_seq, 0, c );
+        else
+        {
+            struct rccoord pos = _gettextposition();
+
+            if ( 8 == c ) // backspace
+            {
+                if ( pos.col > 0 )
+                    _settextposition( pos.row, pos.col - 1 );
+            }
+            else if ( 0xa == c ) // LF
+            {
+                short row = pos.row;
+                if ( 24 == row ) // last row, so scroll up and keep current row here
+                    _scrolltextwindow( 1 );
+                else
+                    row++;
+
+                _settextposition( row, 1 );
+            }
+            else if ( 0xd == c ) // CR
+                _settextposition( pos.row, 1 );
+            else
+            {
+                char ac[ 2 ] = {0};
+                ac[ 0 ] = c;
+                _outtext( ac );
+            }
+        }
+    }
+#else
     if ( termVT100 == g_termEscape )
         printf( "%c", c );
     else if ( termVT52 == g_termEscape )
@@ -763,6 +945,7 @@ void output_character( uint8_t c )
         else
             printf( "%c", c );
     }
+#endif
 } //output_character
 
 uint8_t map_input( uint8_t input )
@@ -920,11 +1103,9 @@ uint8_t x80_invoke_hook()
             // conout
 
             char ch = reg.c;
-            {
-                tracer.Trace( "  bios console out: %02x == '%c'\n", ch, printable_ch( ch ) );
-                output_character( reg.c );
-                fflush( stdout );
-            }
+            tracer.Trace( "  bios console out: %02x == '%c'\n", ch, printable_ch( ch ) );
+            output_character( reg.c );
+            fflush( stdout );
         }
         else
         {
@@ -979,7 +1160,6 @@ uint8_t x80_invoke_hook()
             if ( 0x0d != ch )             // skip carriage return because line feed turns into cr+lf
             {
                 tracer.Trace( "  bdos console out: %02x == '%c'\n", ch, printable_ch( ch ) );
-
                 output_character( ch );
                 fflush( stdout );
             }
@@ -1951,9 +2131,16 @@ uint8_t x80_invoke_hook()
             // non-standard BDOS call GetTime. DE points to a CPMTime structure
 
             tracer.Trace( "  get time (non-standard BDOS call)\n" );
-#ifndef WATCOM
             CPMTime * ptime = (CPMTime *) ( memory + reg.D() );
+#ifdef WATCOM
+            struct dostime_t time;
+            _dos_gettime( &time );
 
+            ptime->hour = time.hour;
+            ptime->minute = time.minute;
+            ptime->second = time.second;
+            ptime->millisecond = time.hsecond;
+#else
             system_clock::time_point now = system_clock::now();
             uint64_t ms = duration_cast<milliseconds>( now.time_since_epoch() ).count() % 1000;
             time_t time_now = system_clock::to_time_t( now );
