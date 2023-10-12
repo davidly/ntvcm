@@ -26,6 +26,7 @@
 //    I used Open Watcom C/C++ x86 16-bit Compile and Link Utility Version 2.0 beta Oct  9 2023 02:19:55 (64-bit)
 //    https://github.com/open-watcom/open-watcom-v2/releases/tag/Current-build
 //    wcl -q -zp=1 -ml -obmr -oh -ei -oi -s -0 -xs -j -oe=128 -ol+ -ot ntvcm.cxx x80.cxx -bcl=DOS -k8192 /I. /DWATCOM /DNDEBUG
+//    helpful: https://open-watcom.github.io/open-watcom-v2-wikidocs/clib.html
 // Note: openmp, wininet, ssl, crypto, and djl_rssrdr.hxx are only required for RSS support.
 //
 
@@ -676,8 +677,8 @@ void match_vt100( char * pc, size_t len )
             else if ( !strcmp( pc + 1, "[2J" ) ) // erase screen and home cursor
             {
                 //tracer.Trace( "  vt100: erase and home cursor\n" );
-                _clearscreen( 0 );
-                _settextposition( 0, 0 );
+                _clearscreen( _GCLEARSCREEN );
+                _settextposition( 1, 1 );
                 pc[ 0 ] = 0;
             }
             else if ( 'L' == orig_last ) // insert n lines at the current line (scroll down what's below)
@@ -741,11 +742,11 @@ void output_character( uint8_t c )
     static bool s_escaped = false;      // true if prior char was ESC
     static uint8_t s_row = 0xff;        // not 0xff if prior 3 chars were ESC Y row
 
-#ifdef WATCOM // WATCOM only supports vt100 for now (VT52 and KeyproII don't work)
+#ifdef WATCOM
 
     if ( !g_consoleConfig.IsOutputEstablished() )
         printf( "%c", c );
-    else
+    else if ( termVT100 == g_termEscape )
     {
         const size_t max_esc_seq = 10;
         static char esc_seq[ max_esc_seq + 1 ] = {0}; // current escape sequence
@@ -772,7 +773,7 @@ void output_character( uint8_t c )
 
             if ( 8 == c ) // backspace
             {
-                if ( pos.col > 0 )
+                if ( pos.col > 1 )
                     _settextposition( pos.row, pos.col - 1 );
             }
             else if ( 0xa == c ) // LF
@@ -795,7 +796,225 @@ void output_character( uint8_t c )
             }
         }
     }
-#else
+    else if ( termVT52 == g_termEscape )
+    {
+        static bool s_escapedY = false;     // true if prior two chars were ESC Y
+
+        //tracer.Trace( "  output_character %02x, escaped %d, escapedY %d, s_row %d\n", c, s_escaped, s_escapedY, s_row );
+        // only a subset are translated. CalcStar only uses Y cursor positioning and no other sequences.
+
+        if ( s_escapedY )
+        {
+            if ( 0xff == s_row )
+                s_row = c - 31;
+            else
+            {
+                uint8_t col = c - 31;
+                _settextposition( s_row, col );
+                tracer.Trace( "  moved cursor to %d %d\n", s_row, col );
+                s_escapedY = false;
+                s_row = 0xff;
+            }
+            return;
+        }
+
+        if ( s_escaped )
+        {
+            tracer.Trace( "  escape command: %c\n", c );
+            struct rccoord pos = _gettextposition();
+            if ( 'Y' == c )
+                s_escapedY = true;
+            else if ( 'A' == c )      // cursor up
+            {
+                if ( 1 != pos.row )
+                    _settextposition( pos.row - 1, pos.col );
+            }
+            else if ( 'B' == c )      // cursor down
+            {
+                if ( 24 != pos.row )
+                    _settextposition( pos.row + 1, pos.col );
+            }
+            else if ( 'C' == c )      // cursor right
+            {
+                if ( 80 != pos.col )
+                    _settextposition( pos.row, pos.col + 1 );
+            }
+            else if ( 'D' == c )      // cursor left
+            {
+                if ( 1 != pos.col )
+                    _settextposition( pos.row, pos.col - 1 );
+            }
+            else if ( 'H' == c )      // cursor home
+                _settextposition( 1, 1 );
+            else
+                tracer.Trace( "  untranslated VT-52 command '%c' = %02x\n", printable_ch( c ), c );
+
+            s_escaped = false;
+        }
+        else if ( 0x1b == c )
+        {
+            s_escaped = true;
+            s_escapedY = false; // just in case
+            s_row = 0xff; // just in case
+        }
+#if 0
+        else if ( 0xa == c ) // LF
+        {
+            struct rccoord pos = _gettextposition();
+            short row = get_min( pos.row + 1, 25 );
+            _settextposition( row, pos.col );
+        }
+#endif
+        else if ( 9 == c ) // horizontal tab
+        {
+            struct rccoord pos = _gettextposition();
+            short col = get_min( pos.col + 8, 81 );
+            _settextposition( pos.row, col );
+        }
+        else if ( 8 == c ) // backspace
+        {
+            struct rccoord pos = _gettextposition();
+            if ( pos.col > 1 )
+                _settextposition( pos.row, pos.col - 1 );
+        }
+        else
+        {
+            char ac[ 2 ] = {0};
+            ac[ 0 ] = c;
+            _outtext( ac );
+        }
+    }
+    else if ( termKayproII == g_termEscape )
+    {
+        static uint8_t s_escapedChar = 0;
+        if ( s_escapedChar )
+        {
+            if ( '=' == s_escapedChar )
+            {
+                if ( 0xff == s_row )
+                    s_row = c - 31;
+                else
+                {
+                    uint8_t col = c - 31;
+                    _settextposition( s_row, col );
+                    tracer.Trace( "  moved cursor to %d %d\n", s_row, col );
+                    s_escapedChar = 0;
+                    s_row = 0xff;
+                }
+            }
+            else if ( 'B' == s_escapedChar )
+            {
+                if ( '0' == c )                    // reverse video start
+                    _settextcolor( 4 );            // red
+                else if ( '1' == c )               // half intensity start
+                    _settextcolor( 8 );            // grey
+                else if ( '4' == c )               // cursor on
+                    _displaycursor( _GCURSORON );
+                else
+                    tracer.Trace( "unprocessed kaypro B escaped char %c\n", c );
+                s_escapedChar = 0;
+            }
+            else if ( 'C' == s_escapedChar )
+            {
+                if ( '0' == c )                    // reverse video stop
+                    _settextcolor( 7 );            // white
+                else if ( '1' == c )               // half intensity stop
+                    _settextcolor( 7 );            // white
+                else if ( '4' == c )               // cursor off
+                    _displaycursor( _GCURSOROFF );
+                else
+                    tracer.Trace( "unprocessed kaypro C escaped char %c\n", c );
+                s_escapedChar = 0;
+            }
+            else
+                tracer.Trace( "unprocessed kaypro escaped char '%c'\n", c );
+            return;
+        }
+
+        if ( s_escaped )
+        {
+            tracer.Trace( "  escape command: %c\n", c );
+            s_escapedChar = c;
+            s_escaped = false;
+        }
+        else if ( 0x1b == c )
+        {
+            s_escaped = true;
+            s_escapedChar = 0;
+            s_row = 0xff; // just in case
+        }
+        else if ( c <= 30 || 127 == c )
+        {
+            struct rccoord pos = _gettextposition();
+            if ( 8 == c ) // cursor left
+            {
+                if ( 1 != pos.col )
+                    _settextposition( pos.row, pos.col - 1 );
+            }
+            else if ( 8 == c ) // cursor right
+            {
+                if ( 80 != pos.col )
+                    _settextposition( pos.row, pos.col + 1 );
+            }
+            else if ( 10 == c ) // cursor down
+            {
+                if ( 24 != pos.row )
+                    _settextposition( pos.row + 1, pos.col );
+            }
+            else if ( 11 == c ) // cursor up
+            {
+                if ( 1 != pos.row )
+                    _settextposition( pos.row - 1, pos.col );
+            }
+            else if ( 12 == c ) // cursor right
+            {
+                if ( 80 != pos.col )
+                    _settextposition( pos.row, pos.col + 1 );
+            }
+            else if ( 23 == c ) // erase to end of screen
+            {
+                tracer.Trace( "  erase to end of screen, current: %u, %u\n", pos.row, pos.col );
+                short x, y, dx, dy;
+                _gettextwindow( &x, &y, &dx, &dy );
+                _settextwindow( pos.row, 1, 24, 80 ); // temporary view for the clear
+                _clearscreen( _GWINDOW );
+                _settextwindow( x, y, dx, dy ); // restore to the whole window
+                _settextposition( pos.row, pos.col ); // restore cursor position
+            }
+            else if ( 24 == c ) // erase to end of line
+            {
+                tracer.Trace( "  erase to end of line, current: %u, %u\n", pos.row, pos.col );
+                int to_clear = 81 - pos.col;
+                char ac[ 81 ];
+                memset( ac, ' ', to_clear );
+                ac[ to_clear ] = 0;
+                _outtext( ac );
+                _settextposition( pos.row, pos.col ); // restore the cursor position
+            }
+            else if ( 26 == c ) // clear screen, home cursor
+            {
+                tracer.Trace( "clear screen, home cursor\n" );
+                _clearscreen( _GCLEARSCREEN );
+                _settextposition( 1, 1 );
+            }
+            else if ( 30 == c ) // home cursor
+                _settextposition( 1, 1 );
+            else if ( 127 == c ) // del: back + space + back
+            {
+                if ( pos.col > 1 )
+                    _settextposition( pos.row, pos.col - 1 );
+            }
+            else
+                tracer.Trace( "ignored character in kaypro escape range: %02x\n", c );
+        }
+        else
+        {
+            char ac[ 2 ] = {0};
+            ac[ 0 ] = c;
+            _outtext( ac );
+        }
+    }
+#else // Windows and Linux
     if ( termVT100 == g_termEscape )
         printf( "%c", c );
     else if ( termVT52 == g_termEscape )
