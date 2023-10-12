@@ -44,7 +44,7 @@ to your machine for NTVCM to build. Or, remove the RSS feature by not defining N
 
 NTVCM can be built to target RISC-V using g++ then run in the [RVOS RISC-V / Linux emulator](https://github.com/davidly/rvos). RVOS can run that RISC-V image on Windows/MacOS/Linux on AMD64 or ARM64.
 
-NTVCM can be built to target real-mode DOS using the Watcom compiler. details in mwatcom.bat. Find First/Next and full-screen apps are not yet supported, but normal console mode apps work.
+NTVCM can be built to target real-mode DOS using the Watcom compiler. details in mwatcom.bat. Full-screen apps are not yet supported, but normal console mode apps work.
 
 The two versions of Turbo Pascal and the apps they generate use a tiny fraction of Z80 instructions. It took a day to implement the instructions for Turbo Pascal, and three more days to implement the full instruction set. Getting the undocumented featuers to work took an extra couple days. The invaluable resources required to do that are listed in x80.cxx. No single resource was 100% correct or complete. It takes a village :)
 
