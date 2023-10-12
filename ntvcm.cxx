@@ -545,7 +545,7 @@ const char * get_bios_function( uint16_t address )
 
 char kaypro_to_cp437( uint8_t c )
 {
-#ifdef _MSC_VER
+#if defined( _MSC_VER ) || defined( WATCOM )
 
     // these are mostly box-drawing characters
 
@@ -625,16 +625,21 @@ void match_vt100( char * pc, size_t len )
                 _settextposition( row, col );
                 pc[ 0 ] = 0;
             }
-            else if ( !strcmp( pc + 1, "[0m" ) ) // reset all attributes. case-sensitive
+            else if ( 'm' == orig_last ) // other display attributes
             {
-                //tracer.Trace( "  vt100: reset all attributes\n" );
-                _settextcolor( 7 );
-                pc[ 0 ] = 0;
-            }
-            else if ( !strcmp( pc + 1, "[1m" ) ) // bright. case-sensitive
-            {
-                //tracer.Trace( "  vt100: text attribute bright\n" );
-                _settextcolor( 15 );
+                char * pnext = pc + 2;
+                while ( pnext && ( 'm' != *pnext ) )
+                {
+                    uint8_t val = atoi( pnext );
+
+                    if ( 0 == val )  // reset all attributes
+                        _settextcolor( 7 );
+                    else if ( 1 == val ) // bright
+                        _settextcolor( 15 );
+                    pnext = strchr( pnext, ';' );
+                    if ( pnext )
+                        pnext++;
+                }
                 pc[ 0 ] = 0;
             }
             else if ( 'M' == orig_last ) // delete n lines from the buffer at the current line (scroll up what's above)
@@ -662,7 +667,7 @@ void match_vt100( char * pc, size_t len )
                 _settextposition( 1, 1 );
                 pc[ 0 ] = 0;
             }
-            else if ( !strcmp( pc + 1, "[0K" ) ) // clear line from cursor to right
+            else if ( !strcmp( pc + 1, "[0K" ) || !strcmp( pc + 1, "[K" ) ) // clear line from cursor to right
             {
                 struct rccoord pos = _gettextposition();
                 int to_clear = 81 - pos.col;
@@ -679,6 +684,17 @@ void match_vt100( char * pc, size_t len )
                 //tracer.Trace( "  vt100: erase and home cursor\n" );
                 _clearscreen( _GCLEARSCREEN );
                 _settextposition( 1, 1 );
+                pc[ 0 ] = 0;
+            }
+            else if ( !strcmp( pc + 1, "[J" ) ) // erase from current line down to bottom of screen
+            {
+                struct rccoord pos = _gettextposition();
+                short x, y, dx, dy;
+                _gettextwindow( &x, &y, &dx, &dy );
+                _settextwindow( pos.row, 1, 24, 80 ); // temporary view for the clear
+                _clearscreen( _GWINDOW );
+                _settextwindow( x, y, dx, dy ); // restore to the whole window
+                _settextposition( pos.row, pos.col ); // restore cursor position
                 pc[ 0 ] = 0;
             }
             else if ( 'L' == orig_last ) // insert n lines at the current line (scroll down what's below)
