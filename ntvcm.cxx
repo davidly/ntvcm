@@ -152,6 +152,20 @@ static bool g_kayproToCP437 = false;
 enum terminal_escape { termVT100, termVT52, termKayproII };
 static terminal_escape g_termEscape = termVT100;
 
+#ifdef WATCOM
+    #include <dos.h>
+    uint32_t DosTimeInMS()
+    {
+        struct dostime_t tNow;
+        _dos_gettime( &tNow );
+        uint32_t t = (uint32_t) tNow.hour * 60 * 60 * 100;
+        t += (uint32_t) tNow.minute * 60 * 100;
+        t += (uint32_t) tNow.second * 100;
+        t += (uint32_t) tNow.hsecond;
+        return t * 10;
+    } //DosTimeInMS
+#endif //WATCOM
+
 bool ValidCPMFilename( char * pc )
 {
     if ( !strcmp( pc, "." ) )
@@ -193,8 +207,6 @@ bool ValidCPMFilename( char * pc )
         }
     } //CloseFindFirst
 #elif defined( WATCOM )
-    #include <dos.h>
-
     static bool g_FindActive = false;
     static struct find_t g_FindFirst;
 
@@ -1879,11 +1891,10 @@ uint8_t x80_invoke_hook()
                     uint32_t to_read = get_min( file_size - curr, (uint32_t) 128 );
                     memset( g_DMA, 0x1a, 128 ); // fill with ^z, the EOF marker in CP/M
         
-                    size_t numread = fread( g_DMA, to_read, 1, fp );
+                    size_t numread = fread( g_DMA, 1, to_read, fp );
                     if ( numread > 0 )
                     {
                         tracer.TraceBinaryData( g_DMA, 128, 0 );
-        
                         reg.a = 0;
                     }
                     else
@@ -2135,7 +2146,7 @@ uint8_t x80_invoke_hook()
                         if ( ok )
                         {
                             tracer.Trace( "  reading random at offset %#x\n", file_offset );
-                            size_t numread = fread( g_DMA, to_read, 1, fp );
+                            size_t numread = fread( g_DMA, 1, to_read, fp );
                             if ( numread )
                             {
                                 tracer.TraceBinaryData( g_DMA, to_read, 0 );
@@ -2536,8 +2547,7 @@ static bool load_file( char const * file_path, int & file_size, uint16_t offset,
             usage( "the input file can't be a cp/m com file" );
 
         fseek( fp, offset, SEEK_SET );
-        ok = fread( buffer, file_size, 1, fp ) == 1;
-
+        ok = ( 1 == fread( buffer, file_size, 1, fp ) );
         fclose( fp );
     }
 
@@ -2833,7 +2843,9 @@ int main( int argc, char * argv[] )
         g_consoleConfig.EstablishConsoleOutput( 80, 24 );
 
     uint64_t total_cycles = 0;
-#ifndef WATCOM
+#ifdef WATCOM
+    uint32_t tStart = DosTimeInMS();
+#else
     CPUCycleDelay delay( clockrate );
     high_resolution_clock::time_point tStart = high_resolution_clock::now();
 #endif
@@ -2850,7 +2862,9 @@ int main( int argc, char * argv[] )
 #endif
     } while ( true );
 
-#ifndef WATCOM
+#ifdef WATCOM
+    uint32_t tDone = DosTimeInMS();
+#else
     high_resolution_clock::time_point tDone = high_resolution_clock::now();
 #endif
 
@@ -2863,6 +2877,7 @@ int main( int argc, char * argv[] )
         char ac[ 100 ];
 #ifdef WATCOM
         printf( "%s cycles:      %20s\n", reg.fZ80Mode ? "Z80 " : "8080", RenderNumberWithCommas( total_cycles, ac ) );
+        printf( "elapsed milliseconds: %16s\n", RenderNumberWithCommas( tDone - tStart, ac ) );
         fflush( stdout );
 #else
         long long totalTime = duration_cast<std::chrono::milliseconds>( tDone - tStart ).count();
