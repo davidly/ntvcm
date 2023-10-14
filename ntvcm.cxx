@@ -2875,15 +2875,15 @@ int main( int argc, char * argv[] )
     if ( showPerformance )
     {
         char ac[ 100 ];
-#ifdef WATCOM
-        printf( "%s cycles:      %20s\n", reg.fZ80Mode ? "Z80 " : "8080", RenderNumberWithCommas( total_cycles, ac ) );
-        printf( "elapsed milliseconds: %16s\n", RenderNumberWithCommas( tDone - tStart, ac ) );
-        fflush( stdout );
-#else
-        long long totalTime = duration_cast<std::chrono::milliseconds>( tDone - tStart ).count();
         printf( "\n" );
-        printf( "elapsed milliseconds: %16s\n", RenderNumberWithCommas( totalTime, ac ) );
+#ifdef WATCOM
+        uint32_t elapsedMS = tDone - tStart;
+#else
+        uint32_t elapsedMS = (uint32_t) duration_cast<std::chrono::milliseconds>( tDone - tStart ).count();
+#endif
+        printf( "elapsed milliseconds: %16s\n", RenderNumberWithCommas( elapsedMS, ac ) );
         printf( "%s cycles:      %20s\n", reg.fZ80Mode ? "Z80 " : "8080", RenderNumberWithCommas( total_cycles, ac ) );
+
         printf( "clock rate: " );
         if ( 0 == clockrate )
         {
@@ -2903,13 +2903,13 @@ int main( int argc, char * argv[] )
         }
         else
             printf( "      %20s Hz\n", RenderNumberWithCommas( clockrate, ac ) );
-#endif
     }
 
 #ifdef NTVCM_RSS_SUPPORT
     g_rssFeed.clear();
 #endif //NTVCM_RSS_SUPPORT
 
+    fflush( stdout );
     tracer.Shutdown();
     return 0;
 } //main
