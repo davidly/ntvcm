@@ -248,6 +248,8 @@ bool ValidCPMFilename( char * pc )
             if ( !ValidCPMFilename( pent->d_name ) )
                 continue;
 
+            tracer.Trace( "  FindNextFileLinux is matching '%s' with '%s'\n", pattern, pent->d_name );
+
             // if the first character is ?, match any filename per CP/M rules
 
             if ( '?' != pattern[ 0 ] )
@@ -256,6 +258,19 @@ bool ValidCPMFilename( char * pc )
 
                 if ( strcmp( pattern, pent->d_name ) )
                     continue;
+            }
+            else
+            {
+                char const * pdot = strchr( pattern, '.' );
+                if ( pdot )
+                {
+                    if ( '?' != pdot[ 1 ] )
+                    {
+                        const char * pentdot = strchr( pent->d_name, '.' );
+                        if ( !pentdot || strcmp( pentdot + 1, pdot + 1 ) )
+                            continue;
+                    }
+                }
             }
 
             strcpy( fd.cFileName, pent->d_name );
