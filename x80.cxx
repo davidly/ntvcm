@@ -1413,7 +1413,7 @@ void z80_render( char * ac, uint8_t op, uint16_t address )
                 sprintf( ac, "ld (%s%s%d), %s", i, op3int >= 0 ? "+" : "", op3int, reg_strings[ src ] );
         }
         else if ( 0x09 == ( op2 & 0xcf ) )
-            sprintf( ac, "add %s, %s\n", i, rp_strings[ ( op2 >> 4 ) & 0x3 ] );
+            sprintf( ac, "add %s, %s", i, rp_strings[ ( op2 >> 4 ) & 0x3 ] );
         else if ( 0x21 == op2 )
             sprintf( ac, "ld %s, %04xh", i, op34 );
         else if ( 0x22 == op2 )
@@ -1429,9 +1429,9 @@ void z80_render( char * ac, uint8_t op, uint16_t address )
         else if ( 0x2e == op2 )
             sprintf( ac, "ld %sl, %02x", i, op3 );
         else if ( 0x34 == op2 )
-            sprintf( ac, "inc (%s%s%d)\n", i, op3int >= 0 ? "+" : "", op3int );
+            sprintf( ac, "inc (%s%s%d)", i, op3int >= 0 ? "+" : "", op3int );
         else if ( 0x35 == op2 )
-            sprintf( ac, "dec (%s%s%d)\n", i, op3int >= 0 ? "+" : "", op3int );
+            sprintf( ac, "dec (%s%s%d)", i, op3int >= 0 ? "+" : "", op3int );
         else if ( 0x36 == op2 )
             sprintf( ac, "ld (%s%s%d), %#xh", i, op3int >= 0 ? "+" : "", op3int, op4 );
         else if ( ( op2 >= 0x40 && op2 <= 0x6f ) || ( op2 >= 0x78 && op2 <= 0x7f ) )
