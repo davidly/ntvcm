@@ -1322,6 +1322,8 @@ bool cpm_read_console( char * buf, size_t bufsize, uint8_t & out_len )
     return false;
 } //cpm_read_console
 
+// must return one of OPCODE_HLT, OPCODE_NOP, or OPCODE_RET
+
 uint8_t x80_invoke_hook()
 {
     static uint64_t kbd_poll_busyloops = 0;
@@ -2656,7 +2658,11 @@ int main( int argc, char * argv[] )
             strcat( pCommandTail, parg );
         }
 
-        if ( 0 == pcCOM && ( '-' == c || '/' == c ) )
+        if ( 0 == pcCOM && ( '-' == c
+#if defined( WATCOM ) || defined( _WIN32 )
+            || '/' == c
+#endif
+            ) )
         {
             char ca = (char) tolower( parg[1] );
 
@@ -2735,7 +2741,6 @@ int main( int argc, char * argv[] )
     }
 
     * pCommandTailLen = (char) strlen( pCommandTail );
-
     tracer.Trace( "command tail len %d value: '%s'\n", *pCommandTailLen, pCommandTail );
 
     char acCOM[ MAX_PATH ] = {0};

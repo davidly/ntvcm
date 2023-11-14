@@ -1724,7 +1724,7 @@ uint64_t x80_emulate( uint64_t maxcycles )
             x80_trace_state();
 
         uint8_t op = memory[ reg.pc ];  // 1% of runtime
-        reg.pc++;                       // 7% of runtime including npad to make _restart_op aligned
+        reg.pc++;                       // 7% of runtime
         cycles += acycles[ op ];
 
         switch ( op )                   // 50% of runtime is completing cycle addition & setting up for the jump table jump
