@@ -16,6 +16,7 @@ Tested with:
     CamelForth beta test version
     strtrk.com built for Kaypro II
     BASCOM 5.30a
+    Microsoft MS-COBOL Version 4.65
     
 Console input/output work for both bios bdos API. Disk input/output work via the bdos API. There is no attempt at emulating physical disks. Apps that use bdos for disk I/O will work but apps that use the BIOS or assume things about disk layout will not.
 
