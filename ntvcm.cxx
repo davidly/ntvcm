@@ -80,9 +80,13 @@ struct FCB_ARGUMENT
     uint8_t t[3];          // file type. uppercase ascii or spaces
     uint8_t ex;            // extent 0..31 during I/O
     uint8_t s1;            // reserved
-    uint8_t s2;            // reserved
+    uint8_t s2;            // reserved. extent high byte
     uint8_t rc;            // record count for extent ex. 0..127
 };
+
+// cr = current record = ( file pointer % 16k ) / 128
+// ex = current extent = ( file pointer % 512k ) / 16k
+// s2 = extent high    = ( file pointer / 512k )
 
 struct FCB
 {
@@ -91,7 +95,7 @@ struct FCB
     uint8_t t[3];          // file type. uppercase ascii or spaces
     uint8_t ex;            // extent 0..31 during I/O
     uint8_t s1;            // reserved for CP/M
-    uint8_t s2;            // reserved for CP/M
+    uint8_t s2;            // reserved for CP/M. extent high byte
     uint8_t rc;            // record count for extent ex. 0..127
     uint8_t dImage[16];    // second half of directory entry OR rename new name
     uint8_t cr;            // current record to read or write in sequential file operations
@@ -151,6 +155,21 @@ static bool g_kayproToCP437 = false;
 
 enum terminal_escape { termVT100, termVT52, termKayproII };
 static terminal_escape g_termEscape = termVT100;
+
+void dump_memory( const char * pname = "ntvcm.dmp" )
+{
+    FILE * fp = fopen( pname, "wb" );
+    if ( !fp )
+    {
+        printf( "can't create dump file, error %d\n", errno );
+        return;
+    }
+
+    for ( uint32_t i = 0; i < 65536; i += 128 )
+        fwrite( & memory[ i ], 1, 128, fp );
+
+    fclose( fp );
+} //dump_memory
 
 #ifdef WATCOM
     #include <dos.h>
@@ -342,7 +361,10 @@ void trace_FCB( FCB * p )
                                                       0x7f & p->f[4], 0x7f & p->f[5], 0x7f & p->f[6], 0x7f & p->f[7] );
     tracer.Trace( "  filetype: '%c%c%c'\n", 0x7f & p->t[0], 0x7f & p->t[1], 0x7f & p->t[2] );
     tracer.Trace( "  R S A:    %d %d %d\n", 0 != ( 0x80 & p->t[0] ), 0 != ( 0x80 & p->t[1] ), 0 != ( 0x80 & p->t[2] ) );
-    tracer.Trace( "  extent:   %d\n", p->ex );
+    tracer.Trace( "  ex:       %d\n", p->ex );
+    tracer.Trace( "  s1:       %u\n", p->s1 );
+    tracer.Trace( "  s2:       %u\n", p->s2 );
+    tracer.Trace( "  rc:       %u\n", p->rc );
     tracer.Trace( "  cr:       %u\n", p->cr );
     tracer.Trace( "  r0:       %u\n", p->r0 );
     tracer.Trace( "  r1:       %u\n", p->r1 );
@@ -1611,6 +1633,11 @@ uint8_t x80_invoke_hook()
 
                     fseek( fp, 0, SEEK_SET );
                     reg.a = 0;
+                    pfcb->cr = 0;
+                    pfcb->rc = 1;
+                    // don't reset extent on a re-open or LK80.COM will fail. pfcb->ex = 0;
+                    pfcb->s2 = 0;
+                    tracer.Trace( "  open used existing file and rewound to offset 0\n" );
                 }
                 else
                 {
@@ -1623,8 +1650,16 @@ uint8_t x80_invoke_hook()
                         strcpy( fe.acName, acFilename );
                         fe.fp = fp;
                         g_fileEntries.push_back( fe );
-    
                         reg.a = 0;
+
+                        // Digital Research's lk80.com linker has many undocumented expectations no other apps I've tested have.
+
+                        long len = portable_filelen( fp );
+                        pfcb->cr = 0;
+                        pfcb->rc = 1;
+                        pfcb->ex = 0;
+                        pfcb->s2 = 0;
+                        tracer.Trace( "  file opened successfully, record count: %u\n", pfcb->rc );
                     }
                     else
                         tracer.Trace( "ERROR: can't open file '%s' error %d = %s\n", acFilename, errno, strerror( errno ) );
@@ -1897,11 +1932,15 @@ uint8_t x80_invoke_hook()
                 FILE * fp = FindFileEntry( acFilename );
                 if ( fp )
                 {
-                    uint32_t curr = ftell( fp );
-                    tracer.Trace( "  reading at offset %u\n", curr );
+                    // apps like Digital Research's linker LK80 updates pcb->cr and pfcb->ex between
+                    // calls to sequential read and effectively does random reads using sequential I/O.
+                    // This is illegal (the doc says apps can't touch this data, but that ship has sailed and sunk).
 
-                    fseek( fp, 0, SEEK_END );
-                    uint32_t file_size = ftell( fp );
+                    uint32_t file_size = portable_filelen( fp );
+                    uint32_t curr = (uint32_t) pfcb->cr * 128;
+                    curr += ( (uint32_t) pfcb->ex * ( 16 * 1024 ) );
+                    curr += ( (uint32_t) pfcb->s2 * ( 512 * 1024 ) );
+
                     fseek( fp, curr, SEEK_SET );
                     tracer.Trace( "  file size: %u, current %u\n", file_size, curr );
 
@@ -1913,6 +1952,12 @@ uint8_t x80_invoke_hook()
                     {
                         tracer.TraceBinaryData( g_DMA, 128, 0 );
                         reg.a = 0;
+
+                        uint32_t offset = curr + 128;
+                        pfcb->cr = (uint8_t) ( ( offset % ( 16 * 1024 ) ) / 128 );
+                        pfcb->ex = (uint8_t) ( ( offset % ( 512 * 1024 ) ) / ( 16 * 1024 ) );
+                        pfcb->s2 = (uint8_t) ( offset / ( 512 * 1024 ) );
+                        tracer.Trace( "  new offset: %u, s2 %u, ex %u, cr %u\n", offset, pfcb->s2, pfcb->ex, pfcb->cr );
                     }
                     else
                     {

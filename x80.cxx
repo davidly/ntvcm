@@ -88,14 +88,14 @@ static const char z80_instructions[ 256 ][ 16 ] =
     /*18*/ "*",         "add hl,de", "ld a,(de)",   "dec de",       "inc e",       "dec e",     "ld e,d8",    "rra",
     /*20*/ "*",         "ld hl,d16", "ld (a16),hl", "inc hl",       "inc h",       "dec h",     "ld h,d8",    "daa",
     /*28*/ "*",         "add hl,hl", "ld hl,(a16)", "dec hl",       "inc l",       "dec l",     "ld l,d8",    "cpl",
-    /*30*/ "*",         "ld sp,d16", "ld (a16),a",  "inc sp",       "inc (hl)",    "dec (hl)",  "ld m,d8",    "scf",
+    /*30*/ "*",         "ld sp,d16", "ld (a16),a",  "inc sp",       "inc (hl)",    "dec (hl)",  "ld (hl),d8", "scf",
     /*38*/ "*",         "add hl,sp", "ld a,(a16)",  "dec sp",       "inc a",       "dec a",     "ld a,d8",    "ccf",
-    /*40*/ "ld b,b",    "ld b,c",    "ld b,d",      "ld b,e",       "ld b,h",      "ld b,l",    "ld b, (hl)", "ld b,a",
-    /*48*/ "ld c,b",    "ld c,c",    "ld c,d",      "ld c,e",       "ld c,h",      "ld c,l",    "ld c, (hl)", "ld c,a",
-    /*20*/ "ld d,b",    "ld d,c",    "ld d,d",      "ld d,e",       "ld d,h",      "ld d,l",    "ld d, (hl)", "ld d,a",
-    /*28*/ "ld e,b",    "ld e,c",    "ld e,d",      "ld e,e",       "ld e,h",      "ld e,l",    "ld e, (hl)", "ld e,a",
-    /*60*/ "ld h,b",    "ld h,c",    "ld h,d",      "ld h,e",       "(hook)",      "ld h,l",    "ld h, (hl)", "ld h,a",
-    /*68*/ "ld l,b",    "ld l,c",    "ld l,d",      "ld l,e",       "ld l,h",      "ld l,l",    "ld l, (hl)", "ld l,a",
+    /*40*/ "ld b,b",    "ld b,c",    "ld b,d",      "ld b,e",       "ld b,h",      "ld b,l",    "ld b,(hl)",  "ld b,a",
+    /*48*/ "ld c,b",    "ld c,c",    "ld c,d",      "ld c,e",       "ld c,h",      "ld c,l",    "ld c,(hl)",  "ld c,a",
+    /*20*/ "ld d,b",    "ld d,c",    "ld d,d",      "ld d,e",       "ld d,h",      "ld d,l",    "ld d,(hl)",  "ld d,a",
+    /*28*/ "ld e,b",    "ld e,c",    "ld e,d",      "ld e,e",       "ld e,h",      "ld e,l",    "ld e,(hl)",  "ld e,a",
+    /*60*/ "ld h,b",    "ld h,c",    "ld h,d",      "ld h,e",       "(hook)",      "ld h,l",    "ld h,(hl)",  "ld h,a",
+    /*68*/ "ld l,b",    "ld l,c",    "ld l,d",      "ld l,e",       "ld l,h",      "ld l,l",    "ld l,(hl)",  "ld l,a",
     /*70*/ "ld (hl),b", "ld (hl),c", "ld (hl),d",   "ld (hl),e",    "ld (hl),h",   "ld (hl),l", "halt",       "ld (hl),a",
     /*78*/ "ld a,b",    "ld a,c",    "ld a,d",      "ld a,e",       "ld a,h",      "ld a,l",    "ld a,(hl)",  "ld a,a",
     /*80*/ "add a,b",   "add a,c",   "add a,d",     "add a,e",      "add a,h",     "add a,l",   "add a,(hl)", "add a,a",
@@ -1650,7 +1650,7 @@ void z80_render( char * ac, uint8_t op, uint16_t address )
 void replace_with_num( char * pc, const char * psearch, uint16_t num, uint8_t width )
 {
     char actemp[ 60 ];
-    sprintf( actemp, ( 16 == width ) ? "0%04xh" : "0%02xh", (uint32_t) num );
+    sprintf( actemp, ( 16 == width ) ? "%04xh" : "%02xh", (uint32_t) num );
     strcat( actemp, pc + strlen( psearch ) );
     strcpy( pc, actemp );
 } //replace_with_num
@@ -1693,6 +1693,8 @@ not_inlined void x80_trace_state()
     uint8_t op2 = memory[ reg.pc + 1 ];
     uint8_t op3 = memory[ reg.pc + 2 ];
     uint8_t op4 = memory[ reg.pc + 3 ];
+
+//    tracer.Trace( "0x1bb9: %c%c%c%c -- 0x29b0: '%s'\n", memory[ 0x1bb9 ], memory[ 0x1bba ], memory[ 0x1bbb ], memory[ 0x1bbc ], & memory[ 0x29b0 ] );
 
     if ( reg.fZ80Mode )
         tracer.Trace( "pc %04x, op %02x, op2 %02x, op3 %02x, op4 %02x, a %02x, B %04x, D %04x, H %04x, ix %04x, iy %04x, sp %04x, %s, %s\n",
