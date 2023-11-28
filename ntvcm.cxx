@@ -107,6 +107,22 @@ struct FCB
 
     uint16_t GetRandomIOOffset() { return ( (uint16_t) this->r1 << 8 ) | this->r0; }
     void SetRandomIOOffset( uint16_t o ) { this->r0 = 0xff & o; this->r1 = ( o & 0xff00 ) >> 8; this->r2 = 0; }
+
+    void UpdateSequentialOffset( uint32_t offset )
+    {
+        cr = (uint8_t) ( ( offset % ( 16 * 1024 ) ) / 128 );
+        ex = (uint8_t) ( ( offset % ( 512 * 1024 ) ) / ( 16 * 1024 ) );
+        s2 = (uint8_t) ( offset / ( 512 * 1024 ) );
+        tracer.Trace( "  new offset: %u, s2 %u, ex %u, cr %u\n", offset, s2, ex, cr );
+    } //UpdateSequentialOffset
+
+    uint32_t GetSequentialOffset()
+    {
+        uint32_t curr = (uint32_t) cr * 128;
+        curr += ( (uint32_t) ex * ( 16 * 1024 ) );
+        curr += ( (uint32_t) s2 * ( 512 * 1024 ) );
+        return curr;
+    } //GetSequentialOffset
 };
 
 // this struct is used to cache FILE * objects to both avoid open/close each time and to preserve
@@ -355,20 +371,20 @@ void ParseFoundFile( char * pfile )
 
 void trace_FCB( FCB * p )
 {
-    tracer.Trace( "FCB:\n" );
-    tracer.Trace( "  drive:    %#x == %c\n", p->dr, ( 0 == p->dr ) ? 'A' : 'A' + p->dr - 1 );
-    tracer.Trace( "  filename: '%c%c%c%c%c%c%c%c'\n", 0x7f & p->f[0], 0x7f & p->f[1], 0x7f & p->f[2], 0x7f & p->f[3],
-                                                      0x7f & p->f[4], 0x7f & p->f[5], 0x7f & p->f[6], 0x7f & p->f[7] );
-    tracer.Trace( "  filetype: '%c%c%c'\n", 0x7f & p->t[0], 0x7f & p->t[1], 0x7f & p->t[2] );
-    tracer.Trace( "  R S A:    %d %d %d\n", 0 != ( 0x80 & p->t[0] ), 0 != ( 0x80 & p->t[1] ), 0 != ( 0x80 & p->t[2] ) );
-    tracer.Trace( "  ex:       %d\n", p->ex );
-    tracer.Trace( "  s1:       %u\n", p->s1 );
-    tracer.Trace( "  s2:       %u\n", p->s2 );
-    tracer.Trace( "  rc:       %u\n", p->rc );
-    tracer.Trace( "  cr:       %u\n", p->cr );
-    tracer.Trace( "  r0:       %u\n", p->r0 );
-    tracer.Trace( "  r1:       %u\n", p->r1 );
-    tracer.Trace( "  r2:       %u\n", p->r2 );
+    tracer.Trace( "  FCB:\n" );
+    tracer.Trace( "    drive:    %#x == %c\n", p->dr, ( 0 == p->dr ) ? 'A' : 'A' + p->dr - 1 );
+    tracer.Trace( "    filename: '%c%c%c%c%c%c%c%c'\n", 0x7f & p->f[0], 0x7f & p->f[1], 0x7f & p->f[2], 0x7f & p->f[3],
+                                                        0x7f & p->f[4], 0x7f & p->f[5], 0x7f & p->f[6], 0x7f & p->f[7] );
+    tracer.Trace( "    filetype: '%c%c%c'\n", 0x7f & p->t[0], 0x7f & p->t[1], 0x7f & p->t[2] );
+    tracer.Trace( "    R S A:    %d %d %d\n", 0 != ( 0x80 & p->t[0] ), 0 != ( 0x80 & p->t[1] ), 0 != ( 0x80 & p->t[2] ) );
+    tracer.Trace( "    ex:       %d\n", p->ex );
+    tracer.Trace( "    s1:       %u\n", p->s1 );
+    tracer.Trace( "    s2:       %u\n", p->s2 );
+    tracer.Trace( "    rc:       %u\n", p->rc );
+    tracer.Trace( "    cr:       %u\n", p->cr );
+    tracer.Trace( "    r0:       %u\n", p->r0 );
+    tracer.Trace( "    r1:       %u\n", p->r1 );
+    tracer.Trace( "    r2:       %u\n", p->r2 );
 } //trace_FCB
 
 bool parse_FCB_Filename( FCB * pfcb, char * pcFilename )
@@ -475,13 +491,13 @@ FILE * FindFileEntry( char * name )
     {
         if ( !strcmp( name, g_fileEntries[ i ].acName ) )
         {
-            //tracer.Trace( "found file entry '%s': %p\n", name, g_fileEntries[ i ].fp );
-            tracer.Trace( "found file entry '%s'\n", name );
+            //tracer.Trace( "  found file entry '%s': %p\n", name, g_fileEntries[ i ].fp );
+            tracer.Trace( "  found file entry '%s'\n", name );
             return g_fileEntries[ i ].fp;
         }
     }
 
-    tracer.Trace( "could not find file entry for '%s'; that might be OK\n", name );
+    tracer.Trace( "  could not find an open file entry for '%s'; that might be OK\n", name );
     return 0;
 } //FindFileEntry
 
@@ -1353,7 +1369,7 @@ uint8_t x80_invoke_hook()
 
     if ( address >= 0xff00 )
     {
-        tracer.Trace( "bios function %#x: %s, bc %02x, de %02x, hl %02x\n", address, get_bios_function( address ), reg.B(), reg.D(), reg.H() );
+        tracer.Trace( "bios function %#x: %s, bc %04x, de %04x, hl %04x\n", address, get_bios_function( address ), reg.B(), reg.D(), reg.H() );
         //x80_trace_state();
 
         // BIOS call. 0xff00-0xff33 are for actual, documented BIOS calls.
@@ -1412,7 +1428,7 @@ uint8_t x80_invoke_hook()
     }
 
     uint8_t function = reg.c;
-    tracer.Trace( "bdos function %d: %s, bc %02x, de %02x, hl %02x\n", function, get_bdos_function( function ), reg.B(), reg.D(), reg.H() );
+    tracer.Trace( "bdos function %d: %s, bc %04x, de %04x, hl %04x\n", function, get_bdos_function( function ), reg.B(), reg.D(), reg.H() );
     //x80_trace_state();
 
     if ( ( 6 != reg.c ) || ( 0xff != reg.e ) )
@@ -1493,7 +1509,7 @@ uint8_t x80_invoke_hook()
                         // don't sleep every call because sometimes they alternate calling this with updating the display.
 
                         sleep_ms( 1 );
-                        tracer.Trace( "sleeping in direct console i/o\n" );
+                        tracer.Trace( "  sleeping in direct console i/o\n" );
                         kbd_poll_busyloops = 0;
                     }
                     else
@@ -1937,10 +1953,7 @@ uint8_t x80_invoke_hook()
                     // This is illegal (the doc says apps can't touch this data, but that ship has sailed and sunk).
 
                     uint32_t file_size = portable_filelen( fp );
-                    uint32_t curr = (uint32_t) pfcb->cr * 128;
-                    curr += ( (uint32_t) pfcb->ex * ( 16 * 1024 ) );
-                    curr += ( (uint32_t) pfcb->s2 * ( 512 * 1024 ) );
-
+                    uint32_t curr = pfcb->GetSequentialOffset();
                     fseek( fp, curr, SEEK_SET );
                     tracer.Trace( "  file size: %u, current %u\n", file_size, curr );
 
@@ -1950,14 +1963,9 @@ uint8_t x80_invoke_hook()
                     size_t numread = fread( g_DMA, 1, to_read, fp );
                     if ( numread > 0 )
                     {
-                        tracer.TraceBinaryData( g_DMA, 128, 0 );
+                        tracer.TraceBinaryData( g_DMA, 128, 2 );
                         reg.a = 0;
-
-                        uint32_t offset = curr + 128;
-                        pfcb->cr = (uint8_t) ( ( offset % ( 16 * 1024 ) ) / 128 );
-                        pfcb->ex = (uint8_t) ( ( offset % ( 512 * 1024 ) ) / ( 16 * 1024 ) );
-                        pfcb->s2 = (uint8_t) ( offset / ( 512 * 1024 ) );
-                        tracer.Trace( "  new offset: %u, s2 %u, ex %u, cr %u\n", offset, pfcb->s2, pfcb->ex, pfcb->cr );
+                        pfcb->UpdateSequentialOffset( curr + 128 );
                     }
                     else
                     {
@@ -1996,7 +2004,7 @@ uint8_t x80_invoke_hook()
                     uint32_t curr = ftell( fp );
                     tracer.Trace( "  writing at offset %#x = %u\n", curr, curr );
         
-                    tracer.TraceBinaryData( g_DMA, 128, 0 );
+                    tracer.TraceBinaryData( g_DMA, 128, 2 );
                     size_t numwritten = fwrite( g_DMA, 128, 1, fp );
                     if ( numwritten > 0 )
                         reg.a = 0;
@@ -2184,13 +2192,12 @@ uint8_t x80_invoke_hook()
                 FILE * fp = FindFileEntry( acFilename );
                 if ( fp )
                 {
-                    uint16_t record = pfcb->GetRandomIOOffset();
+                    uint32_t record = pfcb->GetRandomIOOffset();
                     tracer.Trace( "  read random record %#x\n", record );
                     uint32_t file_offset = record * 128;
                     memset( g_DMA, 0x1a, 128 ); // fill with ^z, the EOF marker in CP/M
     
-                    fseek( fp, 0, SEEK_END );
-                    uint32_t file_size = ftell( fp );
+                    uint32_t file_size = portable_filelen( fp );
     
                     // OS workaround for app bug: Turbo Pascal expects a read just past the end of file to succeed.
     
@@ -2211,14 +2218,14 @@ uint8_t x80_invoke_hook()
                             size_t numread = fread( g_DMA, 1, to_read, fp );
                             if ( numread )
                             {
-                                tracer.TraceBinaryData( g_DMA, to_read, 0 );
+                                tracer.TraceBinaryData( g_DMA, to_read, 2 );
                                 reg.a = 0;
 
                                 // The CP/M spec says random read should set the file offset such
                                 // that the following sequential I/O will be from the SAME location
                                 // as this random read -- not 128 bytes beyond.
 
-                                fseek( fp, file_offset, SEEK_SET );
+                                pfcb->UpdateSequentialOffset( file_offset );
                             }
                             else
                                 tracer.Trace( "ERROR: can't read in read random\n" );
@@ -2280,7 +2287,7 @@ uint8_t x80_invoke_hook()
                         if ( ok )
                         {
                             tracer.Trace( "  writing random at offset %#x\n", file_offset );
-                            tracer.TraceBinaryData( g_DMA, 128, 0 );
+                            tracer.TraceBinaryData( g_DMA, 128, 2 );
                             size_t numwritten = fwrite( g_DMA, 128, 1, fp );
                             if ( numwritten )
                             {
@@ -2323,7 +2330,7 @@ uint8_t x80_invoke_hook()
             bool ok = parse_FCB_Filename( pfcb, acFilename );
             if ( ok )
             {
-                pfcb->r2 = 0;
+                pfcb->r2 = 0; // only supported in cp/m post version 2.2
 
                 FILE * fp = FindFileEntry( acFilename );
                 bool found = false;
@@ -2334,10 +2341,8 @@ uint8_t x80_invoke_hook()
 
                 if ( fp )
                 {
-                    uint32_t curr = ftell( fp );
-                    fseek( fp, 0, SEEK_END );
-                    uint32_t file_size = ftell( fp );
-                    fseek( fp, curr, SEEK_SET );
+                    uint32_t file_size = portable_filelen( fp );
+                    file_size = round_up( file_size, 128 ); // cp/m files round up in 128 byte records
                     pfcb->SetRandomIOOffset( (uint16_t) ( file_size / 128 ) );
                     reg.a = 0;
 
