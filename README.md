@@ -18,6 +18,7 @@ Tested with:
     BASCOM 5.30a
     Microsoft MS-COBOL Version 4.65
     Digital Research CBASIC Compiler CB-80 Version 2.0
+    Turbo Modula 2
     
 Console input/output work for both bios bdos API. Disk input/output work via the bdos API. There is no attempt at emulating physical disks. Apps that use bdos for disk I/O will work but apps that use the BIOS or assume things about disk layout will not.
 
