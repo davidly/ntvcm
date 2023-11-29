@@ -1948,30 +1948,38 @@ uint8_t x80_invoke_hook()
                 FILE * fp = FindFileEntry( acFilename );
                 if ( fp )
                 {
-                    // apps like Digital Research's linker LK80 updates pcb->cr and pfcb->ex between
+                    // apps like Digital Research's linker LK80 update pcb->cr and pfcb->ex between
                     // calls to sequential read and effectively does random reads using sequential I/O.
                     // This is illegal (the doc says apps can't touch this data, but that ship has sailed and sunk).
 
                     uint32_t file_size = portable_filelen( fp );
                     uint32_t curr = pfcb->GetSequentialOffset();
-                    fseek( fp, curr, SEEK_SET );
                     tracer.Trace( "  file size: %u, current %u\n", file_size, curr );
 
-                    uint32_t to_read = get_min( file_size - curr, (uint32_t) 128 );
-                    memset( g_DMA, 0x1a, 128 ); // fill with ^z, the EOF marker in CP/M
-        
-                    size_t numread = fread( g_DMA, 1, to_read, fp );
-                    if ( numread > 0 )
+                    if ( curr < file_size )
                     {
-                        tracer.TraceBinaryData( g_DMA, 128, 2 );
-                        reg.a = 0;
-                        pfcb->UpdateSequentialOffset( curr + 128 );
+                        fseek( fp, curr, SEEK_SET );
+    
+                        uint32_t to_read = get_min( file_size - curr, (uint32_t) 128 );
+                        memset( g_DMA, 0x1a, 128 ); // fill with ^z, the EOF marker in CP/M
+            
+                        size_t numread = fread( g_DMA, 1, to_read, fp );
+                        if ( numread > 0 )
+                        {
+                            tracer.TraceBinaryData( g_DMA, 128, 2 );
+                            reg.a = 0;
+                            pfcb->UpdateSequentialOffset( curr + 128 );
+                        }
+                        else
+                        {
+                            reg.a = 1;
+                            tracer.Trace( "  read error %d, so returning a = 1\n", errno );
+                        }
                     }
                     else
                     {
-                        // likely end of file
-
                         reg.a = 1;
+                        tracer.Trace( "  at the end of file, so returning a = 1\n" );
                     }
                 }
                 else
