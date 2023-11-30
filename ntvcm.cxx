@@ -1446,10 +1446,13 @@ uint8_t x80_invoke_hook()
         }
         case 1:
         {
-            // console input
+            // console input. echo input to console
 
-            uint8_t input = (uint8_t) g_consoleConfig.portable_getch();
-            reg.a = map_input( input );
+            uint8_t ch = (uint8_t) g_consoleConfig.portable_getch();
+            reg.a = map_input( ch );
+            tracer.Trace( "  bdos console in: %02x == '%c'\n", ch, printable_ch( ch ) );
+            output_character( ch );
+            fflush( stdout );
 
             break;
         }
