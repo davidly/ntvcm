@@ -1672,8 +1672,8 @@ uint8_t x80_invoke_hook()
                         reg.a = 0;
 
                         // Digital Research's lk80.com linker has many undocumented expectations no other apps I've tested have.
+                        // including rc > 0 after an open
 
-                        long len = portable_filelen( fp );
                         pfcb->cr = 0;
                         pfcb->rc = 1;
                         pfcb->ex = 0;
@@ -2057,6 +2057,11 @@ uint8_t x80_invoke_hook()
                     strcpy( fe.acName, acFilename );
                     fe.fp = fp;
                     g_fileEntries.push_back( fe );
+
+                    pfcb->cr = 0;
+                    pfcb->rc = 1;
+                    pfcb->ex = 0;
+                    pfcb->s2 = 0;
 
                     tracer.Trace( "  successfully created fp %p for write\n", fp );
                     reg.a = 0;
