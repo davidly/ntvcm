@@ -177,7 +177,7 @@ void dump_memory( const char * pname = "ntvcm.dmp" )
     FILE * fp = fopen( pname, "wb" );
     if ( !fp )
     {
-        printf( "can't create dump file, error %d\n", errno );
+        printf( "can't create dump file, error %d = %s\n", errno, strerror( errno ) );
         return;
     }
 
@@ -318,7 +318,7 @@ bool ValidCPMFilename( char * pc )
     DIR * FindFirstFileLinux( const char * pattern, LINUX_FIND_DATA & fd )
     {
         DIR * pdir = opendir( "." );
-        tracer.Trace( "  opendir returned %p, errno %d\n", pdir, errno );
+        tracer.Trace( "  opendir returned %p, errno %d = %s\n", pdir, errno, strerror( errno ) );
 
         if ( 0 == pdir )
             return 0;
@@ -1796,7 +1796,7 @@ uint8_t x80_invoke_hook()
                     reg.a = 0;
                 }
                 else
-                    tracer.Trace( "WARNING: find first file failed, error %d\n", errno );
+                    tracer.Trace( "WARNING: find first file failed, error %d = %s\n", errno, strerror( errno ) );
 #endif                    
             }
             else
@@ -1884,7 +1884,7 @@ uint8_t x80_invoke_hook()
                     }
                     else
                     {
-                        tracer.Trace( "WARNING: find next file found no more, error %d\n", errno );
+                        tracer.Trace( "WARNING: find next file found no more, error %d = %s\n", errno, strerror( errno ) );
                         CloseFindFirst();
                     }
                 }
@@ -1925,7 +1925,7 @@ uint8_t x80_invoke_hook()
                 if ( removeok )
                     reg.a = 0;
                 else
-                    tracer.Trace( "  error %d\n", errno );
+                    tracer.Trace( "  error %d = %s\n", errno, strerror( errno ) );
             }
             else
                 tracer.Trace( "ERROR: can't parse filename for delete file\n" );
@@ -1976,7 +1976,7 @@ uint8_t x80_invoke_hook()
                         else
                         {
                             reg.a = 1;
-                            tracer.Trace( "  read error %d, so returning a = 1\n", errno );
+                            tracer.Trace( "  read error %d = %s, so returning a = 1\n", errno, strerror( errno ) );
                         }
                     }
                     else
@@ -2012,15 +2012,20 @@ uint8_t x80_invoke_hook()
                 FILE * fp = FindFileEntry( acFilename );
                 if ( fp )
                 {
-                    uint32_t curr = ftell( fp );
-                    tracer.Trace( "  writing at offset %#x = %u\n", curr, curr );
+                    uint32_t file_size = portable_filelen( fp );
+                    uint32_t curr = pfcb->GetSequentialOffset();
+                    tracer.Trace( "  writing at offset %#x = %u, file size is %#x = %u\n", curr, curr, file_size, file_size );
+                    fseek( fp, curr, SEEK_SET );
         
                     tracer.TraceBinaryData( g_DMA, 128, 2 );
                     size_t numwritten = fwrite( g_DMA, 128, 1, fp );
                     if ( numwritten > 0 )
+                    {
                         reg.a = 0;
+                        pfcb->UpdateSequentialOffset( curr + 128 );
+                    }
                     else
-                        tracer.Trace( "ERROR: fwrite returned 0 bytes\n" );
+                        tracer.Trace( "ERROR: fwrite returned %zd, errno %d = %s\n", numwritten, errno, strerror( errno ) );
                 }
                 else
                     tracer.Trace( "ERROR: can't write to a file that's not open\n" );
