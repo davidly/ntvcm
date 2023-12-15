@@ -446,6 +446,7 @@ void x80_hard_exit( const char * pcerror, uint8_t arg1, uint8_t arg2 )
     exit( 1 );
 } //x80_hard_exit
 
+#pragma warning(disable: 4100)
 void x80_invoke_out( uint8_t x)
 {
 } //x80_invoke_out
@@ -611,6 +612,8 @@ const char * get_bios_function( uint16_t address )
 char kaypro_to_cp437( uint8_t c )
 {
 #if defined( _MSC_VER ) || defined( WATCOM )
+
+    #pragma warning(disable: 4310)
 
     // these are mostly box-drawing characters
 
@@ -2363,7 +2366,7 @@ uint8_t x80_invoke_hook()
                 if ( fp )
                 {
                     uint32_t file_size = portable_filelen( fp );
-                    file_size = round_up( file_size, 128 ); // cp/m files round up in 128 byte records
+                    file_size = round_up( file_size, (uint32_t) 128 ); // cp/m files round up in 128 byte records
                     pfcb->SetRandomIOOffset( (uint16_t) ( file_size / 128 ) );
                     reg.a = 0;
 

@@ -1,5 +1,5 @@
 rem with RSS
-cl /wd4996 /nologo ntvcm.cxx x80.cxx /DNTVCM_RSS_SUPPORT /openmp /I. /Oti2 /Ob2 /Qpar /Fa /FAsc /EHac /Zi /jumptablerdata /DNDEBUG /D_AMD64_ /link user32.lib /OPT:REF
+cl /W4 /wd4706 /wd4996 /nologo ntvcm.cxx x80.cxx /DNTVCM_RSS_SUPPORT /openmp /I. /Oti2 /Ob2 /Qpar /Fa /FAsc /EHac /Zi /jumptablerdata /DNDEBUG /D_AMD64_ /link user32.lib /OPT:REF
 
 rem cl /W4 /wd4996 /nologo ntvcm.cxx x80.cxx /DNTVCM_RSS_SUPPORT /openmp /I. /Oti2 /Ob2 /Qpar /Fa /FAsc /EHac /Zi /jumptablerdata /DNDEBUG /D_AMD64_ /link user32.lib /OPT:REF
 

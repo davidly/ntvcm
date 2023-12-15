@@ -373,7 +373,7 @@ void op_dad( uint16_t x )
         uint32_t auxResult = ( reg.H() & 0xfff ) + ( x & 0xfff );
         reg.fAuxCarry = ( 0 != ( auxResult & 0xf000 ) );
         reg.fWasSubtract = false;
-        reg.z80_assignYX( (uint16_t) ( result >> 8 ) );
+        reg.z80_assignYX( (uint8_t) ( result >> 8 ) );
     }
 
     reg.SetH( (uint16_t) ( result & 0xffff ) );
@@ -612,7 +612,7 @@ uint16_t z80_op_add_16( uint16_t a, uint16_t b )
 
     uint32_t result = ( (uint32_t) a + (uint32_t) b );
     reg.fCarry = ( 0 != ( result & 0x10000 ) );
-    reg.z80_assignYX( (uint16_t) ( result >> 8 ) );
+    reg.z80_assignYX( (uint8_t) ( result >> 8 ) );
 
     return (uint16_t) result;
 } //z80_op_add_16
@@ -971,7 +971,7 @@ uint64_t z80_emulate( uint8_t op )    // this is just for instructions that aren
             {
                 cycles = 19;
                 pcbyte(); // consume op3
-                uint16_t address = reg.z80_getIndex( op ) + op3int;
+                uint16_t address = reg.z80_getIndex( op ) + (uint16_t) op3int;
                 * dst_address( op2 ) = memory[ address ];
             }
             else if ( 0x70 == ( op2 & 0xf8 ) )  // ld (i+#), r/#
@@ -984,7 +984,7 @@ uint64_t z80_emulate( uint8_t op )    // this is just for instructions that aren
                 uint8_t src = op2 & 0x7;
                 uint8_t val = ( 6 == src ) ? pcbyte() : src_value_rm( src );
                 uint16_t i = reg.z80_getIndex( op );
-                i += op3int;
+                i += (uint16_t) op3int;
                 memory[ i ] = val;
             }
             else if ( 0x80 == ( op2 & 0xc2 ) ) // math on il and ih with a. 84/85/8c/8d/94/95/a4/a5/b4/b5/bc/bd
