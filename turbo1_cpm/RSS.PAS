@@ -60,7 +60,7 @@ begin { show_item }
       if ( 32 = buff[o] ) then
       begin
         tosp := chars_to_sp_or_end( 1 + o );
-        if ( ( col + tosp ) > 80 ) then
+        if ( ( col + tosp ) > 79 ) then
         begin
           writeln;
           col := 1;
