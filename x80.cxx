@@ -1117,6 +1117,13 @@ uint64_t z80_emulate( uint8_t op )    // this is just for instructions that aren
                 uint16_t val = popword();
                 reg.z80_setIndex( op, val );
             }
+            else if ( 0xe3 == op2 ) // ex (sp), ix
+           {
+                cycles = 23;
+                uint16_t val = reg.z80_getIndex( op );
+                reg.z80_setIndex( op, mword( reg.sp ) );
+                setmword( reg.sp, val );
+           }
             else if ( 0xe5 == op2 )  // push ix/iy
             {
                 cycles = 15;
@@ -1516,6 +1523,8 @@ void z80_render( char * ac, uint8_t op, uint16_t address )
         }
         else if ( 0xe1 == op2 )
             sprintf( ac, "pop %s", i );
+        else if ( 0xe3 == op2 )
+            sprintf( ac, "ex (sp), %s", i );
         else if ( 0xe5 == op2 )
             sprintf( ac, "push %s", i );
         else if ( 0xe9 == op2 )
