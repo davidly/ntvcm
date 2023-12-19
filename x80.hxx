@@ -7,6 +7,7 @@
 #define OPCODE_HOOK 0x64  // mov h, h. When executed, x80_invoke_hook is called
 #define OPCODE_HLT  0x76  // for ending execution. When executed, x80_invoke_halt is called
 #define OPCODE_NOP  0x00
+#define OPCODE_JMP  0xC3  // jmp nn
 #define OPCODE_RET  0xC9
 
 

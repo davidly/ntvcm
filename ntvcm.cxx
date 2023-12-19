@@ -67,7 +67,12 @@
 #define COMMAND_TAIL_OFFSET        0x81
 #define DEFAULT_DMA_OFFSET         0x80 // read arguments before doing I/O because it's the same address
 #define DPB_HI_OFFSET              0xfe // where the Disk Parameter Block resides for BDOS 31.
-#define DPB_LO_OFFSET              0x00 // lo part of DPB
+#define DPB_LO_OFFSET              0x10 // lo part of DPB
+#define BDOS_ENTRY_LO              0x00
+#define BDOS_ENTRY_HI              0xfe
+#define BDOS_ENTRY                 ( ( BDOS_ENTRY_HI << 8 ) | BDOS_ENTRY_LO )
+#define BIOS_FUNCTIONS             0xff80
+#define BIOS_FUNCTION_COUNT        17
 
 #define CPM_FILENAME_LEN ( 8 + 3 + 1 + 1 ) // name + type + dot + null
   
@@ -436,6 +441,7 @@ const char * low_address_names[] =
 
 void x80_hard_exit( const char * pcerror, uint8_t arg1, uint8_t arg2 )
 {
+    dump_memory( "ntvcm_hard_exit.dmp" );
     g_consoleConfig.RestoreConsole( false );
 
     tracer.Trace( pcerror, arg1, arg2 );
@@ -565,21 +571,21 @@ const char * get_bdos_function( uint8_t id )
     return "unknown";
 } //get_bdos_function
 
-const char * get_bios_function( uint16_t address )
+const char * get_bios_function( uint16_t id )
 {
-    uint16_t id = address & 0xff;
-
     // the ids are shifted by 3 since I put code start at 0, not -3
 
-    if ( 0 == id || 0x80 == id )
+    id *= 3;
+
+    if ( 0 == id )
         return "cold sart";
-    if ( 3 == id || 0x81 == id )
+    if ( 3 == id )
         return "warm boot (reload command processor)";
-    if ( 6 == id || 0x82 == id )
+    if ( 6 == id )
         return "console status";
-    if ( 9 == id || 0x83 == id )
+    if ( 9 == id )
         return "console input";
-    if ( 12 == id || 0x84 == id )
+    if ( 12 == id )
         return "console output";
     if ( 15 == id )
         return "list: printer output";
@@ -596,13 +602,13 @@ const char * get_bios_function( uint16_t address )
     if ( 33 == id )
         return "setsec: set sector number";
     if ( 36 == id )
-        return "setdma: set dma id";
+        return "setdma: set dma address";
     if ( 39 == id )
         return "read: read a sector";
     if ( 42 == id )
         return "write: write a sector";
     if ( 45 == id )
-        return "listst: stat of list device";
+        return "listst: status of list device";
     if ( 48 == id )
         return "sectran: sector translation for skewing";
 
@@ -1370,22 +1376,19 @@ uint8_t x80_invoke_hook()
     static uint64_t kbd_poll_busyloops = 0;
     uint16_t address = reg.pc - 1; // the emulator has moved past this instruction already
 
-    if ( address >= 0xff00 )
+    if ( address >= BIOS_FUNCTIONS && address < ( BIOS_FUNCTIONS + BIOS_FUNCTION_COUNT ) )
     {
-        tracer.Trace( "bios function %#x: %s, bc %04x, de %04x, hl %04x\n", address, get_bios_function( address ), reg.B(), reg.D(), reg.H() );
+        uint16_t bios_function = address - BIOS_FUNCTIONS;
+        tracer.Trace( "bios function %#x: %s, bc %04x, de %04x, hl %04x\n", address, get_bios_function( bios_function ), reg.B(), reg.D(), reg.H() );
         //x80_trace_state();
 
-        // BIOS call. 0xff00-0xff33 are for actual, documented BIOS calls.
-        // 0xff80 and above are when apps like mbasic.com read the jump table, assume it's a series of
-        // jmp <16-bit-address> sequences, and call the <16-bit-address> directly.
-
-        if ( 0xff00 == address || 0xff03 == address || 0xff80 == address || 0xff81 == address )
+        if ( 0 == bios_function || 1 == bios_function )
         {
             // boot, which means exit the app
 
             return OPCODE_HLT;
         }
-        else if ( 0xff06 == address || 0xff82 == address )
+        else if ( 2 == bios_function )
         {
             // const console status. A=0 if nothing available, A=0xff if a keystroke is available
 
@@ -1394,16 +1397,16 @@ uint8_t x80_invoke_hook()
             else
                 reg.a = 0;
         }
-        else if ( 0xff09 == address || 0xff83 == address )
+        else if ( 3 == bios_function )
         {
             // conin
 
             uint8_t input = (uint8_t) g_consoleConfig.portable_getch();
             tracer.Trace( "  conin got %02xh from getch()\n", input );
             reg.a = map_input( input );
-            tracer.Trace( "  conin is returning %02xh\n", reg.a );
+            tracer.Trace( "  conin is returning %02xh = '%c'\n", reg.a, printable_ch( reg.a ) );
         }
-        else if ( 0xff0c == address || 0xff84 == address )
+        else if ( 4 == bios_function )
         {
             // conout
 
@@ -1416,15 +1419,16 @@ uint8_t x80_invoke_hook()
         {
             // I only implemented bios calls actually used in apps I tested.
 
-            tracer.Trace( "UNIMPLEMENTED BIOS CODE!!!!!!!!!!!!!!!: %#x\n", address );
-            printf( "unhandled bios code!!!!!!!!!!!!!!! %#x\n", address );
+            tracer.Trace( "unhandled BIOS CODE!!!!!!!!!!!!!!!: %#x = %d\n", address, bios_function );
+            printf( "unhandled bios code!!!!!!!!!!!!!!! %#x = %u\n", address, bios_function );
+            //x80_hard_exit( "invalid bios call address %#x = %u", address, bios_function );
         }
 
         kbd_poll_busyloops = 0;
         return OPCODE_RET;
     }
 
-    if ( 5 != address )
+    if ( BDOS_ENTRY != address )
     {
         tracer.Trace( "hook call, but not bios or bdos. likely just a mov h, h. address: %04x\n", address );
         return OPCODE_NOP;
@@ -1960,7 +1964,9 @@ uint8_t x80_invoke_hook()
 
                     uint32_t file_size = portable_filelen( fp );
                     uint32_t curr = pfcb->GetSequentialOffset();
-                    tracer.Trace( "  file size: %u, current %u\n", file_size, curr );
+                    uint16_t dmaOffset = (uint16_t) ( g_DMA - memory );
+                    tracer.Trace( "  file size: %#x = %u, current %#x = %u, dma %#x = %u\n",
+                                  file_size, file_size, curr, curr, dmaOffset, dmaOffset );
 
                     if ( curr < file_size )
                     {
@@ -2017,7 +2023,9 @@ uint8_t x80_invoke_hook()
                 {
                     uint32_t file_size = portable_filelen( fp );
                     uint32_t curr = pfcb->GetSequentialOffset();
-                    tracer.Trace( "  writing at offset %#x = %u, file size is %#x = %u\n", curr, curr, file_size, file_size );
+                    uint16_t dmaOffset = (uint16_t) ( g_DMA - memory );
+                    tracer.Trace( "  writing at offset %#x = %u, file size is %#x = %u, dma %#x = %u\n",
+                                  curr, curr, file_size, file_size, dmaOffset, dmaOffset );
                     fseek( fp, curr, SEEK_SET );
         
                     tracer.TraceBinaryData( g_DMA, 128, 2 );
@@ -2551,11 +2559,13 @@ uint8_t x80_invoke_hook()
         }
         default:
         {
-            tracer.Trace( "UNIMPLEMENTED BDOS FUNCTION!!!!!!!!!!!!!!!: %u = %#x\n", reg.c, reg.c );
-            printf( "UNIMPLEMENTED BDOS FUNCTION!!!!!!!!!!!!!!!: %u = %#x\n", reg.c, reg.c );
+            tracer.Trace( "unhandled BDOS FUNCTION!!!!!!!!!!!!!!!: %u = %#x\n", reg.c, reg.c );
+            printf( "unhandled BDOS FUNCTION!!!!!!!!!!!!!!!: %u = %#x\n", reg.c, reg.c );
 
             x80_trace_state();
             reg.a = 0xff;
+
+            x80_hard_exit( "unhandled bods function", reg.c, 0 );
         }
     }
 
@@ -2858,14 +2868,14 @@ int main( int argc, char * argv[] )
 
     // make memory look like CP/M 2.2. The first 8-byte interrupt vector has this:
 
-    memory[0] = OPCODE_HLT;  // when an app exits by jumping or returning here, halt execution
-    memory[1] = 0x03;        // low byte of BIOS jump table. boot is at -3 from this address. wboot is here.
-    memory[2] = 0xff;        // high byte of BIOS jump table
-    memory[3] = 0;           // use TTY: for console, READER, PUNCH, and LIST
-    memory[4] = 0;           // default drive 0 == A
-    memory[5] = OPCODE_HOOK; // BDOS entry point
-    memory[6] = 0x00;        // these two bytes point to the first byte above app-available RAM (reserved RAM)
-    memory[7] = 0xfe;
+    memory[0] = OPCODE_JMP;    // jump to warm boot, which likely just exits ntvcm unless overridden by an app.
+    memory[1] = 0x03;          // low byte of BIOS jump table. boot is at -3 from this address. wboot is here.
+    memory[2] = 0xff;          // high byte of BIOS jump table
+    memory[3] = 0;             // use TTY: for console, READER, PUNCH, and LIST
+    memory[4] = 0;             // default drive 0 == A
+    memory[5] = OPCODE_JMP;    // jump to the BDOS entry point unless overridden by an app
+    memory[6] = BDOS_ENTRY_LO; // these two bytes also point to the first byte above app-available RAM (reserved RAM)
+    memory[7] = BDOS_ENTRY_HI;
 
     // The real bios function table is a list of 3-byte entries containing jmp and the address of
     // each of the 16 bios functions (17 including the -1 entry to exit).
@@ -2878,11 +2888,13 @@ int main( int argc, char * argv[] )
     //   0100-????: App run space growing upward until it collides with the stack
     //   ????-fdfd: Stack growing downward until it collides with the app
     //   fdfe-fdff: two bytes of 0 so apps can return instead of a standard app exit. ccp has "call 0x100" it's OK to return.
-    //   fe00-fe10: reserved space for bdos; filled with the Disk Parameter Block for BDOS call 31 Get DPB.
-    //   fe10-ff00: reserved space for bdos; filled with 0s
+    //   fe00-fe01: OPCODE_HOOK for BDOS calls. Where addresses 5-7 jumps to
+    //   fe01-fe0f: reserved space for bdos; filled with 0s
+    //   fe10-fe20: reserved space for bdos; filled with the Disk Parameter Block for BDOS call 31 Get DPB.
+    //   fe20-ff00: reserved space for bdos; filled with 0s
     //   ff00-ff33: bios jump table of 3*17 bytes. (0xff03 is stored at addess 0x1)
-    //   ff80-ff91: where bios jump table addresses point, filled with OPCODE_HOOK
-    //   ff92-ffff: unused, filled with 0
+    //   ff80-ff90: where bios jump table addresses point, filled with OPCODE_HOOK
+    //   ff91-ffff: unused, filled with 0
     //
     // On a typical CP/M machine:
     //   0000-003f: RST hardware interrupt service routines. 8 entries are 8 bytes each
@@ -2892,9 +2904,17 @@ int main( int argc, char * argv[] )
     //   e406-????: bdos
     //   f200-????: bios (0xf203 stored at address 0x1)
 
-    memset( memory + 0xff00, OPCODE_HOOK, 0xff );
-    for ( uint16_t v = 0; v < 17; v++ )
-        setmword( 0xff01 + ( v * 3 ), 0xff80 + v );
+    memory[ BDOS_ENTRY ] = OPCODE_HOOK;
+    memset( memory + BIOS_FUNCTIONS, OPCODE_HOOK, BIOS_FUNCTION_COUNT );
+
+    // fill the BIOS jump table to jmp to unique addresses containing OPCODE_HOOK
+
+    for ( uint16_t v = 0; v < BIOS_FUNCTION_COUNT; v++ )
+    {
+        uint16_t entryOffset = 3 * v;
+        memory[ 0xff00 + entryOffset ] = OPCODE_JMP;
+        setmword( 0xff01 + entryOffset, BIOS_FUNCTIONS + v );
+    }
 
     int file_size = 0;
     bool ok = load_file( acCOM, file_size, 0, memory + 0x100 );
@@ -2932,6 +2952,8 @@ int main( int argc, char * argv[] )
         x80_trace_state();
         tracer.Trace( "starting execution of app '%s' size %d\n", acCOM, file_size );
     }
+
+    //dump_memory( "ntvcm_start.dmp" );
 
     if ( force80x24 )
         g_consoleConfig.EstablishConsoleOutput( 80, 24 );
@@ -3003,6 +3025,7 @@ int main( int argc, char * argv[] )
     g_rssFeed.clear();
 #endif //NTVCM_RSS_SUPPORT
 
+    //dump_memory( "ntvcm_stop.dmp" );
     fflush( stdout );
     tracer.Shutdown();
     return 0;
