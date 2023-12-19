@@ -66,11 +66,13 @@
 #define COMMAND_TAIL_LEN_OFFSET    0x80
 #define COMMAND_TAIL_OFFSET        0x81
 #define DEFAULT_DMA_OFFSET         0x80 // read arguments before doing I/O because it's the same address
-#define DPB_HI_OFFSET              0xfe // where the Disk Parameter Block resides for BDOS 31.
-#define DPB_LO_OFFSET              0x10 // lo part of DPB
+#define DPB_OFFSET_LO              0x10 // lo part of DPB
+#define DPB_OFFSET_HI              0xfe // where the Disk Parameter Block resides for BDOS 31.
+#define DPB_OFFSET                 ( ( DPB_OFFSET_HI << 8 ) | DPB_OFFSET_LO )
 #define BDOS_ENTRY_LO              0x00
 #define BDOS_ENTRY_HI              0xfe
 #define BDOS_ENTRY                 ( ( BDOS_ENTRY_HI << 8 ) | BDOS_ENTRY_LO )
+#define BIOS_JUMP_TABLE            0xff00
 #define BIOS_FUNCTIONS             0xff80
 #define BIOS_FUNCTION_COUNT        17
 
@@ -441,7 +443,7 @@ const char * low_address_names[] =
 
 void x80_hard_exit( const char * pcerror, uint8_t arg1, uint8_t arg2 )
 {
-    dump_memory( "ntvcm_hard_exit.dmp" );
+    //dump_memory( "ntvcm_hard_exit.dmp" );
     g_consoleConfig.RestoreConsole( false );
 
     tracer.Trace( pcerror, arg1, arg2 );
@@ -1379,7 +1381,8 @@ uint8_t x80_invoke_hook()
     if ( address >= BIOS_FUNCTIONS && address < ( BIOS_FUNCTIONS + BIOS_FUNCTION_COUNT ) )
     {
         uint16_t bios_function = address - BIOS_FUNCTIONS;
-        tracer.Trace( "bios function %#x: %s, bc %04x, de %04x, hl %04x\n", address, get_bios_function( bios_function ), reg.B(), reg.D(), reg.H() );
+        tracer.Trace( "bios function %#x: %u, %s, bc %04x, de %04x, hl %04x\n",
+                      address, bios_function, get_bios_function( bios_function ), reg.B(), reg.D(), reg.H() );
         //x80_trace_state();
 
         if ( 0 == bios_function || 1 == bios_function )
@@ -1399,7 +1402,7 @@ uint8_t x80_invoke_hook()
         }
         else if ( 3 == bios_function )
         {
-            // conin
+            // conin. wait until the keyboard has a character and return it in a.
 
             uint8_t input = (uint8_t) g_consoleConfig.portable_getch();
             tracer.Trace( "  conin got %02xh from getch()\n", input );
@@ -1408,17 +1411,30 @@ uint8_t x80_invoke_hook()
         }
         else if ( 4 == bios_function )
         {
-            // conout
+            // conout. write the chracter in c to the screen
 
             char ch = reg.c;
             tracer.Trace( "  bios console out: %02x == '%c'\n", ch, printable_ch( ch ) );
             output_character( reg.c );
             fflush( stdout );
         }
+        else if ( 5 == bios_function )
+        {
+            // list. Write character in c to the printer. If the printer isn't ready, wait until it is.
+        }
+        else if ( 6 == bios_function )
+        {
+            // punch / auxout. Write the character in c to the paper tape punch.
+        }
+        else if ( 7 == bios_function )
+        {
+            // reader. read a character from the paper tape or other auxilliary device. Return in a.
+            // Wait until a chracter is ready. Return ^z if not implemented.
+
+            reg.a = 26;
+        }
         else
         {
-            // I only implemented bios calls actually used in apps I tested.
-
             tracer.Trace( "unhandled BIOS CODE!!!!!!!!!!!!!!!: %#x = %d\n", address, bios_function );
             printf( "unhandled bios code!!!!!!!!!!!!!!! %#x = %u\n", address, bios_function );
             //x80_hard_exit( "invalid bios call address %#x = %u", address, bios_function );
@@ -1441,7 +1457,7 @@ uint8_t x80_invoke_hook()
     if ( ( 6 != reg.c ) || ( 0xff != reg.e ) )
         kbd_poll_busyloops = 0;
 
-    // Only BDOS calls called by a apps I tested are implemented. 
+    // Only BDOS calls called by apps I tested are implemented. 
 
     switch( reg.c )
     {
@@ -2194,8 +2210,8 @@ uint8_t x80_invoke_hook()
         {
             // get PDB address. Get Disk Parameter Block. Return the address in HL
 
-            reg.h = DPB_HI_OFFSET;
-            reg.l = DPB_LO_OFFSET;
+            reg.h = DPB_OFFSET_HI;
+            reg.l = DPB_OFFSET_LO;
 
             break;
         }
@@ -2887,13 +2903,13 @@ int main( int argc, char * argv[] )
     //   0040-00ff: CP/M global storage
     //   0100-????: App run space growing upward until it collides with the stack
     //   ????-fdfd: Stack growing downward until it collides with the app
-    //   fdfe-fdff: two bytes of 0 so apps can return instead of a standard app exit. ccp has "call 0x100" it's OK to return.
-    //   fe00-fe01: OPCODE_HOOK for BDOS calls. Where addresses 5-7 jumps to
+    //   fdfe-fdff: two bytes of 0 so apps can return instead of a standard app exit.
+    //   fe00-fe01: OPCODE_HOOK for BDOS calls. Where addresses 5-7 jumps to. BDOS_ENTRY
     //   fe01-fe0f: reserved space for bdos; filled with 0s
-    //   fe10-fe20: reserved space for bdos; filled with the Disk Parameter Block for BDOS call 31 Get DPB.
+    //   fe10-fe20: reserved space for bdos; filled with the Disk Parameter Block for BDOS call 31 Get DPB. DPD_OFFSET
     //   fe20-ff00: reserved space for bdos; filled with 0s
-    //   ff00-ff33: bios jump table of 3*17 bytes. (0xff03 is stored at addess 0x1)
-    //   ff80-ff90: where bios jump table addresses point, filled with OPCODE_HOOK
+    //   ff00-ff33: bios jump table of 3*17 bytes. (0xff03 is stored at addess 0x1). BIOS_JUMP_TABLE
+    //   ff80-ff90: where bios jump table addresses point, filled with OPCODE_HOOK. BIOS_FUNCTIONS
     //   ff91-ffff: unused, filled with 0
     //
     // On a typical CP/M machine:
@@ -2911,9 +2927,9 @@ int main( int argc, char * argv[] )
 
     for ( uint16_t v = 0; v < BIOS_FUNCTION_COUNT; v++ )
     {
-        uint16_t entryOffset = 3 * v;
-        memory[ 0xff00 + entryOffset ] = OPCODE_JMP;
-        setmword( 0xff01 + entryOffset, BIOS_FUNCTIONS + v );
+        uint16_t entryOffset = BIOS_JUMP_TABLE + ( 3 * v );
+        memory[ entryOffset ] = OPCODE_JMP;
+        setmword( entryOffset + 1, BIOS_FUNCTIONS + v );
     }
 
     int file_size = 0;
@@ -2926,7 +2942,7 @@ int main( int argc, char * argv[] )
 
     // Use made-up numbers that look believable enough to a CP/M app checking for free disk space. 107k.
 
-    DiskParameterBlock * pdpb = (DiskParameterBlock *) ( memory + ( DPB_HI_OFFSET << 8 ) + DPB_LO_OFFSET );
+    DiskParameterBlock * pdpb = (DiskParameterBlock *) ( memory + DPB_OFFSET );
     pdpb->spt = 128;
     pdpb->bsh = 3;
     pdpb->blm = 7;
@@ -2938,11 +2954,11 @@ int main( int argc, char * argv[] )
     pdpb->off = 0;
 
     memory[ 0x100 + file_size ] = OPCODE_HLT; // in case the app doesn't shutdown properly
-    reg.powerOn();       // set default values of registers
+    reg.powerOn();               // set default values of registers
     reg.pc = 0x100;
-    reg.sp = 0xfdfe;     // the stack is written to below this address. 2 bytes here are zero for ret from entry
+    reg.sp = BDOS_ENTRY - 2;     // the stack is written to below this address. 2 bytes here are zero for ret from app
     reg.a = reg.b = reg.c = reg.d = reg.e = reg.h = reg.l = 0;
-    reg.fp = reg.ap = 0; // apparently this is expected by CPUTEST
+    reg.fp = reg.ap = 0;         // apparently this is expected by CPUTEST
     reg.bp = reg.cp = reg.dp = reg.ep = reg.hp = reg.lp = 0;
     reg.ix = reg.iy = 0;
     g_haltExecuted = false;
