@@ -118,3 +118,6 @@
  Is this definition correct?
                      Hardware dependent information
  Operating frequency of your microprocessor in MHz (for delays):
+pendent information
+ Operating frequency of your microprocessor in MHz (for delays):
+
