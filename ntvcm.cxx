@@ -66,15 +66,26 @@
 #define COMMAND_TAIL_LEN_OFFSET    0x80
 #define COMMAND_TAIL_OFFSET        0x81
 #define DEFAULT_DMA_OFFSET         0x80 // read arguments before doing I/O because it's the same address
-#define DPB_OFFSET_LO              0x10 // lo part of DPB
-#define DPB_OFFSET_HI              0xfe // where the Disk Parameter Block resides for BDOS 31.
-#define DPB_OFFSET                 ( ( DPB_OFFSET_HI << 8 ) | DPB_OFFSET_LO )
-#define BDOS_ENTRY_LO              0x00
-#define BDOS_ENTRY_HI              0xfe
-#define BDOS_ENTRY                 ( ( BDOS_ENTRY_HI << 8 ) | BDOS_ENTRY_LO )
-#define BIOS_JUMP_TABLE            0xff00
-#define BIOS_FUNCTIONS             0xff80
-#define BIOS_FUNCTION_COUNT        17
+
+// The BDOS invocation function that ships with M80 incorrectly assumes the BIOS_JUMP_TABLE low byte (minus 3) is 0.
+// The BDOS_ENTRY address must be one byte beyond free memory for the app.
+// So 258 bytes must be reserved (including one for the system to keep the stack 2-byte aligned).
+
+const uint8_t  BDOS_ENTRY_LO =       0xfe;
+const uint8_t  BDOS_ENTRY_HI =       0xfe;
+const uint16_t BDOS_ENTRY =          ( ( BDOS_ENTRY_HI << 8 ) | BDOS_ENTRY_LO );
+
+const uint8_t  BIOS_JUMP_TABLE_LO =  0x00;
+const uint8_t  BIOS_JUMP_TABLE_HI =  0xff;
+const uint16_t BIOS_JUMP_TABLE =     ( ( BIOS_JUMP_TABLE_HI << 8 ) | BIOS_JUMP_TABLE_LO );
+
+const uint16_t BIOS_FUNCTIONS =      0xff40; // 17 1-byte hooks
+const uint16_t BIOS_FUNCTION_COUNT = 17;
+
+const uint8_t  DPB_OFFSET_LO =       0x60; // lo part of DPB
+const uint8_t  DPB_OFFSET_HI =       0xff; // where the Disk Parameter Block resides for BDOS 31.
+const uint16_t DPB_OFFSET =          ( ( DPB_OFFSET_HI << 8 ) | DPB_OFFSET_LO );
+
 
 #define CPM_FILENAME_LEN ( 8 + 3 + 1 + 1 ) // name + type + dot + null
   
@@ -2899,8 +2910,8 @@ int main( int argc, char * argv[] )
     // make memory look like CP/M 2.2. The first 8-byte interrupt vector has this:
 
     memory[0] = OPCODE_JMP;    // jump to warm boot, which likely just exits ntvcm unless overridden by an app.
-    memory[1] = 0x03;          // low byte of BIOS jump table. boot is at -3 from this address. wboot is here.
-    memory[2] = 0xff;          // high byte of BIOS jump table
+    memory[1] = 3 + BIOS_JUMP_TABLE_LO; // low byte of BIOS jump table. boot is at -3 from this address. wboot is here.
+    memory[2] = BIOS_JUMP_TABLE_HI;     // high byte of BIOS jump table
     memory[3] = 0;             // use TTY: for console, READER, PUNCH, and LIST
     memory[4] = 0;             // default drive 0 == A
     memory[5] = OPCODE_JMP;    // jump to the BDOS entry point unless overridden by an app
@@ -2916,15 +2927,13 @@ int main( int argc, char * argv[] )
     //   0000-003f: CP/M global storage + RST hardware interrupt service routines. 8 entries are 8 bytes each
     //   0040-00ff: CP/M global storage
     //   0100-????: App run space growing upward until it collides with the stack
-    //   ????-fdfd: Stack growing downward until it collides with the app
-    //   fdfe-fdff: two bytes of 0 so apps can return instead of a standard app exit.
-    //   fe00-fe01: OPCODE_HOOK for BDOS calls. Where addresses 5-7 jumps to. BDOS_ENTRY
-    //   fe01-fe0f: reserved space for bdos; filled with 0s
-    //   fe10-fe20: reserved space for bdos; filled with the Disk Parameter Block for BDOS call 31 Get DPB. DPD_OFFSET
-    //   fe20-ff00: reserved space for bdos; filled with 0s
+    //   ????-fefb: Stack growing downward until it collides with the app
+    //   fefc-fefd: two bytes of 0 so apps can return instead of a standard app exit.
+    //   fefe-feff: OPCODE_HOOK for BDOS calls. Where addresses 5-7 jumps to. BDOS_ENTRY
     //   ff00-ff33: bios jump table of 3*17 bytes. (0xff03 is stored at addess 0x1). BIOS_JUMP_TABLE
-    //   ff80-ff90: where bios jump table addresses point, filled with OPCODE_HOOK. BIOS_FUNCTIONS
-    //   ff91-ffff: unused, filled with 0
+    //   ff40-ff50: where bios jump table addresses point, filled with OPCODE_HOOK. BIOS_FUNCTIONS
+    //   ff60-ff6f: filled with the Disk Parameter Block for BDOS call 31 Get DPB. DPD_OFFSET
+    //   ff70-ffff: unused, filled with 0
     //
     // On a typical CP/M machine:
     //   0000-003f: RST hardware interrupt service routines. 8 entries are 8 bytes each
@@ -2932,7 +2941,12 @@ int main( int argc, char * argv[] )
     //   0100-????: app space
     //   ????-e3a9: stack given to apps at start.
     //   e406-????: bdos
-    //   f200-????: bios (0xf203 stored at address 0x1)
+    //   f200-????: bios (0xf203 stored at address 1)
+    //
+    //   On the Z80-MBC2 machine:
+    //   ????-d9a9: stack given to apps at start.
+    //   da06-????: bdos
+    //   e800-????: bios (0xe803 stored at address 1)
 
     memory[ BDOS_ENTRY ] = OPCODE_HOOK;
     memset( memory + BIOS_FUNCTIONS, OPCODE_HOOK, BIOS_FUNCTION_COUNT );
@@ -2965,6 +2979,7 @@ int main( int argc, char * argv[] )
     pdpb->drm = 1;
     pdpb->al0 = 0xf0;
     pdpb->al1 = 0;
+    pdpb->cks = 64;
     pdpb->off = 0;
 
     memory[ 0x100 + file_size ] = OPCODE_HLT; // in case the app doesn't shutdown properly
@@ -2988,7 +3003,6 @@ int main( int argc, char * argv[] )
     if ( force80x24 )
         g_consoleConfig.EstablishConsoleOutput( 80, 24 );
 
-    uint64_t total_cycles = 0;
 #ifdef WATCOM
     uint32_t tStart = DosTimeInMS();
 #else
@@ -2996,6 +3010,7 @@ int main( int argc, char * argv[] )
     high_resolution_clock::time_point tStart = high_resolution_clock::now();
 #endif
 
+    uint64_t total_cycles = 0;
     do
     {
         total_cycles += x80_emulate( 1000 );
