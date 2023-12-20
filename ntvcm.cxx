@@ -113,21 +113,30 @@ struct FCB
     // r0 and r1 are a 16-bit count of 128 byte records
 
     uint16_t GetRandomIOOffset() { return ( (uint16_t) this->r1 << 8 ) | this->r0; }
-    void SetRandomIOOffset( uint16_t o ) { this->r0 = 0xff & o; this->r1 = ( o & 0xff00 ) >> 8; this->r2 = 0; }
+    void SetRandomIOOffset( uint16_t o )
+    {
+        this->r0 = ( 0xff & o );
+        this->r1 = ( ( o & 0xff00 ) >> 8 );
+        this->r2 = 0;
+    } //SetRandomIOOffset
 
     void UpdateSequentialOffset( uint32_t offset )
     {
-        cr = (uint8_t) ( ( offset % ( 16 * 1024 ) ) / 128 );
-        ex = (uint8_t) ( ( offset % ( 512 * 1024 ) ) / ( 16 * 1024 ) );
-        s2 = (uint8_t) ( offset / ( 512 * 1024 ) );
+        cr = (uint8_t) ( ( offset % ( (uint32_t) 16 * 1024 ) ) / (uint32_t) 128 );
+        ex = (uint8_t) ( ( offset % ( (uint32_t) 512 * 1024 ) ) / ( (uint32_t) 16 * 1024 ) );
+        s2 = (uint8_t) ( offset / ( (uint32_t) 512 * 1024 ) );
+        #ifdef WATCOM
+        tracer.Trace( "  new offset: %u, s2 %u, ex %u, cr %u\n", (uint16_t) offset, (uint16_t) s2, (uint16_t) ex, (uint16_t) cr );
+        #else
         tracer.Trace( "  new offset: %u, s2 %u, ex %u, cr %u\n", offset, s2, ex, cr );
+        #endif
     } //UpdateSequentialOffset
 
     uint32_t GetSequentialOffset()
     {
         uint32_t curr = (uint32_t) cr * 128;
-        curr += ( (uint32_t) ex * ( 16 * 1024 ) );
-        curr += ( (uint32_t) s2 * ( 512 * 1024 ) );
+        curr += ( (uint32_t) ex * ( (uint32_t) 16 * 1024 ) );
+        curr += ( (uint32_t) s2 * ( (uint32_t) 512 * 1024 ) );
         return curr;
     } //GetSequentialOffset
 };
@@ -1981,8 +1990,13 @@ uint8_t x80_invoke_hook()
                     uint32_t file_size = portable_filelen( fp );
                     uint32_t curr = pfcb->GetSequentialOffset();
                     uint16_t dmaOffset = (uint16_t) ( g_DMA - memory );
+#ifdef WATCOM
+                    tracer.Trace( "  file size: %#lx = %lu, current %#lx = %lu, dma %#x = %u\n",
+                                  file_size, file_size, curr, curr, dmaOffset, dmaOffset );
+#else
                     tracer.Trace( "  file size: %#x = %u, current %#x = %u, dma %#x = %u\n",
                                   file_size, file_size, curr, curr, dmaOffset, dmaOffset );
+#endif
 
                     if ( curr < file_size )
                     {
