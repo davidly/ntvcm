@@ -9,6 +9,7 @@
 #include <regex>
 #include <codecvt>
 #include <locale>
+#include <random>
 #include <assert.h>
 
 #define USE_DEBUG_FILES false
@@ -446,8 +447,10 @@ class CRssFeed
                 string response = load_feed( feedv[ feed_item ] );
                 parse_items( response, max_item_size );
             }
-        
-            std::random_shuffle( rssItems.begin(), rssItems.end() );
+
+            std::random_device rd;
+            std::mt19937 g(rd());
+            std::shuffle( rssItems.begin(), rssItems.end(), g );
             return rssItems.size();
         } //load_rss_feeds
         
