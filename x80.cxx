@@ -1430,7 +1430,7 @@ void z80_render( char * ac, uint8_t op, uint16_t address )
         else if ( 0x26 == op2 )
             sprintf( ac, "ld %sh, %02x", i, op3 );
         else if ( 0x2a == op2 )
-            sprintf( ac, "ld %s, %04xh", i, op34 );
+            sprintf( ac, "ld %s, (%04xh)", i, op34 );
         else if ( 0x2b == op2 )
             sprintf( ac, "dec %s", i );
         else if ( 0x2e == op2 )
@@ -1702,8 +1702,6 @@ not_inlined void x80_trace_state()
     uint8_t op2 = memory[ reg.pc + 1 ];
     uint8_t op3 = memory[ reg.pc + 2 ];
     uint8_t op4 = memory[ reg.pc + 3 ];
-
-//    tracer.Trace( "0x1bb9: %c%c%c%c -- 0x29b0: '%s'\n", memory[ 0x1bb9 ], memory[ 0x1bba ], memory[ 0x1bbb ], memory[ 0x1bbc ], & memory[ 0x29b0 ] );
 
     if ( reg.fZ80Mode )
         tracer.Trace( "pc %04x, op %02x, op2 %02x, op3 %02x, op4 %02x, a %02x, B %04x, D %04x, H %04x, ix %04x, iy %04x, sp %04x, %s, %s\n",

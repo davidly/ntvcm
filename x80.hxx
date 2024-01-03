@@ -10,7 +10,6 @@
 #define OPCODE_JMP  0xC3  // jmp nn
 #define OPCODE_RET  0xC9
 
-
 const size_t reg_offsets[8] = { 1, 0, 3, 2, 5, 4, 8, 9 }; //bcdehlfa
 
 struct registers
