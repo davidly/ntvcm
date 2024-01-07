@@ -2191,8 +2191,8 @@ uint8_t x80_invoke_hook()
         {
             // get addr (alloc) point the allocation vector at 0-filled memory
 
-            reg.h = 0xfe;
-            reg.l = 0;
+            reg.h = 0xff;
+            reg.l = 0x80;
 
             break;
         }
@@ -2675,20 +2675,18 @@ bool write_arg( FCB_ARGUMENT * arg, char * pc )
     return true;
 } //write_arg
 
-static bool load_file( char const * file_path, int & file_size, uint16_t offset, void * buffer )
+static bool load_file( char const * file_path, long & file_size, void * buffer )
 {               
     bool ok = false;
     FILE * fp = fopen( file_path, "rb" );
 
     if ( 0 != fp )
     {
-        fseek( fp, 0, SEEK_END );
-        file_size = ftell( fp );
+        file_size = portable_filelen( fp );
 
-        if ( file_size > ( 65536 - 1024 ) )
+        if ( file_size > ( 65536 - 1024 ) ) // save room for initial 0x100 reserved + bdos + bios
             usage( "the input file can't be a cp/m com file" );
 
-        fseek( fp, offset, SEEK_SET );
         ok = ( 1 == fread( buffer, file_size, 1, fp ) );
         fclose( fp );
     }
@@ -2960,8 +2958,8 @@ int main( int argc, char * argv[] )
         setmword( entryOffset + 1, BIOS_FUNCTIONS + v );
     }
 
-    int file_size = 0;
-    bool ok = load_file( acCOM, file_size, 0, memory + 0x100 );
+    long file_size = 0;
+    bool ok = load_file( acCOM, file_size, memory + 0x100 );
     if ( !ok )
     {
         printf( "unable to load command %s\n", acCOM );
