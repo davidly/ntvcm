@@ -454,8 +454,8 @@ const char * low_address_names[] =
     "warm boot",
     "warm boot (bios) low",
     "warm boot (bios) high",
-    "unknown",
-    "unknown",
+    "tty",
+    "default drive",
     "bdos call",
     "bdos low",
     "bdos high",
@@ -2121,6 +2121,8 @@ uint8_t x80_invoke_hook()
                 else
                     tracer.Trace( "ERROR: unable to make file\n" );
             }
+            else
+                tracer.Trace( "ERROR: can't parse filename in make file\n" );
 
             break;
         }
@@ -2153,10 +2155,11 @@ uint8_t x80_invoke_hook()
                         tracer.Trace( "ERROR: can't rename file, errno %d = %s\n", errno, strerror( errno ) );
                 }
                 else
-                    tracer.Trace( "ERROR: can't parse old filename in rename\n" );
+                    tracer.Trace( "ERROR: can't parse new filename in rename\n" );
             }
             else
                 tracer.Trace( "ERROR: can't parse old filename in rename\n" );
+
             break;
         }
         case 24:
@@ -2458,6 +2461,8 @@ uint8_t x80_invoke_hook()
                 else
                     tracer.Trace( "ERROR: set random record can't find file '%s'\n", acFilename );
             }
+            else
+                tracer.Trace( "ERROR: set random record can't parse filename\n" );
 
             break;
         }
