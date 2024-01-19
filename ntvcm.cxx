@@ -1391,6 +1391,70 @@ bool cpm_read_console( char * buf, size_t bufsize, uint8_t & out_len )
     return false;
 } //cpm_read_console
 
+void WriteRandom()
+{
+    FCB * pfcb = (FCB *) ( memory + reg.D() );
+    trace_FCB( pfcb );
+    reg.a = 6; // seek past end of disk
+
+    char acFilename[ CPM_FILENAME_LEN ];
+    bool ok = parse_FCB_Filename( pfcb, acFilename );
+    if ( ok )
+    {
+        FILE * fp = FindFileEntry( acFilename );
+        if ( fp )
+        {
+            uint16_t record = pfcb->GetRandomIOOffset();
+            uint32_t file_offset = record * 128;
+    
+            fseek( fp, 0, SEEK_END );
+            uint32_t file_size = ftell( fp );
+
+            tracer.Trace( "  write random file %p, record %#x, file_offset %d, file_size %d\n", fp, record, file_offset, file_size );
+
+            if ( file_offset > file_size )
+            {
+                ok = !fseek( fp, file_offset, SEEK_SET );
+                if ( ok )
+                    file_size = ftell( fp );
+                else
+                    tracer.Trace( "  can't seek to extend file with zeros, error %d = %s\n", errno, strerror( errno ) );
+            }
+    
+            if ( file_size >= file_offset )
+            {
+                ok = !fseek( fp, file_offset, SEEK_SET );
+                if ( ok )
+                {
+                    tracer.Trace( "  writing random at offset %#x\n", file_offset );
+                    tracer.TraceBinaryData( g_DMA, 128, 2 );
+                    size_t numwritten = fwrite( g_DMA, 128, 1, fp );
+                    if ( numwritten )
+                    {
+                        reg.a = 0;
+
+                        // The CP/M spec says random write should set the file offset such
+                        // that the following sequential I/O will be from the SAME location
+                        // as this random write -- not 128 bytes beyond.
+
+                        fseek( fp, file_offset, SEEK_SET );
+                    }
+                    else
+                        tracer.Trace( "ERROR: can't write in write random, error %d = %s\n", errno, strerror( errno ) );
+                }
+                else
+                    tracer.Trace( "ERROR: can't seek in write random, offset %#x, size %#x\n", file_offset, file_size );
+            }
+            else
+                tracer.Trace( "ERROR: write random at offset %d beyond end of file size %d\n", file_offset, file_size );
+        }
+        else
+            tracer.Trace( "ERROR: write random on unopened file\n" );
+    }
+    else
+        tracer.Trace( "ERROR: write random can't parse filename\n" );
+} //WriteRandom
+
 // must return one of OPCODE_HLT, OPCODE_NOP, or OPCODE_RET
 
 uint8_t x80_invoke_hook()
@@ -2328,68 +2392,7 @@ uint8_t x80_invoke_hook()
             // write random
 
             tracer.Trace( "  write random\n" );
-    
-            FCB * pfcb = (FCB *) ( memory + reg.D() );
-            trace_FCB( pfcb );
-            reg.a = 6; // seek past end of disk
-
-            char acFilename[ CPM_FILENAME_LEN ];
-            bool ok = parse_FCB_Filename( pfcb, acFilename );
-            if ( ok )
-            {
-                FILE * fp = FindFileEntry( acFilename );
-                if ( fp )
-                {
-                    uint16_t record = pfcb->GetRandomIOOffset();
-                    uint32_t file_offset = record * 128;
-    
-                    fseek( fp, 0, SEEK_END );
-                    uint32_t file_size = ftell( fp );
-
-                    tracer.Trace( "  write random file %p, record %#x, file_offset %d, file_size %d\n", fp, record, file_offset, file_size );
-
-                    if ( file_offset > file_size )
-                    {
-                        ok = !fseek( fp, file_offset, SEEK_SET );
-                        if ( ok )
-                            file_size = ftell( fp );
-                        else
-                            tracer.Trace( "  can't seek to extend file with zeros, error %d = %s\n", errno, strerror( errno ) );
-                    }
-    
-                    if ( file_size >= file_offset )
-                    {
-                        ok = !fseek( fp, file_offset, SEEK_SET );
-                        if ( ok )
-                        {
-                            tracer.Trace( "  writing random at offset %#x\n", file_offset );
-                            tracer.TraceBinaryData( g_DMA, 128, 2 );
-                            size_t numwritten = fwrite( g_DMA, 128, 1, fp );
-                            if ( numwritten )
-                            {
-                                reg.a = 0;
-
-                                // The CP/M spec says random write should set the file offset such
-                                // that the following sequential I/O will be from the SAME location
-                                // as this random write -- not 128 bytes beyond.
-
-                                fseek( fp, file_offset, SEEK_SET );
-                            }
-                            else
-                                tracer.Trace( "ERROR: can't write in write random, error %d = %s\n", errno, strerror( errno ) );
-                        }
-                        else
-                            tracer.Trace( "ERROR: can't seek in write random, offset %#x, size %#x\n", file_offset, file_size );
-                    }
-                    else
-                        tracer.Trace( "ERROR: write random at offset %d beyond end of file size %d\n", file_offset, file_size );
-                }
-                else
-                    tracer.Trace( "ERROR: write random on unopened file\n" );
-            }
-            else
-                tracer.Trace( "ERROR: write random can't parse filename\n" );
-
+            WriteRandom();
             break;
         }
         case 35:
@@ -2468,53 +2471,13 @@ uint8_t x80_invoke_hook()
         }
         case 40:
         {
-            // write random with zero fill
+            // write random with zero fill.
+            // Just like 34 / write random except also fills any file-extending blocks with 0.
+            // The 34 implementation of WriteRandom already fills with zeros, so just use that.
+            // I haven't found any apps that call this, so I can't say it's really tested.
 
             tracer.Trace( "  write random with zero fill\n" );
-    
-            FCB * pfcb = (FCB *) ( memory + reg.D() );
-            trace_FCB( pfcb );
-            reg.a = 6; // seek past end of disk
-
-            char acFilename[ CPM_FILENAME_LEN ];
-            bool ok = parse_FCB_Filename( pfcb, acFilename );
-            if ( ok )
-            {
-                FILE * fp = FindFileEntry( acFilename );
-                if ( fp )
-                {
-                    uint16_t record = pfcb->GetRandomIOOffset();
-                    tracer.Trace( "  write random record %#x\n", record );
-                    uint32_t file_offset = record * 128;
-    
-                    fseek( fp, 0, SEEK_END );
-                    uint32_t file_size = ftell( fp );
-                    if ( file_size >= file_offset )
-                    {
-                        ok = !fseek( fp, file_offset, SEEK_SET );
-                        if ( ok )
-                        {
-                            tracer.Trace( "  writing random at offset %#x\n", file_offset );
-                            uint8_t buf[ 128 ];
-                            memset( buf, 0, sizeof buf );
-                            size_t numwritten = fwrite( buf, 128, 1, fp );
-                            if ( numwritten )
-                                reg.a = 0;
-                            else
-                                tracer.Trace( "ERROR: can't write in write random with zero fill error %d = %s\n", errno, strerror( errno ) );
-                        }
-                        else
-                            tracer.Trace( "ERROR: can't seek in write random with zero fill, offset %#x, size %#x\n", file_offset, file_size );
-                    }
-                    else
-                        tracer.Trace( "ERROR: write random with zero fill beyond end of file\n" );
-                }
-                else
-                    tracer.Trace( "ERROR: write random with zero fill on unopened file\n" );
-            }
-            else
-                tracer.Trace( "ERROR: write random with zero fill can't parse filename\n" );
-
+            WriteRandom();
             break;
         }
         case 105:
