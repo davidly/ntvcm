@@ -2704,332 +2704,347 @@ int ends_with( const char * str, const char * end )
 
 int main( int argc, char * argv[] )
 {
-    bump_thread_priority(); // for performance benchmarking only
-
-    memset( memory, 0, sizeof( memory ) - 1 ); // -1 for 16-bit systems
-    memory[ sizeof( memory ) - 1 ] = 0;
-    memset( &reg, 0, sizeof( reg ) );
-    reg.fZ80Mode = true;
-
-    char * pCommandTail = (char *) memory + COMMAND_TAIL_OFFSET;
-    char * pCommandTailLen = (char *) memory + COMMAND_TAIL_LEN_OFFSET;
-    char * pcCOM = 0;
-    char * pcArg1 = 0;
-    char * pcArg2 = 0;
-    bool trace = false;
-    bool traceInstructions = false;
-    uint64_t clockrate = 0;
-    bool showPerformance = false;
-    bool force80x24 = false;
-    bool clearDisplayOnExit = true;
-    uint64_t processAffinityMask = 0; // by default let the OS decide
-
-    for ( int i = 1; i < argc; i++ )
+    try
     {
-        char *parg = argv[i];
-        char c = *parg;
-
-        // linux shell scripts pass carriage returns '\r' at the end of strings for DOS-style cr/lf files
-
-        char * pR = strchr( parg, '\r' );
-        if ( 0 != pR )
-            *pR = 0;
-
-        // append arguments past the .com file to the command tail
-
-        if ( 0 != pcCOM )
+        bump_thread_priority(); // for performance benchmarking only
+    
+        memset( memory, 0, sizeof( memory ) - 1 ); // -1 for 16-bit systems
+        memory[ sizeof( memory ) - 1 ] = 0;
+        memset( &reg, 0, sizeof( reg ) );
+        reg.fZ80Mode = true;
+    
+        char * pCommandTail = (char *) memory + COMMAND_TAIL_OFFSET;
+        char * pCommandTailLen = (char *) memory + COMMAND_TAIL_LEN_OFFSET;
+        char * pcCOM = 0;
+        char * pcArg1 = 0;
+        char * pcArg2 = 0;
+        bool trace = false;
+        bool traceInstructions = false;
+        uint64_t clockrate = 0;
+        bool showPerformance = false;
+        bool force80x24 = false;
+        bool clearDisplayOnExit = true;
+        uint64_t processAffinityMask = 0; // by default let the OS decide
+    
+        for ( int i = 1; i < argc; i++ )
         {
-            size_t tailLen = strlen( pCommandTail ) + strlen( parg ) + 1 + 1; // +1 null termination +1 space
-            if ( tailLen > 127 )
-                usage( "command length is too long for the 127 char limit in CP/M" );
-
-            // CP/M puts a space at the start of non-zero-length command tails. Also, add a space between arguments.
-
-            strcat( pCommandTail, " " );
-            strcat( pCommandTail, parg );
-        }
-
-        if ( 0 == pcCOM && ( '-' == c
+            char *parg = argv[i];
+            char c = *parg;
+    
+            // linux shell scripts pass carriage returns '\r' at the end of strings for DOS-style cr/lf files
+    
+            char * pR = strchr( parg, '\r' );
+            if ( 0 != pR )
+                *pR = 0;
+    
+            // append arguments past the .com file to the command tail
+    
+            if ( 0 != pcCOM )
+            {
+                size_t tailLen = strlen( pCommandTail ) + strlen( parg ) + 1 + 1; // +1 null termination +1 space
+                if ( tailLen > 127 )
+                    usage( "command length is too long for the 127 char limit in CP/M" );
+    
+                // CP/M puts a space at the start of non-zero-length command tails. Also, add a space between arguments.
+    
+                strcat( pCommandTail, " " );
+                strcat( pCommandTail, parg );
+            }
+    
+            if ( 0 == pcCOM && ( '-' == c
 #if defined( WATCOM ) || defined( _WIN32 )
-            || '/' == c
+                || '/' == c
 #endif
-            ) )
-        {
-            char ca = (char) tolower( parg[1] );
-
-            if ( 's' == ca )
+                ) )
             {
-                if ( ':' == parg[2] )
-                    clockrate = strtoull( parg + 3 , 0, 10 );
+                char ca = (char) tolower( parg[1] );
+    
+                if ( 's' == ca )
+                {
+                    if ( ':' == parg[2] )
+                        clockrate = strtoull( parg + 3 , 0, 10 );
+                    else
+                        usage( "colon required after s argument" );
+                }
+                else if ( 'd' == ca )
+                    clearDisplayOnExit = false;
+                else if ( '8' == ca )
+                    reg.fZ80Mode = false;
+                else if ( 'i' == ca )
+                    traceInstructions = true;
+                else if ( 'l' == ca )
+                    g_forceLowercase = true;
+                else if ( 'k' == ca )
+                    g_kayproToCP437 = true;
+                else if ( 't' == ca )
+                    trace = true;
+                else if ( 'p' == ca )
+                    showPerformance = true;
+                else if ( 'b' == parg[1] )
+                    g_backspaceToDel = true;
+                else if ( 'v' == parg[1] )
+                {
+                    if ( ':' != parg[2] )
+                        usage( "colon required after v argument" );
+    
+                    if ( 'k' == tolower( parg[3] ) )
+                        g_termEscape = termKayproII;
+                    else if ( '5' == parg[3] )
+                        g_termEscape = termVT52;
+                    else
+                        usage( "invalid terminal emulation identifier. Only 5 and k are supported" );
+                }
+                else if ( 'c' == parg[1] )
+                    g_forceConsole = true;
+                else if ( 'C' == parg[1] )
+                    force80x24 = true;
+                else if ( 'z' == ca )
+                {
+                    if ( ':' == parg[2] )
+                        processAffinityMask = strtoull( parg + 3 , 0, 16 );
+                    else
+                        usage( "colon required after z argument" );
+                }
                 else
-                    usage( "colon required after s argument" );
-            }
-            else if ( 'd' == ca )
-                clearDisplayOnExit = false;
-            else if ( '8' == ca )
-                reg.fZ80Mode = false;
-            else if ( 'i' == ca )
-                traceInstructions = true;
-            else if ( 'l' == ca )
-                g_forceLowercase = true;
-            else if ( 'k' == ca )
-                g_kayproToCP437 = true;
-            else if ( 't' == ca )
-                trace = true;
-            else if ( 'p' == ca )
-                showPerformance = true;
-            else if ( 'b' == parg[1] )
-                g_backspaceToDel = true;
-            else if ( 'v' == parg[1] )
-            {
-                if ( ':' != parg[2] )
-                    usage( "colon required after v argument" );
-
-                if ( 'k' == tolower( parg[3] ) )
-                    g_termEscape = termKayproII;
-                else if ( '5' == parg[3] )
-                    g_termEscape = termVT52;
-                else
-                    usage( "invalid terminal emulation identifier. Only 5 and k are supported" );
-            }
-            else if ( 'c' == parg[1] )
-                g_forceConsole = true;
-            else if ( 'C' == parg[1] )
-                force80x24 = true;
-            else if ( 'z' == ca )
-            {
-                if ( ':' == parg[2] )
-                    processAffinityMask = strtoull( parg + 3 , 0, 16 );
-                else
-                    usage( "colon required after z argument" );
+                    usage( "invalid argument specified" );
             }
             else
-                usage( "invalid argument specified" );
+            {
+                if ( 0 == pcCOM )
+                    pcCOM = parg;
+                else if ( 0 == pcArg1 && '-' != *parg )
+                    pcArg1 = parg;
+                else if ( 0 == pcArg2 && '-' != *parg )
+                    pcArg2 = parg;
+            }
         }
-        else
+    
+        tracer.Enable( trace, L"ntvcm.log", true );
+        tracer.SetQuiet( true );
+        tracer.SetFlushEachTrace( true );
+        x80_trace_instructions( traceInstructions );
+    
+        if ( 0 != processAffinityMask )
+            set_process_affinity( processAffinityMask );
+    
+        if ( 0 == pcCOM )
         {
-            if ( 0 == pcCOM )
-                pcCOM = parg;
-            else if ( 0 == pcArg1 && '-' != *parg )
-                pcArg1 = parg;
-            else if ( 0 == pcArg2 && '-' != *parg )
-                pcArg2 = parg;
+            usage( "no CP/M command specified" );
+            assume_false;
         }
-    }
-
-    tracer.Enable( trace, L"ntvcm.log", true );
-    tracer.SetQuiet( true );
-    tracer.SetFlushEachTrace( true );
-    x80_trace_instructions( traceInstructions );
-
-    if ( 0 != processAffinityMask )
-        set_process_affinity( processAffinityMask );
-
-    if ( 0 == pcCOM )
-    {
-        usage( "no CP/M command specified" );
-        assume_false;
-    }
-
-    * pCommandTailLen = (char) strlen( pCommandTail );
-    tracer.Trace( "command tail len %d value: '%s'\n", *pCommandTailLen, pCommandTail );
-
-    char acCOM[ MAX_PATH ] = {0};
-    strcpy( acCOM, pcCOM );
-
-    if ( !file_exists( acCOM ) )
-    {
-        if ( ends_with( acCOM, ".com" ) )
-            usage( "can't find command file" );
-        else
+    
+        * pCommandTailLen = (char) strlen( pCommandTail );
+        tracer.Trace( "command tail len %d value: '%s'\n", *pCommandTailLen, pCommandTail );
+    
+        char acCOM[ MAX_PATH ] = {0};
+        strcpy( acCOM, pcCOM );
+    
+        if ( !file_exists( acCOM ) )
         {
-            strcat( acCOM, ".com" );
-            if ( !file_exists( acCOM ) )
+            if ( ends_with( acCOM, ".com" ) )
                 usage( "can't find command file" );
-        }
-    }
-
-    // setup command-line arguments
-
-    FCB_ARGUMENT * arg1 = (FCB_ARGUMENT *) ( memory + FCB_ARG1_OFFSET );
-    FCB_ARGUMENT * arg2 = (FCB_ARGUMENT *) ( memory + FCB_ARG2_OFFSET );
-    memset( & ( arg1->f ), ' ', 11 );
-    memset( & ( arg2->f ), ' ', 11 );
-
-    if ( pcArg1 )
-    {
-        _strupr( pcArg1 );
-        write_arg( arg1, pcArg1 );
-
-        if ( pcArg2 )
-        {
-            _strupr( pcArg2 );
-            write_arg( arg2, pcArg2 );
-        }
-    }
-
-    tracer.Trace( "fcb argument 1:\n" );
-    trace_FCB( (FCB *) arg1 );
-    tracer.Trace( "fcb argument 2:\n" );
-    trace_FCB( (FCB *) arg2 );
-
-    // make memory look like CP/M 2.2. The first 8-byte interrupt vector has this:
-
-    memory[0] = OPCODE_JMP;    // jump to warm boot, which likely just exits ntvcm unless overridden by an app.
-    memory[1] = 3 + BIOS_JUMP_TABLE_LO; // low byte of BIOS jump table. boot is at -3 from this address. wboot is here.
-    memory[2] = BIOS_JUMP_TABLE_HI;     // high byte of BIOS jump table
-    memory[3] = 0;             // use TTY: for console, READER, PUNCH, and LIST
-    memory[4] = 0;             // default drive 0 == A
-    memory[5] = OPCODE_JMP;    // jump to the BDOS entry point unless overridden by an app
-    memory[6] = BDOS_ENTRY_LO; // these two bytes also point to the first byte above app-available RAM (reserved RAM)
-    memory[7] = BDOS_ENTRY_HI;
-
-    // The real bios function table is a list of 3-byte entries containing jmp and the address of
-    // each of the 16 bios functions (17 including the -1 entry to exit).
-    // Here, just hook the jmp instruction and put a pointer to the hook opcode in each address.
-    // Apps like mbasic.com don't call bios functions; they take the address from the vector and
-    // call it directly to save a tiny bit of performance.
-    // The memory map is here (giving apps a little more RAM than standard CP/M):
-    //   0000-003f: CP/M global storage + RST hardware interrupt service routines. 8 entries are 8 bytes each
-    //   0040-00ff: CP/M global storage
-    //   0100-????: App run space growing upward until it collides with the stack
-    //   ????-fefb: Stack growing downward until it collides with the app
-    //   fefc-fefd: two bytes of 0 so apps can return instead of a standard app exit.
-    //   fefe-feff: OPCODE_HOOK for BDOS calls. Where addresses 5-7 jumps to. BDOS_ENTRY
-    //   ff00-ff33: bios jump table of 3*17 bytes. (0xff03 is stored at addess 0x1). BIOS_JUMP_TABLE
-    //   ff40-ff50: where bios jump table addresses point, filled with OPCODE_HOOK. BIOS_FUNCTIONS
-    //   ff60-ff6f: filled with the Disk Parameter Block for BDOS call 31 Get DPB. DPD_OFFSET
-    //   ff70-ffff: unused, filled with 0
-    //
-    // On a typical CP/M machine:
-    //   0000-003f: RST hardware interrupt service routines. 8 entries are 8 bytes each
-    //   0040-00ff: CP/M global storage
-    //   0100-????: app space
-    //   ????-e3a9: stack given to apps at start.
-    //   e406-????: bdos
-    //   f200-????: bios (0xf203 stored at address 1)
-    //
-    //   On the Z80-MBC2 machine:
-    //   ????-d9a9: stack given to apps at start.
-    //   da06-????: bdos
-    //   e800-????: bios (0xe803 stored at address 1)
-
-    memory[ BDOS_ENTRY ] = OPCODE_HOOK;
-    memset( memory + BIOS_FUNCTIONS, OPCODE_HOOK, BIOS_FUNCTION_COUNT );
-
-    // fill the BIOS jump table to jmp to unique addresses containing OPCODE_HOOK
-
-    for ( uint16_t v = 0; v < BIOS_FUNCTION_COUNT; v++ )
-    {
-        uint16_t entryOffset = BIOS_JUMP_TABLE + ( 3 * v );
-        memory[ entryOffset ] = OPCODE_JMP;
-        setmword( entryOffset + 1, BIOS_FUNCTIONS + v );
-    }
-
-    long file_size = 0;
-    bool ok = load_file( acCOM, file_size, memory + 0x100 );
-    if ( !ok )
-    {
-        printf( "unable to load command %s\n", acCOM );
-        exit( 1 );
-    }
-
-    // Use made-up numbers that look believable enough to a CP/M app checking for free disk space. 107k.
-
-    DiskParameterBlock * pdpb = (DiskParameterBlock *) ( memory + DPB_OFFSET );
-    pdpb->spt = 128;
-    pdpb->bsh = 3;
-    pdpb->blm = 7;
-    pdpb->exm = 7;
-    pdpb->dsm = 127;
-    pdpb->drm = 1;
-    pdpb->al0 = 0xf0;
-    pdpb->al1 = 0;
-    pdpb->cks = 64;
-    pdpb->off = 0;
-
-    memory[ 0x100 + file_size ] = OPCODE_HLT; // in case the app doesn't shutdown properly
-    reg.powerOn();               // set default values of registers
-    reg.pc = 0x100;
-    reg.sp = BDOS_ENTRY - 2;     // the stack is written to below this address. 2 bytes here are zero for ret from app
-    reg.a = reg.b = reg.c = reg.d = reg.e = reg.h = reg.l = 0;
-    reg.fp = reg.ap = 0;         // apparently this is expected by CPUTEST
-    reg.bp = reg.cp = reg.dp = reg.ep = reg.hp = reg.lp = 0;
-    reg.ix = reg.iy = 0;
-    g_haltExecuted = false;
-
-    if ( trace )
-    {
-        x80_trace_state();
-        tracer.Trace( "starting execution of app '%s' size %d\n", acCOM, file_size );
-    }
-
-    //dump_memory( "ntvcm_start.dmp" );
-
-    if ( force80x24 )
-        g_consoleConfig.EstablishConsoleOutput( 80, 24 );
-
-#ifdef WATCOM
-    uint32_t tStart = DosTimeInMS();
-#else
-    CPUCycleDelay delay( clockrate );
-    high_resolution_clock::time_point tStart = high_resolution_clock::now();
-#endif
-
-    uint64_t total_cycles = 0;
-    do
-    {
-        total_cycles += x80_emulate( 1000 );
-
-        if ( g_haltExecuted )
-            break;
-
-#ifndef WATCOM
-        delay.Delay( total_cycles );
-#endif
-    } while ( true );
-
-#ifdef WATCOM
-    uint32_t tDone = DosTimeInMS();
-#else
-    high_resolution_clock::time_point tDone = high_resolution_clock::now();
-#endif
-
-    g_consoleConfig.RestoreConsole( clearDisplayOnExit );
-
-    CloseFindFirst();
-
-    if ( showPerformance )
-    {
-        char ac[ 100 ];
-        printf( "\n" );
-#ifdef WATCOM
-        uint32_t elapsedMS = tDone - tStart;
-#else
-        uint32_t elapsedMS = (uint32_t) duration_cast<std::chrono::milliseconds>( tDone - tStart ).count();
-#endif
-        printf( "elapsed milliseconds: %16s\n", RenderNumberWithCommas( elapsedMS, ac ) );
-        printf( "%s cycles:      %20s\n", reg.fZ80Mode ? "Z80 " : "8080", RenderNumberWithCommas( total_cycles, ac ) );
-
-        printf( "clock rate: " );
-        if ( 0 == clockrate )
-        {
-            printf( "      %20s\n", "unbounded" );
-            uint64_t total_ms = total_cycles / ( reg.fZ80Mode ? 4000 : 2000 );
-            if ( reg.fZ80Mode )
-                printf( "approx ms at 4Mhz: %19s == ", RenderNumberWithCommas( total_ms, ac ) );
             else
-                printf( "approx ms at 2Mhz: %19s == ", RenderNumberWithCommas( total_ms, ac ) );
-
-            uint16_t days = (uint16_t) ( total_ms / 1000 / 60 / 60 / 24 );
-            uint16_t hours = (uint16_t) ( ( total_ms % ( (uint32_t) 1000 * 60 * 60 * 24 ) ) / 1000 / 60 / 60 );
-            uint16_t minutes = (uint16_t) ( ( total_ms % ( (uint32_t) 1000 * 60 * 60 ) ) / 1000 / 60 );
-            uint16_t seconds = (uint16_t) ( ( total_ms % ( (uint32_t) 1000 * 60 ) ) / 1000 );
-            uint64_t milliseconds = ( ( total_ms % 1000 ) );
-            printf( "%u days, %u hours, %u minutes, %u seconds, %llu milliseconds\n", days, hours, minutes, seconds, milliseconds );
+            {
+                strcat( acCOM, ".com" );
+                if ( !file_exists( acCOM ) )
+                    usage( "can't find command file" );
+            }
         }
-        else
-            printf( "      %20s Hz\n", RenderNumberWithCommas( clockrate, ac ) );
+    
+        // setup command-line arguments
+    
+        FCB_ARGUMENT * arg1 = (FCB_ARGUMENT *) ( memory + FCB_ARG1_OFFSET );
+        FCB_ARGUMENT * arg2 = (FCB_ARGUMENT *) ( memory + FCB_ARG2_OFFSET );
+        memset( & ( arg1->f ), ' ', 11 );
+        memset( & ( arg2->f ), ' ', 11 );
+    
+        if ( pcArg1 )
+        {
+            _strupr( pcArg1 );
+            write_arg( arg1, pcArg1 );
+    
+            if ( pcArg2 )
+            {
+                _strupr( pcArg2 );
+                write_arg( arg2, pcArg2 );
+            }
+        }
+    
+        tracer.Trace( "fcb argument 1:\n" );
+        trace_FCB( (FCB *) arg1 );
+        tracer.Trace( "fcb argument 2:\n" );
+        trace_FCB( (FCB *) arg2 );
+    
+        // make memory look like CP/M 2.2. The first 8-byte interrupt vector has this:
+    
+        memory[0] = OPCODE_JMP;    // jump to warm boot, which likely just exits ntvcm unless overridden by an app.
+        memory[1] = 3 + BIOS_JUMP_TABLE_LO; // low byte of BIOS jump table. boot is at -3 from this address. wboot is here.
+        memory[2] = BIOS_JUMP_TABLE_HI;     // high byte of BIOS jump table
+        memory[3] = 0;             // use TTY: for console, READER, PUNCH, and LIST
+        memory[4] = 0;             // default drive 0 == A
+        memory[5] = OPCODE_JMP;    // jump to the BDOS entry point unless overridden by an app
+        memory[6] = BDOS_ENTRY_LO; // these two bytes also point to the first byte above app-available RAM (reserved RAM)
+        memory[7] = BDOS_ENTRY_HI;
+    
+        // The real bios function table is a list of 3-byte entries containing jmp and the address of
+        // each of the 16 bios functions (17 including the -1 entry to exit).
+        // Here, just hook the jmp instruction and put a pointer to the hook opcode in each address.
+        // Apps like mbasic.com don't call bios functions; they take the address from the vector and
+        // call it directly to save a tiny bit of performance.
+        // The memory map is here (giving apps a little more RAM than standard CP/M):
+        //   0000-003f: CP/M global storage + RST hardware interrupt service routines. 8 entries are 8 bytes each
+        //   0040-00ff: CP/M global storage
+        //   0100-????: App run space growing upward until it collides with the stack
+        //   ????-fefb: Stack growing downward until it collides with the app
+        //   fefc-fefd: two bytes of 0 so apps can return instead of a standard app exit.
+        //   fefe-feff: OPCODE_HOOK for BDOS calls. Where addresses 5-7 jumps to. BDOS_ENTRY
+        //   ff00-ff33: bios jump table of 3*17 bytes. (0xff03 is stored at addess 0x1). BIOS_JUMP_TABLE
+        //   ff40-ff50: where bios jump table addresses point, filled with OPCODE_HOOK. BIOS_FUNCTIONS
+        //   ff60-ff6f: filled with the Disk Parameter Block for BDOS call 31 Get DPB. DPD_OFFSET
+        //   ff70-ffff: unused, filled with 0
+        //
+        // On a typical CP/M machine:
+        //   0000-003f: RST hardware interrupt service routines. 8 entries are 8 bytes each
+        //   0040-00ff: CP/M global storage
+        //   0100-????: app space
+        //   ????-e3a9: stack given to apps at start.
+        //   e406-????: bdos
+        //   f200-????: bios (0xf203 stored at address 1)
+        //
+        //   On the Z80-MBC2 machine:
+        //   ????-d9a9: stack given to apps at start.
+        //   da06-????: bdos
+        //   e800-????: bios (0xe803 stored at address 1)
+    
+        memory[ BDOS_ENTRY ] = OPCODE_HOOK;
+        memset( memory + BIOS_FUNCTIONS, OPCODE_HOOK, BIOS_FUNCTION_COUNT );
+    
+        // fill the BIOS jump table to jmp to unique addresses containing OPCODE_HOOK
+    
+        for ( uint16_t v = 0; v < BIOS_FUNCTION_COUNT; v++ )
+        {
+            uint16_t entryOffset = BIOS_JUMP_TABLE + ( 3 * v );
+            memory[ entryOffset ] = OPCODE_JMP;
+            setmword( entryOffset + 1, BIOS_FUNCTIONS + v );
+        }
+    
+        long file_size = 0;
+        bool ok = load_file( acCOM, file_size, memory + 0x100 );
+        if ( !ok )
+        {
+            printf( "unable to load command %s\n", acCOM );
+            exit( 1 );
+        }
+    
+        // Use made-up numbers that look believable enough to a CP/M app checking for free disk space. 107k.
+    
+        DiskParameterBlock * pdpb = (DiskParameterBlock *) ( memory + DPB_OFFSET );
+        pdpb->spt = 128;
+        pdpb->bsh = 3;
+        pdpb->blm = 7;
+        pdpb->exm = 7;
+        pdpb->dsm = 127;
+        pdpb->drm = 1;
+        pdpb->al0 = 0xf0;
+        pdpb->al1 = 0;
+        pdpb->cks = 64;
+        pdpb->off = 0;
+    
+        memory[ 0x100 + file_size ] = OPCODE_HLT; // in case the app doesn't shutdown properly
+        reg.powerOn();               // set default values of registers
+        reg.pc = 0x100;
+        reg.sp = BDOS_ENTRY - 2;     // the stack is written to below this address. 2 bytes here are zero for ret from app
+        reg.a = reg.b = reg.c = reg.d = reg.e = reg.h = reg.l = 0;
+        reg.fp = reg.ap = 0;         // apparently this is expected by CPUTEST
+        reg.bp = reg.cp = reg.dp = reg.ep = reg.hp = reg.lp = 0;
+        reg.ix = reg.iy = 0;
+        g_haltExecuted = false;
+    
+        if ( trace )
+        {
+            x80_trace_state();
+            tracer.Trace( "starting execution of app '%s' size %d\n", acCOM, file_size );
+        }
+    
+        //dump_memory( "ntvcm_start.dmp" );
+    
+        if ( force80x24 )
+            g_consoleConfig.EstablishConsoleOutput( 80, 24 );
+    
+#ifdef WATCOM
+        uint32_t tStart = DosTimeInMS();
+#else
+        CPUCycleDelay delay( clockrate );
+        high_resolution_clock::time_point tStart = high_resolution_clock::now();
+#endif
+
+        uint64_t total_cycles = 0;
+        do
+        {
+            total_cycles += x80_emulate( 1000 );
+    
+            if ( g_haltExecuted )
+                break;
+    
+#ifndef WATCOM
+            delay.Delay( total_cycles );
+#endif
+        } while ( true );
+
+#ifdef WATCOM
+        uint32_t tDone = DosTimeInMS();
+#else
+        high_resolution_clock::time_point tDone = high_resolution_clock::now();
+#endif
+
+        g_consoleConfig.RestoreConsole( clearDisplayOnExit );
+    
+        CloseFindFirst();
+    
+        if ( showPerformance )
+        {
+            char ac[ 100 ];
+            printf( "\n" );
+#ifdef WATCOM
+            uint32_t elapsedMS = tDone - tStart;
+#else
+            uint32_t elapsedMS = (uint32_t) duration_cast<std::chrono::milliseconds>( tDone - tStart ).count();
+#endif
+            printf( "elapsed milliseconds: %16s\n", RenderNumberWithCommas( elapsedMS, ac ) );
+            printf( "%s cycles:      %20s\n", reg.fZ80Mode ? "Z80 " : "8080", RenderNumberWithCommas( total_cycles, ac ) );
+    
+            printf( "clock rate: " );
+            if ( 0 == clockrate )
+            {
+                printf( "      %20s\n", "unbounded" );
+                uint64_t total_ms = total_cycles / ( reg.fZ80Mode ? 4000 : 2000 );
+                if ( reg.fZ80Mode )
+                    printf( "approx ms at 4Mhz: %19s == ", RenderNumberWithCommas( total_ms, ac ) );
+                else
+                    printf( "approx ms at 2Mhz: %19s == ", RenderNumberWithCommas( total_ms, ac ) );
+    
+                uint16_t days = (uint16_t) ( total_ms / 1000 / 60 / 60 / 24 );
+                uint16_t hours = (uint16_t) ( ( total_ms % ( (uint32_t) 1000 * 60 * 60 * 24 ) ) / 1000 / 60 / 60 );
+                uint16_t minutes = (uint16_t) ( ( total_ms % ( (uint32_t) 1000 * 60 * 60 ) ) / 1000 / 60 );
+                uint16_t seconds = (uint16_t) ( ( total_ms % ( (uint32_t) 1000 * 60 ) ) / 1000 );
+                uint64_t milliseconds = ( ( total_ms % 1000 ) );
+                printf( "%u days, %u hours, %u minutes, %u seconds, %llu milliseconds\n", days, hours, minutes, seconds, milliseconds );
+            }
+            else
+                printf( "      %20s Hz\n", RenderNumberWithCommas( clockrate, ac ) );
+        }
+    }
+    catch ( bad_alloc & e )
+    {
+        printf( "caught exception bad_alloc -- out of RAM. If in RVOS use -h or -m to add RAM. %s\n", e.what() );
+    }
+    catch ( exception & e )
+    {
+        printf( "caught a standard execption: %s\n", e.what() );
+    }
+    catch( ... )
+    {
+        printf( "caught a generic exception\n" );
     }
 
 #ifdef NTVCM_RSS_SUPPORT
