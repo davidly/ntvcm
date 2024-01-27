@@ -379,6 +379,28 @@ void op_dad( uint16_t x )
     reg.SetH( (uint16_t) ( result & 0xffff ) );
 } //op_dad
 
+void op_cma()
+{
+    reg.a = ~reg.a;
+    if ( reg.fZ80Mode )
+    {
+        reg.fAuxCarry = true;
+        reg.fWasSubtract = true;
+        reg.z80_assignYX( reg.a );
+    }
+} //op_cma
+
+void op_cmc()
+{
+    reg.fCarry = !reg.fCarry;
+    if ( reg.fZ80Mode )
+    {
+        reg.fWasSubtract = false;
+        reg.fAuxCarry = !reg.fCarry;
+        reg.z80_assignYX( reg.a );
+    }
+} //op_cmc
+
 not_inlined void op_daa()
 {
     if ( reg.fZ80Mode ) // this BCD add logic pulled from Sean Young's doc
@@ -1828,17 +1850,7 @@ uint64_t x80_emulate( uint64_t maxcycles )
             case 0x22: { setmword( pcword(), reg.H() ); break; } // shld
             case 0x27: { op_daa(); break; } // daa
             case 0x2a: { reg.SetH( mword( pcword() ) ); break; } // lhld
-            case 0x2f: // cma
-            {
-                reg.a = ~reg.a;
-                if ( reg.fZ80Mode )
-                {
-                    reg.fAuxCarry = true;
-                    reg.fWasSubtract = true;
-                    reg.z80_assignYX( reg.a );
-                }
-                break;
-            }
+            case 0x2f: { op_cma(); break; } // cma
             case 0x32: { memory[ pcword() ] = reg.a; break; } // sta a16
             case 0x37: // stc
             {
@@ -1851,17 +1863,7 @@ uint64_t x80_emulate( uint64_t maxcycles )
                 break;
             }
             case 0x3a: { reg.a = memory[ pcword() ]; break; } // lda a16
-            case 0x3f: // cmc
-            {
-                reg.fCarry = !reg.fCarry;
-                if ( reg.fZ80Mode )
-                {
-                    reg.fWasSubtract = false;
-                    reg.fAuxCarry = !reg.fCarry;
-                    reg.z80_assignYX( reg.a );
-                }
-                break;
-            }
+            case 0x3f: { op_cmc(); break; } // cmc
             case 0x40: case 0x41: case 0x42: case 0x43: case 0x44: case 0x45: case 0x46: case 0x47:
             case 0x48: case 0x49: case 0x4a: case 0x4b: case 0x4c: case 0x4d: case 0x4e: case 0x4f:
             case 0x50: case 0x51: case 0x52: case 0x53: case 0x54: case 0x55: case 0x56: case 0x57:
@@ -1932,7 +1934,7 @@ uint64_t x80_emulate( uint64_t maxcycles )
             case 0xc7: case 0xd7: case 0xe7: case 0xf7: case 0xcf: case 0xdf: case 0xef: case 0xff: // rst
             {
                 // bits 5..3 are exp, which form an address 0000000000exp000 that is called.
-                // rst is generally invoked by hardware interrupts, which supply one instruction rst.
+                // rst is generally invoked by hardware interrupts, which supply the one instruction rst.
             
                 pushword( reg.pc );
                 reg.pc = 0x38 & (uint16_t) op;

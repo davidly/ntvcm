@@ -10,7 +10,6 @@
 #include <codecvt>
 #include <locale>
 #include <random>
-#include <assert.h>
 
 #define USE_DEBUG_FILES false
 

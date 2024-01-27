@@ -1,7 +1,5 @@
 #pragma once
 
-#include <assert.h>
-
 // i8080 and Z80 emulator
 
 #define OPCODE_HOOK 0x64  // mov h, h. When executed, x80_invoke_hook is called
@@ -129,8 +127,8 @@ struct registers
 
     uint16_t * rpAddressFromLowOp( uint8_t op )
     {
-        assert( ! ( op & 0x8080 ) ); // save masking if the high bits on each nibble are 0
-        return (uint16_t *) ( ( (uint8_t *) this ) + ( ( op >> 3 ) ) );
+        assert( ! ( op & 0x88 ) ); // save masking with &6 if the high bits on each nibble are 0
+        return (uint16_t *) ( ( (uint8_t *) this ) + ( op >> 3 ) );
     } //rpAddressFromLowOp
 
     uint8_t * regOffset( uint8_t rm )
