@@ -43,10 +43,7 @@
 #include <djl_os.hxx>
 #include <djltrace.hxx>
 #include <djl_con.hxx>
-
-#ifndef WATCOM
 #include <djl_cycle.hxx>
-#endif
 
 // On non-Windows platforms djl_rssrdr.hxx has a dependency on:
 //     httplib.h from https://github.com/yhirose/cpp-httplib
@@ -2971,10 +2968,11 @@ int main( int argc, char * argv[] )
         if ( force80x24 )
             g_consoleConfig.EstablishConsoleOutput( 80, 24 );
     
+        CPUCycleDelay delay( clockrate );
+
 #ifdef WATCOM
         uint32_t tStart = DosTimeInMS();
 #else
-        CPUCycleDelay delay( clockrate );
         high_resolution_clock::time_point tStart = high_resolution_clock::now();
 #endif
 
@@ -2986,9 +2984,7 @@ int main( int argc, char * argv[] )
             if ( g_haltExecuted )
                 break;
     
-#ifndef WATCOM
             delay.Delay( total_cycles );
-#endif
         } while ( true );
 
 #ifdef WATCOM
