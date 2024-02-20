@@ -66,9 +66,9 @@
 
 // The BDOS invocation function that ships with M80 incorrectly assumes the BIOS_JUMP_TABLE low byte (minus 3) is 0.
 // The BDOS_ENTRY address must be one byte beyond free memory for the app.
-// So 258 bytes must be reserved (including one for the system to keep the stack 2-byte aligned).
+// So 260 bytes must be reserved: 256 for page-aligned BIOS and 4 bytes for the BDOS stub.
 
-const uint8_t  BDOS_ENTRY_LO =       0xfe;
+const uint8_t  BDOS_ENTRY_LO =       0xfc;
 const uint8_t  BDOS_ENTRY_HI =       0xfe;
 const uint16_t BDOS_ENTRY =          ( ( BDOS_ENTRY_HI << 8 ) | BDOS_ENTRY_LO );
 
@@ -82,7 +82,6 @@ const uint16_t BIOS_FUNCTION_COUNT = 17;
 const uint8_t  DPB_OFFSET_LO =       0x60; // lo part of DPB
 const uint8_t  DPB_OFFSET_HI =       0xff; // where the Disk Parameter Block resides for BDOS 31.
 const uint16_t DPB_OFFSET =          ( ( DPB_OFFSET_HI << 8 ) | DPB_OFFSET_LO );
-
 
 #define CPM_FILENAME_LEN ( 8 + 3 + 1 + 1 ) // name + type + dot + null
   
@@ -224,6 +223,17 @@ void dump_memory( const char * pname = "ntvcm.dmp" )
         return t * 10;
     } //DosTimeInMS
 #endif //WATCOM
+
+int ends_with( const char * str, const char * end )
+{
+    size_t len = strlen( str );
+    size_t lenend = strlen( end );
+
+    if ( len < lenend )
+        return false;
+
+    return ( 0 == _stricmp( str + len - lenend, end ) );
+} //ends_with
 
 bool ValidCPMFilename( char * pc )
 {
@@ -1525,7 +1535,7 @@ uint8_t x80_invoke_hook()
         return OPCODE_RET;
     }
 
-    if ( BDOS_ENTRY != address )
+    if ( ( BDOS_ENTRY + 3 ) != address )
     {
         tracer.Trace( "hook call, but not bios or bdos. likely just a mov h, h. address: %04x\n", address );
         return OPCODE_NOP;
@@ -2330,7 +2340,7 @@ uint8_t x80_invoke_hook()
                 if ( fp )
                 {
                     uint32_t record = pfcb->GetRandomIOOffset();
-                    tracer.Trace( "  read random record %#x\n", record );
+                    tracer.Trace( "  read random record %u == %#x\n", record, record );
                     uint32_t file_offset = record * 128;
                     memset( g_DMA, 0x1a, 128 ); // fill with ^z, the EOF marker in CP/M
     
@@ -2340,7 +2350,7 @@ uint8_t x80_invoke_hook()
     
                     if ( file_size == file_offset )
                     {
-                        tracer.Trace( "  random read past eof\n" );
+                        tracer.Trace( "  random read at eof, offset %u\n", file_size );
                         reg.a = 1;
                         break;
                     }
@@ -2351,7 +2361,7 @@ uint8_t x80_invoke_hook()
                         ok = !fseek( fp, file_offset, SEEK_SET );
                         if ( ok )
                         {
-                            tracer.Trace( "  reading random at offset %#x\n", file_offset );
+                            tracer.Trace( "  reading random at offset %u == %#x. file size %u, to read %u\n", file_offset, file_offset, file_size, to_read );
                             size_t numread = fread( g_DMA, 1, to_read, fp );
                             if ( numread )
                             {
@@ -2688,17 +2698,6 @@ static char * RenderNumberWithCommas( long long n, char * ac )
     return ac;
 } //RenderNumberWithCommas
 
-int ends_with( const char * str, const char * end )
-{
-    size_t len = strlen( str );
-    size_t lenend = strlen( end );
-
-    if ( len < lenend )
-        return false;
-
-    return ( 0 == _stricmp( str + len - lenend, end ) );
-} //ends_with
-
 int main( int argc, char * argv[] )
 {
     try
@@ -2847,7 +2846,7 @@ int main( int argc, char * argv[] )
                     usage( "can't find command file" );
             }
         }
-    
+
         // setup command-line arguments
     
         FCB_ARGUMENT * arg1 = (FCB_ARGUMENT *) ( memory + FCB_ARG1_OFFSET );
@@ -2894,7 +2893,7 @@ int main( int argc, char * argv[] )
         //   0100-????: App run space growing upward until it collides with the stack
         //   ????-fefb: Stack growing downward until it collides with the app
         //   fefc-fefd: two bytes of 0 so apps can return instead of a standard app exit.
-        //   fefe-feff: OPCODE_HOOK for BDOS calls. Where addresses 5-7 jumps to. BDOS_ENTRY
+        //   fefc-feff: JMP to feff for BDOS calls. Where addresses 5-7 jumps to. BDOS_ENTRY. Hook here breaks WordStar.
         //   ff00-ff33: bios jump table of 3*17 bytes. (0xff03 is stored at addess 0x1). BIOS_JUMP_TABLE
         //   ff40-ff50: where bios jump table addresses point, filled with OPCODE_HOOK. BIOS_FUNCTIONS
         //   ff60-ff6f: filled with the Disk Parameter Block for BDOS call 31 Get DPB. DPD_OFFSET
@@ -2912,8 +2911,13 @@ int main( int argc, char * argv[] )
         //   ????-d9a9: stack given to apps at start.
         //   da06-????: bdos
         //   e800-????: bios (0xe803 stored at address 1)
-    
-        memory[ BDOS_ENTRY ] = OPCODE_HOOK;
+
+        // can't put an OPCODE_HOOK at BDOS_ENTRY because apps like WordStar's spellcheck copy this code elsewhere
+
+        memory[ BDOS_ENTRY ] = OPCODE_JMP;                  // jump
+        memory[ BDOS_ENTRY + 1 ] = BDOS_ENTRY_LO + 3;       // ..
+        memory[ BDOS_ENTRY + 2 ] = BDOS_ENTRY_HI;           // ..
+        memory[ BDOS_ENTRY + 3 ] = OPCODE_HOOK;             // to here
         memset( memory + BIOS_FUNCTIONS, OPCODE_HOOK, BIOS_FUNCTION_COUNT );
     
         // fill the BIOS jump table to jmp to unique addresses containing OPCODE_HOOK
