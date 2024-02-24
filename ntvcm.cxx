@@ -85,19 +85,6 @@ const uint16_t DPB_OFFSET =          ( ( DPB_OFFSET_HI << 8 ) | DPB_OFFSET_LO );
 
 #define CPM_FILENAME_LEN ( 8 + 3 + 1 + 1 ) // name + type + dot + null
   
-// this is the first 16 bytes of an FCB used for the first two command-line arguments at 0x5c and 0x6c
-
-struct FCB_ARGUMENT
-{
-    uint8_t dr;            // 0 = default drive, 1 = A ... 16 = P
-    uint8_t f[8];          // file name. uppercase ascii or spaces
-    uint8_t t[3];          // file type. uppercase ascii or spaces
-    uint8_t ex;            // extent 0..31 during I/O
-    uint8_t s1;            // reserved
-    uint8_t s2;            // reserved. extent high byte
-    uint8_t rc;            // record count for extent ex. 0..127
-};
-
 // cr = current record = ( file pointer % 16k ) / 128
 // ex = current extent = ( file pointer % 512k ) / 16k
 // s2 = extent high    = ( file pointer / 512k )
@@ -120,6 +107,7 @@ struct FCB
     // r0 and r1 are a 16-bit count of 128 byte records
 
     uint16_t GetRandomIOOffset() { return ( (uint16_t) this->r1 << 8 ) | this->r0; }
+
     void SetRandomIOOffset( uint16_t o )
     {
         this->r0 = ( 0xff & o );
@@ -146,10 +134,30 @@ struct FCB
         curr += ( (uint32_t) s2 * ( (uint32_t) 512 * 1024 ) );
         return curr;
     } //GetSequentialOffset
+
+    void Trace( bool justArg = false ) // justArg is the first 16 bytes at app startup
+    {
+        tracer.Trace( "  FCB:\n" );
+        tracer.Trace( "    drive:    %#x == %c\n", dr, ( 0 == dr ) ? 'A' : 'A' + dr - 1 );
+        tracer.Trace( "    filename: '%c%c%c%c%c%c%c%c'\n", 0x7f & f[0], 0x7f & f[1], 0x7f & f[2], 0x7f & f[3],
+                                                            0x7f & f[4], 0x7f & f[5], 0x7f & f[6], 0x7f & f[7] );
+        tracer.Trace( "    filetype: '%c%c%c'\n", 0x7f & t[0], 0x7f & t[1], 0x7f & t[2] );
+        tracer.Trace( "    R S A:    %d %d %d\n", 0 != ( 0x80 & t[0] ), 0 != ( 0x80 & t[1] ), 0 != ( 0x80 & t[2] ) );
+        tracer.Trace( "    ex:       %d\n", ex );
+        tracer.Trace( "    s1:       %u\n", s1 );
+        tracer.Trace( "    s2:       %u\n", s2 );
+        tracer.Trace( "    rc:       %u\n", rc );
+        if ( !justArg )
+        {
+            tracer.Trace( "    cr:       %u\n", cr );
+            tracer.Trace( "    r0:       %u\n", r0 );
+            tracer.Trace( "    r1:       %u\n", r1 );
+            tracer.Trace( "    r2:       %u\n", r2 );
+        }
+    } //Trace
 };
 
-// this struct is used to cache FILE * objects to both avoid open/close each time and to preserve
-// sequential I/O offsets from one call to the next.
+// this struct is used to cache FILE * objects to avoid open/close for each file access
 
 struct FileEntry
 {
@@ -204,7 +212,7 @@ void dump_memory( const char * pname = "ntvcm.dmp" )
         return;
     }
 
-    for ( uint32_t i = 0; i < 65536; i += 128 )
+    for ( uint32_t i = 0; i < 65536; i += 128 ) // write in small blocks so it works on DOS too
         fwrite( & memory[ i ], 1, 128, fp );
 
     fclose( fp );
@@ -402,24 +410,6 @@ void ParseFoundFile( char * pfile )
                     g_DMA[1], g_DMA[2], g_DMA[3], g_DMA[4], g_DMA[5], g_DMA[6], g_DMA[7], g_DMA[8],
                     g_DMA[9], g_DMA[10],  g_DMA[11] );
 } //ParseFoundFile
-
-void trace_FCB( FCB * p )
-{
-    tracer.Trace( "  FCB:\n" );
-    tracer.Trace( "    drive:    %#x == %c\n", p->dr, ( 0 == p->dr ) ? 'A' : 'A' + p->dr - 1 );
-    tracer.Trace( "    filename: '%c%c%c%c%c%c%c%c'\n", 0x7f & p->f[0], 0x7f & p->f[1], 0x7f & p->f[2], 0x7f & p->f[3],
-                                                        0x7f & p->f[4], 0x7f & p->f[5], 0x7f & p->f[6], 0x7f & p->f[7] );
-    tracer.Trace( "    filetype: '%c%c%c'\n", 0x7f & p->t[0], 0x7f & p->t[1], 0x7f & p->t[2] );
-    tracer.Trace( "    R S A:    %d %d %d\n", 0 != ( 0x80 & p->t[0] ), 0 != ( 0x80 & p->t[1] ), 0 != ( 0x80 & p->t[2] ) );
-    tracer.Trace( "    ex:       %d\n", p->ex );
-    tracer.Trace( "    s1:       %u\n", p->s1 );
-    tracer.Trace( "    s2:       %u\n", p->s2 );
-    tracer.Trace( "    rc:       %u\n", p->rc );
-    tracer.Trace( "    cr:       %u\n", p->cr );
-    tracer.Trace( "    r0:       %u\n", p->r0 );
-    tracer.Trace( "    r1:       %u\n", p->r1 );
-    tracer.Trace( "    r2:       %u\n", p->r2 );
-} //trace_FCB
 
 bool parse_FCB_Filename( FCB * pfcb, char * pcFilename )
 {
@@ -673,23 +663,13 @@ char kaypro_to_cp437( uint8_t c )
 
 #else // for linux, use ascii-art
 
-    if ( 0xb0 == c )
+    if ( 0xb0 == c || 0x8c == c )
         return '-';
-    if ( 0xd0 == c )
+    if ( 0xd0 == c || 0xdf == c || 0x85 == c || 0x8a == c )
         return '+';
     if ( 0xd5 == c )
         return '|';
-    if ( 0xdf == c )
-        return '+';
-    if ( 0x85 == c )
-        return '+';
-    if ( 0x8c == c )
-        return '-';
-    if ( 0x8a == c )
-        return '+';
-    if ( 0xbc == c )
-        return '*';
-    if ( 0xbf == c )
+    if ( 0xbc == c || 0xbf == c )
         return '*';
 
 #endif
@@ -1401,7 +1381,7 @@ bool cpm_read_console( char * buf, size_t bufsize, uint8_t & out_len )
 void WriteRandom()
 {
     FCB * pfcb = (FCB *) ( memory + reg.D() );
-    trace_FCB( pfcb );
+    pfcb->Trace();
     reg.a = 6; // seek past end of disk
 
     char acFilename[ CPM_FILENAME_LEN ];
@@ -1749,7 +1729,7 @@ uint8_t x80_invoke_hook()
             tracer.Trace( "  open file\n" );
     
             FCB * pfcb = (FCB *) ( memory + reg.D() );
-            trace_FCB( pfcb );
+            pfcb->Trace();
             reg.a = 255;
     
             char acFilename[ CPM_FILENAME_LEN ];
@@ -1810,7 +1790,7 @@ uint8_t x80_invoke_hook()
             tracer.Trace( "  close file\n" );
     
             FCB * pfcb = (FCB *) ( memory + reg.D() );
-            trace_FCB( pfcb );
+            pfcb->Trace();
             reg.a = 255;
     
             char acFilename[ CPM_FILENAME_LEN ];
@@ -1848,7 +1828,7 @@ uint8_t x80_invoke_hook()
             fflush( 0 );
     
             FCB * pfcb = (FCB *) ( memory + reg.D() );
-            trace_FCB( pfcb );
+            pfcb->Trace();
             reg.a = 255;
     
             char acFilename[ CPM_FILENAME_LEN ];
@@ -1926,7 +1906,7 @@ uint8_t x80_invoke_hook()
             tracer.Trace( "  search for next\n" );
     
             FCB * pfcb = (FCB *) ( memory + reg.D() );
-            trace_FCB( pfcb );
+            pfcb->Trace();
             reg.a = 255;
     
             char acFilename[ CPM_FILENAME_LEN ];
@@ -2018,7 +1998,7 @@ uint8_t x80_invoke_hook()
             tracer.Trace( "  delete file\n" );
     
             FCB * pfcb = (FCB *) ( memory + reg.D() );
-            trace_FCB( pfcb );
+            pfcb->Trace();
             reg.a = 255;
     
             char acFilename[ CPM_FILENAME_LEN ];
@@ -2055,7 +2035,7 @@ uint8_t x80_invoke_hook()
             tracer.Trace( "  read sequential file\n" );
     
             FCB * pfcb = (FCB *) ( memory + reg.D() );
-            trace_FCB( pfcb );
+            pfcb->Trace();
             reg.a = 255;
     
             char acFilename[ CPM_FILENAME_LEN ];
@@ -2123,7 +2103,7 @@ uint8_t x80_invoke_hook()
             tracer.Trace( "  write sequential file\n" );
     
             FCB * pfcb = (FCB *) ( memory + reg.D() );
-            trace_FCB( pfcb );
+            pfcb->Trace();
             reg.a = 255;
     
             char acFilename[ CPM_FILENAME_LEN ];
@@ -2165,7 +2145,7 @@ uint8_t x80_invoke_hook()
             tracer.Trace( "  make file\n" );
     
             FCB * pfcb = (FCB *) ( memory + reg.D() );
-            trace_FCB( pfcb );
+            pfcb->Trace();
             reg.a = 255;
     
             char acFilename[ CPM_FILENAME_LEN ];
@@ -2204,7 +2184,7 @@ uint8_t x80_invoke_hook()
             tracer.Trace( "  rename file\n" );
     
             FCB * pfcb = (FCB *) ( memory + reg.D() );
-            trace_FCB( pfcb );
+            pfcb->Trace();
             reg.a = 255;
 
             char acOldName[ CPM_FILENAME_LEN ];
@@ -2286,7 +2266,7 @@ uint8_t x80_invoke_hook()
             tracer.Trace( "  set file attributes \n" );
     
             FCB * pfcb = (FCB *) ( memory + reg.D() );
-            trace_FCB( pfcb );
+            pfcb->Trace();
             reg.a = 255;
     
             char acFilename[ CPM_FILENAME_LEN ];
@@ -2329,7 +2309,7 @@ uint8_t x80_invoke_hook()
             tracer.Trace( "  read random\n" );
     
             FCB * pfcb = (FCB *) ( memory + reg.D() );
-            trace_FCB( pfcb );
+            pfcb->Trace();
             reg.a = 6; // seek past end of disk
 
             char acFilename[ CPM_FILENAME_LEN ];
@@ -2409,7 +2389,7 @@ uint8_t x80_invoke_hook()
             tracer.Trace( "  compute file size\n" );
     
             FCB * pfcb = (FCB *) ( memory + reg.D() );
-            trace_FCB( pfcb );
+            pfcb->Trace();
             reg.a = 0xff;
 
             char acFilename[ CPM_FILENAME_LEN ];
@@ -2450,7 +2430,7 @@ uint8_t x80_invoke_hook()
             tracer.Trace( "  set random record\n" );
     
             FCB * pfcb = (FCB *) ( memory + reg.D() );
-            trace_FCB( pfcb );
+            pfcb->Trace();
             reg.a = 0xff;
 
             char acFilename[ CPM_FILENAME_LEN ];
@@ -2627,7 +2607,9 @@ void usage( char const * perr = 0 )
     exit( -1 );
 } //usage
 
-bool write_arg( FCB_ARGUMENT * arg, char * pc )
+// An FCB argument is the first 16 bytes of a real FCB stored in low memory
+
+bool write_fcb_arg( FCB * arg, char * pc )
 {
     if ( ':' == pc[ 1 ] )
     {
@@ -2648,7 +2630,7 @@ bool write_arg( FCB_ARGUMENT * arg, char * pc )
         memcpy( & ( arg->f ), pc, strlen( pc ) );
 
     return true;
-} //write_arg
+} //write_fcb_arg
 
 static bool load_file( char const * file_path, long & file_size, void * buffer )
 {               
@@ -2849,27 +2831,27 @@ int main( int argc, char * argv[] )
 
         // setup command-line arguments
     
-        FCB_ARGUMENT * arg1 = (FCB_ARGUMENT *) ( memory + FCB_ARG1_OFFSET );
-        FCB_ARGUMENT * arg2 = (FCB_ARGUMENT *) ( memory + FCB_ARG2_OFFSET );
+        FCB * arg1 = (FCB *) ( memory + FCB_ARG1_OFFSET );
+        FCB * arg2 = (FCB *) ( memory + FCB_ARG2_OFFSET );
         memset( & ( arg1->f ), ' ', 11 );
         memset( & ( arg2->f ), ' ', 11 );
     
         if ( pcArg1 )
         {
             _strupr( pcArg1 );
-            write_arg( arg1, pcArg1 );
+            write_fcb_arg( arg1, pcArg1 );
     
             if ( pcArg2 )
             {
                 _strupr( pcArg2 );
-                write_arg( arg2, pcArg2 );
+                write_fcb_arg( arg2, pcArg2 );
             }
         }
     
         tracer.Trace( "fcb argument 1:\n" );
-        trace_FCB( (FCB *) arg1 );
+        arg1->Trace( true );
         tracer.Trace( "fcb argument 2:\n" );
-        trace_FCB( (FCB *) arg2 );
+        arg2->Trace( true );
     
         // make memory look like CP/M 2.2. The first 8-byte interrupt vector has this:
     
