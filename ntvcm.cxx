@@ -1448,6 +1448,7 @@ uint8_t x80_invoke_hook()
 {
     static uint64_t kbd_poll_busyloops = 0;
     uint16_t address = reg.pc - 1; // the emulator has moved past this instruction already
+    char acFilename[ CPM_FILENAME_LEN ];
 
     if ( address >= BIOS_FUNCTIONS && address < ( BIOS_FUNCTIONS + BIOS_FUNCTION_COUNT ) )
     {
@@ -1731,13 +1732,10 @@ uint8_t x80_invoke_hook()
             FCB * pfcb = (FCB *) ( memory + reg.D() );
             pfcb->Trace();
             reg.a = 255;
-    
-            char acFilename[ CPM_FILENAME_LEN ];
             bool ok = parse_FCB_Filename( pfcb, acFilename );
             if ( ok )
             {
                 tracer.Trace( "  opening file '%s' for pfcb %p\n", acFilename, pfcb );
-    
                 FILE * fp = FindFileEntry( acFilename );
                 if ( fp )
                 {
@@ -1792,8 +1790,6 @@ uint8_t x80_invoke_hook()
             FCB * pfcb = (FCB *) ( memory + reg.D() );
             pfcb->Trace();
             reg.a = 255;
-    
-            char acFilename[ CPM_FILENAME_LEN ];
             bool ok = parse_FCB_Filename( pfcb, acFilename );
             if ( ok )
             {
@@ -1830,13 +1826,10 @@ uint8_t x80_invoke_hook()
             FCB * pfcb = (FCB *) ( memory + reg.D() );
             pfcb->Trace();
             reg.a = 255;
-    
-            char acFilename[ CPM_FILENAME_LEN ];
             bool ok = parse_FCB_Filename( pfcb, acFilename );
             if ( ok )
             {
-                tracer.Trace( "  searchinf for first match of '%s'\n", acFilename );
-
+                tracer.Trace( "  search for first match of '%s'\n", acFilename );
                 CloseFindFirst();
 
 #ifdef _MSC_VER
@@ -1908,13 +1901,10 @@ uint8_t x80_invoke_hook()
             FCB * pfcb = (FCB *) ( memory + reg.D() );
             pfcb->Trace();
             reg.a = 255;
-    
-            char acFilename[ CPM_FILENAME_LEN ];
             bool ok = parse_FCB_Filename( pfcb, acFilename );
             if ( ok )
             {
                 tracer.Trace( "  searchinf for next match of '%s'\n", acFilename );
-
 #ifdef _MSC_VER
                 if ( INVALID_HANDLE_VALUE != g_hFindFirst )
                 {
@@ -2000,8 +1990,6 @@ uint8_t x80_invoke_hook()
             FCB * pfcb = (FCB *) ( memory + reg.D() );
             pfcb->Trace();
             reg.a = 255;
-    
-            char acFilename[ CPM_FILENAME_LEN ];
             bool ok = parse_FCB_Filename( pfcb, acFilename );
             if ( ok )
             {
@@ -2037,8 +2025,6 @@ uint8_t x80_invoke_hook()
             FCB * pfcb = (FCB *) ( memory + reg.D() );
             pfcb->Trace();
             reg.a = 255;
-    
-            char acFilename[ CPM_FILENAME_LEN ];
             bool ok = parse_FCB_Filename( pfcb, acFilename );
             if ( ok )
             {
@@ -2105,8 +2091,6 @@ uint8_t x80_invoke_hook()
             FCB * pfcb = (FCB *) ( memory + reg.D() );
             pfcb->Trace();
             reg.a = 255;
-    
-            char acFilename[ CPM_FILENAME_LEN ];
             bool ok = parse_FCB_Filename( pfcb, acFilename );
             if ( ok )
             {
@@ -2147,8 +2131,6 @@ uint8_t x80_invoke_hook()
             FCB * pfcb = (FCB *) ( memory + reg.D() );
             pfcb->Trace();
             reg.a = 255;
-    
-            char acFilename[ CPM_FILENAME_LEN ];
             bool ok = parse_FCB_Filename( pfcb, acFilename );
             if ( ok )
             {
@@ -2186,7 +2168,6 @@ uint8_t x80_invoke_hook()
             FCB * pfcb = (FCB *) ( memory + reg.D() );
             pfcb->Trace();
             reg.a = 255;
-
             char acOldName[ CPM_FILENAME_LEN ];
             if ( parse_FCB_Filename( pfcb, acOldName ) )
             {
@@ -2268,8 +2249,6 @@ uint8_t x80_invoke_hook()
             FCB * pfcb = (FCB *) ( memory + reg.D() );
             pfcb->Trace();
             reg.a = 255;
-    
-            char acFilename[ CPM_FILENAME_LEN ];
             bool ok = parse_FCB_Filename( pfcb, acFilename );
             if ( ok )
             {
@@ -2311,8 +2290,6 @@ uint8_t x80_invoke_hook()
             FCB * pfcb = (FCB *) ( memory + reg.D() );
             pfcb->Trace();
             reg.a = 6; // seek past end of disk
-
-            char acFilename[ CPM_FILENAME_LEN ];
             bool ok = parse_FCB_Filename( pfcb, acFilename );
             if ( ok )
             {
@@ -2391,8 +2368,6 @@ uint8_t x80_invoke_hook()
             FCB * pfcb = (FCB *) ( memory + reg.D() );
             pfcb->Trace();
             reg.a = 0xff;
-
-            char acFilename[ CPM_FILENAME_LEN ];
             bool ok = parse_FCB_Filename( pfcb, acFilename );
             if ( ok )
             {
@@ -2432,8 +2407,6 @@ uint8_t x80_invoke_hook()
             FCB * pfcb = (FCB *) ( memory + reg.D() );
             pfcb->Trace();
             reg.a = 0xff;
-
-            char acFilename[ CPM_FILENAME_LEN ];
             bool ok = parse_FCB_Filename( pfcb, acFilename );
             if ( ok )
             {
@@ -2512,7 +2485,6 @@ uint8_t x80_invoke_hook()
             // any single item can only be of size 2048 when rendered by fetch_rss_item
 
             uint16_t * poffsets = (uint16_t *) ( memory + reg.D() );
-
             char * afeeds[ 10 ];
             size_t count;
             for ( count = 0; 0 != poffsets[ count ] && count < _countof( afeeds ); count++ )
@@ -2636,7 +2608,6 @@ static bool load_file( char const * file_path, long & file_size, void * buffer )
 {               
     bool ok = false;
     FILE * fp = fopen( file_path, "rb" );
-
     if ( 0 != fp )
     {
         file_size = portable_filelen( fp );
