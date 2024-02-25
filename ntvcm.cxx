@@ -597,7 +597,7 @@ const char * get_bios_function( uint16_t id )
     id *= 3;
 
     if ( 0 == id )
-        return "cold sart";
+        return "cold start";
     if ( 3 == id )
         return "warm boot (reload command processor)";
     if ( 6 == id )
@@ -1448,68 +1448,58 @@ uint8_t x80_invoke_hook()
 {
     static uint64_t kbd_poll_busyloops = 0;
     uint16_t address = reg.pc - 1; // the emulator has moved past this instruction already
-    char acFilename[ CPM_FILENAME_LEN ];
 
     if ( address >= BIOS_FUNCTIONS && address < ( BIOS_FUNCTIONS + BIOS_FUNCTION_COUNT ) )
     {
         uint16_t bios_function = address - BIOS_FUNCTIONS;
         tracer.Trace( "bios function %#x: %u, %s, bc %04x, de %04x, hl %04x\n",
                       address, bios_function, get_bios_function( bios_function ), reg.B(), reg.D(), reg.H() );
-        //x80_trace_state();
 
-        if ( 0 == bios_function || 1 == bios_function )
+        switch( bios_function )
         {
-            // boot, which means exit the app
-
-            return OPCODE_HLT;
-        }
-        else if ( 2 == bios_function )
-        {
-            // const console status. A=0 if nothing available, A=0xff if a keystroke is available
-
-            if ( g_consoleConfig.throttled_kbhit() )
-                reg.a = 0xff;
-            else
-                reg.a = 0;
-        }
-        else if ( 3 == bios_function )
-        {
-            // conin. wait until the keyboard has a character and return it in a.
-
-            uint8_t input = (uint8_t) g_consoleConfig.portable_getch();
-            tracer.Trace( "  conin got %02xh from getch()\n", input );
-            reg.a = map_input( input );
-            tracer.Trace( "  conin is returning %02xh = '%c'\n", reg.a, printable_ch( reg.a ) );
-        }
-        else if ( 4 == bios_function )
-        {
-            // conout. write the chracter in c to the screen
-
-            char ch = reg.c;
-            tracer.Trace( "  bios console out: %02x == '%c'\n", ch, printable_ch( ch ) );
-            output_character( reg.c );
-            fflush( stdout );
-        }
-        else if ( 5 == bios_function )
-        {
-            // list. Write character in c to the printer. If the printer isn't ready, wait until it is.
-        }
-        else if ( 6 == bios_function )
-        {
-            // punch / auxout. Write the character in c to the paper tape punch.
-        }
-        else if ( 7 == bios_function )
-        {
-            // reader. read a character from the paper tape or other auxilliary device. Return in a.
-            // Wait until a chracter is ready. Return ^z if not implemented.
-
-            reg.a = 26;
-        }
-        else
-        {
-            tracer.Trace( "unhandled BIOS CODE!!!!!!!!!!!!!!!: %#x = %d\n", address, bios_function );
-            printf( "unhandled bios code!!!!!!!!!!!!!!! %#x = %u\n", address, bios_function );
-            //x80_hard_exit( "invalid bios call address %#x = %u", address, bios_function );
+            case 0: // cold start; exit the app
+            case 1: // warm boot; exit the app
+                return OPCODE_HLT;
+            case 2: // const console status. A=0 if nothing available, A=0xff if a keystroke is available
+            {
+                if ( g_consoleConfig.throttled_kbhit() )
+                    reg.a = 0xff;
+                else
+                    reg.a = 0;
+                break;
+            }
+            case 3: // conin. wait until the keyboard has a character and return it in a.
+            {
+                uint8_t input = (uint8_t) g_consoleConfig.portable_getch();
+                tracer.Trace( "  conin got %02xh from getch()\n", input );
+                reg.a = map_input( input );
+                tracer.Trace( "  conin is returning %02xh = '%c'\n", reg.a, printable_ch( reg.a ) );
+                break;
+            }
+            case 4: // conout. write the chracter in c to the screen
+            {
+                char ch = reg.c;
+                tracer.Trace( "  bios console out: %02x == '%c'\n", ch, printable_ch( ch ) );
+                output_character( reg.c );
+                fflush( stdout );
+                break;
+            }
+            case 5: // list. Write character in c to the printer. If the printer isn't ready, wait until it is.
+            case 6: // punch / auxout. Write the character in c to the paper tape punch.
+                break;
+            case 7: // reader. read a character from the paper tape or other auxilliary device. Return in a.
+            {
+                // Wait until a chracter is ready. Return ^z if not implemented.
+                reg.a = 26;
+                break;
+            }
+            default:
+            {
+                tracer.Trace( "unhandled BIOS CODE!!!!!!!!!!!!!!!: %#x = %d\n", address, bios_function );
+                printf( "unhandled bios code!!!!!!!!!!!!!!! %#x = %u\n", address, bios_function );
+                //x80_hard_exit( "invalid bios call address %#x = %u", address, bios_function );
+                break;
+            }
         }
 
         kbd_poll_busyloops = 0;
@@ -1524,7 +1514,7 @@ uint8_t x80_invoke_hook()
 
     uint8_t function = reg.c;
     tracer.Trace( "bdos function %d: %s, bc %04x, de %04x, hl %04x\n", function, get_bdos_function( function ), reg.B(), reg.D(), reg.H() );
-    //x80_trace_state();
+    char acFilename[ CPM_FILENAME_LEN ];
 
     if ( ( 6 != reg.c ) || ( 0xff != reg.e ) )
         kbd_poll_busyloops = 0;
@@ -1536,7 +1526,6 @@ uint8_t x80_invoke_hook()
         case 0:
         {
             // system reset. end execution of the app.
-
             return OPCODE_HLT;
         }
         case 1:
@@ -1548,7 +1537,6 @@ uint8_t x80_invoke_hook()
             tracer.Trace( "  bdos console in: %02x == '%c'\n", ch, printable_ch( ch ) );
             output_character( ch );
             fflush( stdout );
-
             break;
         }
         case 2:
@@ -1569,19 +1557,16 @@ uint8_t x80_invoke_hook()
         case 3:
         {
             // reader input
-
             break;
         }
         case 4:
         {
             // punch output
-
             break;
         }
         case 5:
         {
             // list output
-
             break;
         }
         case 6:
@@ -1698,7 +1683,6 @@ uint8_t x80_invoke_hook()
 
             reg.h = 0;      // CP/M
             reg.l = 0x22;   // version 2.2
-
             break;
         }
         case 13:
@@ -1706,7 +1690,6 @@ uint8_t x80_invoke_hook()
             // reset disks. returns 0xff if a file exists that starts with a $ or 0 otherwise
 
             reg.a = 0;
-
             break;
         }
         case 14:
@@ -1726,8 +1709,6 @@ uint8_t x80_invoke_hook()
         case 15:
         {
             // open file. return 255 if file not found and 0..3 directory code otherwise
-    
-            tracer.Trace( "  open file\n" );
     
             FCB * pfcb = (FCB *) ( memory + reg.D() );
             pfcb->Trace();
@@ -1785,8 +1766,6 @@ uint8_t x80_invoke_hook()
         {
             // close file. return 255 on error and 0..3 directory code otherwise
     
-            tracer.Trace( "  close file\n" );
-    
             FCB * pfcb = (FCB *) ( memory + reg.D() );
             pfcb->Trace();
             reg.a = 255;
@@ -1815,14 +1794,10 @@ uint8_t x80_invoke_hook()
         {
             // search for first. Use the FCB in de and write directory entries to the DMA address, then point to
             // which of those entries is the actual one (0-3) or 0xff for not found in A.
-
-            tracer.Trace( "  search for first\n" );
-
             // Find First on CP/M has a side-effect of flushing data to disk. Aztec C relies on this and calls
             // Find First at exit() to ensure the disk is flushed, though it does close all files first.
 
             fflush( 0 );
-    
             FCB * pfcb = (FCB *) ( memory + reg.D() );
             pfcb->Trace();
             reg.a = 255;
@@ -1896,8 +1871,6 @@ uint8_t x80_invoke_hook()
             // search for next. Use the FCB in de and write directory entries to the DMA address, then point to
             // which of those entries is the actual one (0-3) or 0xff for not found in A.
 
-            tracer.Trace( "  search for next\n" );
-    
             FCB * pfcb = (FCB *) ( memory + reg.D() );
             pfcb->Trace();
             reg.a = 255;
@@ -1985,8 +1958,6 @@ uint8_t x80_invoke_hook()
         {
             // delete file. return 255 if file not found and 0..3 directory code otherwise
     
-            tracer.Trace( "  delete file\n" );
-    
             FCB * pfcb = (FCB *) ( memory + reg.D() );
             pfcb->Trace();
             reg.a = 255;
@@ -2019,8 +1990,6 @@ uint8_t x80_invoke_hook()
             // read sequential. return 0 on success or non-0 on failure (end of file)
             // reads 128 bytes from cr of the extent and increments cr.
             // if cr overflows, the extent is incremented and cr is set to 0 for the next read
-    
-            tracer.Trace( "  read sequential file\n" );
     
             FCB * pfcb = (FCB *) ( memory + reg.D() );
             pfcb->Trace();
@@ -2086,8 +2055,6 @@ uint8_t x80_invoke_hook()
             // reads 128 bytes from cr of the extent and increments cr.
             // if cr overflows, the extent is incremented and cr is set to 0 for the next read
     
-            tracer.Trace( "  write sequential file\n" );
-    
             FCB * pfcb = (FCB *) ( memory + reg.D() );
             pfcb->Trace();
             reg.a = 255;
@@ -2126,8 +2093,6 @@ uint8_t x80_invoke_hook()
         {
             // make file. return 255 if out of space or the file exists. 0..3 directory code otherwise.
     
-            tracer.Trace( "  make file\n" );
-    
             FCB * pfcb = (FCB *) ( memory + reg.D() );
             pfcb->Trace();
             reg.a = 255;
@@ -2163,8 +2128,6 @@ uint8_t x80_invoke_hook()
         {
             // rename file. 0 for success, non-zero otherwise.
 
-            tracer.Trace( "  rename file\n" );
-    
             FCB * pfcb = (FCB *) ( memory + reg.D() );
             pfcb->Trace();
             reg.a = 255;
@@ -2200,7 +2163,6 @@ uint8_t x80_invoke_hook()
 
             reg.h = 0;
             reg.l = 1;  // just set the lowest bit to indicate the A drive is available
-
             break;
         }
         case 25:
@@ -2208,18 +2170,15 @@ uint8_t x80_invoke_hook()
             // return current disk. 0..15 corresponding to A..P
     
             reg.a = 0;
-
             break;
         }
         case 26:
         {
             // set the dma address (128 byte buffer for doing I/O)
 
-            //tracer.Trace( "  updating DMA address; D %u = %#x, old %p, new %p\n", reg.D(), reg.D(), g_DMA, memory + reg.D() );
             tracer.Trace( "  updating DMA address; D %u = %#x\n", reg.D(), reg.D() );
 
             g_DMA = memory + reg.D();
-
             break;
         }
         case 27:
@@ -2228,7 +2187,6 @@ uint8_t x80_invoke_hook()
 
             reg.h = 0xff;
             reg.l = 0x80;
-
             break;
         }
         case 29:
@@ -2237,15 +2195,12 @@ uint8_t x80_invoke_hook()
 
             reg.h = 0xff;
             reg.l = 0xfe;
-
             break;
         }
         case 30:
         {
             // set file attributes
 
-            tracer.Trace( "  set file attributes \n" );
-    
             FCB * pfcb = (FCB *) ( memory + reg.D() );
             pfcb->Trace();
             reg.a = 255;
@@ -2270,7 +2225,6 @@ uint8_t x80_invoke_hook()
 
             reg.h = DPB_OFFSET_HI;
             reg.l = DPB_OFFSET_LO;
-
             break;
         }
         case 32:
@@ -2278,15 +2232,12 @@ uint8_t x80_invoke_hook()
             // get/set current user
 
             reg.a = 0;
-
             break;
         }
         case 33:
         {
             // read random
 
-            tracer.Trace( "  read random\n" );
-    
             FCB * pfcb = (FCB *) ( memory + reg.D() );
             pfcb->Trace();
             reg.a = 6; // seek past end of disk
@@ -2355,7 +2306,6 @@ uint8_t x80_invoke_hook()
         {
             // write random
 
-            tracer.Trace( "  write random\n" );
             WriteRandom();
             break;
         }
@@ -2363,8 +2313,6 @@ uint8_t x80_invoke_hook()
         {
             // Compute file size. A = 0 if ok, 0xff on failure. Sets r2 to 0 and r0/r1 to the number of 128 byte records
 
-            tracer.Trace( "  compute file size\n" );
-    
             FCB * pfcb = (FCB *) ( memory + reg.D() );
             pfcb->Trace();
             reg.a = 0xff;
@@ -2402,8 +2350,6 @@ uint8_t x80_invoke_hook()
         {
             // Set Random Record. no documented return code. I'm using A=0 for success and A=ff for failure
 
-            tracer.Trace( "  set random record\n" );
-    
             FCB * pfcb = (FCB *) ( memory + reg.D() );
             pfcb->Trace();
             reg.a = 0xff;
@@ -2436,7 +2382,6 @@ uint8_t x80_invoke_hook()
             // The 34 implementation of WriteRandom already fills with zeros, so just use that.
             // I haven't found any apps that call this, so I can't say it's really tested.
 
-            tracer.Trace( "  write random with zero fill\n" );
             WriteRandom();
             break;
         }
@@ -2444,7 +2389,6 @@ uint8_t x80_invoke_hook()
         {
             // non-standard BDOS call GetTime. DE points to a CPMTime structure
 
-            tracer.Trace( "  get time (non-standard BDOS call)\n" );
             CPMTime * ptime = (CPMTime *) ( memory + reg.D() );
 #ifdef WATCOM
             struct dostime_t time;
@@ -2466,7 +2410,6 @@ uint8_t x80_invoke_hook()
             ptime->millisecond = (uint16_t) ( ms / 10 ); // hundredths of a second;
 #endif
             reg.a = 0;
-
             break;
         }
         case 106:
@@ -2503,7 +2446,6 @@ uint8_t x80_invoke_hook()
 
             char * buf = (char *) g_DMA;
             uint16_t item = reg.D();
-
             reg.a = g_rssFeed.fetch_rss_item( item, buf, 2048 );
             break;
         }
@@ -2521,7 +2463,6 @@ uint8_t x80_invoke_hook()
         case 110:
         {
             // non-standard BDOS call: enable/disable tracing if DE is non-zero/zero
-
             x80_trace_instructions( 0 != reg.D() );
             break;
         }
@@ -2531,8 +2472,6 @@ uint8_t x80_invoke_hook()
             printf( "unhandled BDOS FUNCTION!!!!!!!!!!!!!!!: %u = %#x\n", reg.c, reg.c );
 
             x80_trace_state();
-            reg.a = 0xff;
-
             x80_hard_exit( "unhandled bods function", reg.c, 0 );
         }
     }
@@ -2579,8 +2518,6 @@ void usage( char const * perr = 0 )
     exit( -1 );
 } //usage
 
-// An FCB argument is the first 16 bytes of a real FCB stored in low memory
-
 bool write_fcb_arg( FCB * arg, char * pc )
 {
     if ( ':' == pc[ 1 ] )
@@ -2595,11 +2532,11 @@ bool write_fcb_arg( FCB * arg, char * pc )
     char * dot = strchr( pc, '.' );
     if ( dot )
     {
-        memcpy( & ( arg->f ), pc, dot - pc );
-        memcpy( & ( arg->t ), dot + 1, strlen( dot + 1 ) );
+        memcpy( & ( arg->f ), pc, get_min( (size_t) 8, (size_t) ( dot - pc ) ) );
+        memcpy( & ( arg->t ), dot + 1, get_min( (size_t) 3, strlen( dot + 1 ) ) );
     }
     else
-        memcpy( & ( arg->f ), pc, strlen( pc ) );
+        memcpy( & ( arg->f ), pc, get_min( (size_t) 8, strlen( pc ) ) );
 
     return true;
 } //write_fcb_arg
@@ -2624,33 +2561,6 @@ static bool load_file( char const * file_path, long & file_size, void * buffer )
 
 static void setmword( uint16_t offset, uint16_t value ) { * (uint16_t *) & memory[ offset ] = value; }
 
-static void RenderNumber( long long n, char * ac )
-{
-    if ( n < 0 )
-    {
-        strcat( ac, "-" );
-        RenderNumber( -n, ac );
-        return;
-    }
-   
-    if ( n < 1000 )
-    {
-        sprintf( ac + strlen( ac ), "%lld", n );
-        return;
-    }
-
-    RenderNumber( n / 1000, ac );
-    sprintf( ac + strlen( ac ), ",%03lld", n % 1000 );
-    return;
-} //RenderNumber
-
-static char * RenderNumberWithCommas( long long n, char * ac )
-{
-    ac[ 0 ] = 0;
-    RenderNumber( n, ac );
-    return ac;
-} //RenderNumberWithCommas
-
 int main( int argc, char * argv[] )
 {
     try
@@ -2658,7 +2568,7 @@ int main( int argc, char * argv[] )
         bump_thread_priority(); // for performance benchmarking only
     
         memset( memory, 0, sizeof( memory ) - 1 ); // -1 for 16-bit systems
-        memory[ sizeof( memory ) - 1 ] = 0;
+        memory[ sizeof( memory ) - 1 ] = 0; // again, for 16-bit systems
         memset( &reg, 0, sizeof( reg ) );
         reg.fZ80Mode = true;
     
@@ -2804,7 +2714,7 @@ int main( int argc, char * argv[] )
     
         FCB * arg1 = (FCB *) ( memory + FCB_ARG1_OFFSET );
         FCB * arg2 = (FCB *) ( memory + FCB_ARG2_OFFSET );
-        memset( & ( arg1->f ), ' ', 11 );
+        memset( & ( arg1->f ), ' ', 11 ); // 8 filename + 3 type
         memset( & ( arg2->f ), ' ', 11 );
     
         if ( pcArg1 )
@@ -2920,8 +2830,6 @@ int main( int argc, char * argv[] )
             tracer.Trace( "starting execution of app '%s' size %d\n", acCOM, file_size );
         }
     
-        //dump_memory( "ntvcm_start.dmp" );
-    
         if ( force80x24 )
             g_consoleConfig.EstablishConsoleOutput( 80, 24 );
     
@@ -2963,8 +2871,8 @@ int main( int argc, char * argv[] )
 #else
             uint32_t elapsedMS = (uint32_t) duration_cast<std::chrono::milliseconds>( tDone - tStart ).count();
 #endif
-            printf( "elapsed milliseconds: %16s\n", RenderNumberWithCommas( elapsedMS, ac ) );
-            printf( "%s cycles:      %20s\n", reg.fZ80Mode ? "Z80 " : "8080", RenderNumberWithCommas( total_cycles, ac ) );
+            printf( "elapsed milliseconds: %16s\n", CDJLTrace::RenderNumberWithCommas( elapsedMS, ac ) );
+            printf( "%s cycles:      %20s\n", reg.fZ80Mode ? "Z80 " : "8080", CDJLTrace::RenderNumberWithCommas( total_cycles, ac ) );
     
             printf( "clock rate: " );
             if ( 0 == clockrate )
@@ -2972,9 +2880,9 @@ int main( int argc, char * argv[] )
                 printf( "      %20s\n", "unbounded" );
                 uint64_t total_ms = total_cycles / ( reg.fZ80Mode ? 4000 : 2000 );
                 if ( reg.fZ80Mode )
-                    printf( "approx ms at 4Mhz: %19s == ", RenderNumberWithCommas( total_ms, ac ) );
+                    printf( "approx ms at 4Mhz: %19s == ", CDJLTrace::RenderNumberWithCommas( total_ms, ac ) );
                 else
-                    printf( "approx ms at 2Mhz: %19s == ", RenderNumberWithCommas( total_ms, ac ) );
+                    printf( "approx ms at 2Mhz: %19s == ", CDJLTrace::RenderNumberWithCommas( total_ms, ac ) );
     
                 uint16_t days = (uint16_t) ( total_ms / 1000 / 60 / 60 / 24 );
                 uint16_t hours = (uint16_t) ( ( total_ms % ( (uint32_t) 1000 * 60 * 60 * 24 ) ) / 1000 / 60 / 60 );
@@ -2984,7 +2892,7 @@ int main( int argc, char * argv[] )
                 printf( "%u days, %u hours, %u minutes, %u seconds, %llu milliseconds\n", days, hours, minutes, seconds, milliseconds );
             }
             else
-                printf( "      %20s Hz\n", RenderNumberWithCommas( clockrate, ac ) );
+                printf( "      %20s Hz\n", CDJLTrace::RenderNumberWithCommas( clockrate, ac ) );
         }
     }
     catch ( bad_alloc & e )
@@ -3004,7 +2912,6 @@ int main( int argc, char * argv[] )
     g_rssFeed.clear();
 #endif //NTVCM_RSS_SUPPORT
 
-    //dump_memory( "ntvcm_stop.dmp" );
     fflush( stdout );
     tracer.Shutdown();
     return 0;
