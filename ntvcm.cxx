@@ -37,7 +37,6 @@
 #include <cstring>
 #include <assert.h>
 #include <ctype.h>
-
 #include <sys/stat.h>
 
 #include <djl_os.hxx>
@@ -485,14 +484,6 @@ void x80_invoke_halt()
     tracer.Trace( "cpu_halt\n" );
     g_haltExecuted = true;
 } //x80_invoke_halt
-
-char printable_ch( char ch )
-{
-    if ( ch < ' ' || 127 == ch )
-        return '.';
-
-    return ch;
-} //printable_ch
 
 FILE * RemoveFileEntry( char * name )
 {
@@ -946,7 +937,7 @@ void output_character( uint8_t c )
             else if ( 'H' == c )      // cursor home
                 _settextposition( 1, 1 );
             else
-                tracer.Trace( "  untranslated VT-52 command '%c' = %02x\n", printable_ch( c ), c );
+                tracer.Trace( "  untranslated VT-52 command '%c' = %02x\n", printable( c ), c );
 
             s_escaped = false;
         }
@@ -1156,7 +1147,7 @@ void output_character( uint8_t c )
             else
             {
                 printf( "\x1b%c", c ); // send it out untranslated
-                tracer.Trace( "  untranslated VT-52 command '%c' = %02x\n", printable_ch( c ), c );
+                tracer.Trace( "  untranslated VT-52 command '%c' = %02x\n", printable( c ), c );
             }
 
             s_escaped = false;
@@ -1290,7 +1281,7 @@ uint8_t map_input( uint8_t input )
         else
             tracer.Trace( "no mapping for e0 second character %02x\n", next );
 
-        tracer.Trace( "    next character after 0xe0: %02x == '%c' mapped to %02x\n", next, printable_ch( next ), output );
+        tracer.Trace( "    next character after 0xe0: %02x == '%c' mapped to %02x\n", next, printable( next ), output );
     }
 #else // Linux / MacOS
     if ( 0x1b == input )
@@ -1341,7 +1332,7 @@ bool cpm_read_console( char * buf, size_t bufsize, uint8_t & out_len )
     while ( out_len < (uint8_t) bufsize )
     {
         ch = (char) ConsoleConfiguration::portable_getch();
-        tracer.Trace( "  cpm_read_console read character %02x -- '%c'\n", ch, printable_ch( ch ) );
+        tracer.Trace( "  cpm_read_console read character %02x -- '%c'\n", ch, printable( ch ) );
 
         // CP/M read console buffer treats these control characters as special: c, e, h, j, m, r, u, x
         // per http://www.gaby.de/cpm/manuals/archive/cpm22htm/ch5.htm
@@ -1473,13 +1464,13 @@ uint8_t x80_invoke_hook()
                 uint8_t input = (uint8_t) g_consoleConfig.portable_getch();
                 tracer.Trace( "  conin got %02xh from getch()\n", input );
                 reg.a = map_input( input );
-                tracer.Trace( "  conin is returning %02xh = '%c'\n", reg.a, printable_ch( reg.a ) );
+                tracer.Trace( "  conin is returning %02xh = '%c'\n", reg.a, printable( reg.a ) );
                 break;
             }
             case 4: // conout. write the chracter in c to the screen
             {
                 char ch = reg.c;
-                tracer.Trace( "  bios console out: %02x == '%c'\n", ch, printable_ch( ch ) );
+                tracer.Trace( "  bios console out: %02x == '%c'\n", ch, printable( ch ) );
                 output_character( reg.c );
                 fflush( stdout );
                 break;
@@ -1534,7 +1525,7 @@ uint8_t x80_invoke_hook()
 
             uint8_t ch = (uint8_t) g_consoleConfig.portable_getch();
             reg.a = map_input( ch );
-            tracer.Trace( "  bdos console in: %02x == '%c'\n", ch, printable_ch( ch ) );
+            tracer.Trace( "  bdos console in: %02x == '%c'\n", ch, printable( ch ) );
             output_character( ch );
             fflush( stdout );
             break;
@@ -1547,7 +1538,7 @@ uint8_t x80_invoke_hook()
             uint8_t ch = reg.e;
             if ( 0x0d != ch )             // skip carriage return because line feed turns into cr+lf
             {
-                tracer.Trace( "  bdos console out: %02x == '%c'\n", ch, printable_ch( ch ) );
+                tracer.Trace( "  bdos console out: %02x == '%c'\n", ch, printable( ch ) );
                 output_character( ch );
                 fflush( stdout );
             }
@@ -1581,7 +1572,7 @@ uint8_t x80_invoke_hook()
                 {
                     kbd_poll_busyloops = 0;
                     uint8_t input = (uint8_t) g_consoleConfig.portable_getch();
-                    tracer.Trace( "  read character %u == %02x == '%c'\n", input, input, printable_ch( input ) );
+                    tracer.Trace( "  read character %u == %02x == '%c'\n", input, input, printable( input ) );
                     reg.a = map_input( input );
                 }
                 else
@@ -1603,7 +1594,7 @@ uint8_t x80_invoke_hook()
             else
             {
                 uint8_t ch = reg.e;
-                tracer.Trace( "  bdos direct console i/o output: %u == %02x == '%c'\n", ch, ch, printable_ch( ch ) );
+                tracer.Trace( "  bdos direct console i/o output: %u == %02x == '%c'\n", ch, ch, printable( ch ) );
                 output_character( ch );
                 fflush( stdout );
             }
