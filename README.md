@@ -52,7 +52,7 @@ Support for Z80 undocumented instructions and the Y and X flags passes the tests
 Non-standard BDOS calls are added for sleeping for a specified number of milliseconds and to fetch and iterate through RSS feeds. On Linux and MacOS, this creates dependencies on httplib.h from  https://github.com/yhirose/cpp-httplib and openssl. You must have these dependencies copied
 to your machine for NTVCM to build. Or, remove the RSS feature by not defining NTVCM_RSS_SUPPORT in your build script. Each build script includes lines for building with and without. I've been unable to build on MacOS with RSS enabled. rssrdr.c in the Aztec folder is a sample CP/M RSS reader app that can be built with that compiler using m.bat in that folder.
 
-NTVCM can be built to target RISC-V using g++ then run in the [RVOS RISC-V / Linux emulator](https://github.com/davidly/rvos). RVOS can run that RISC-V image on Windows/MacOS/Linux on AMD64, x86, ARM32, or ARM64.
+NTVCM can be built to target RISC-V using g++ then run in the [RVOS RISC-V / Linux emulator](https://github.com/davidly/rvos). RVOS can run that RISC-V image on Windows/MacOS/Linux on AMD64, x86, RISC-V, ARM32, or ARM64.
 
 NTVCM can be built to target real-mode DOS using the Watcom compiler. Details in mwatcom.bat. 
 
