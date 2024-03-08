@@ -317,6 +317,7 @@ class CRssFeed
             replace_string( p, "&gt;", ">" );
             replace_string( p, "&lt;", "<" );
             replace_string( p, "&amp;", "&" );
+            replace_string( p, "&apos;", "'" );
 
             replace_string( p, ".</p>", ". " );
             replace_string( p, "</p>", ". " );
