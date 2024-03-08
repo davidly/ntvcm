@@ -6,7 +6,6 @@
 
 #include <vector>
 #include <algorithm>
-#include <regex>
 #include <codecvt>
 #include <locale>
 #include <random>
@@ -279,6 +278,21 @@ class CRssFeed
             }
         } //replace_string
 
+        static void remove_tags( char * p )
+        {
+            do
+            {
+                char * ptag = strchr( p, '<' );
+                if ( !ptag )
+                    break;
+                char * pend = strchr( ptag, '>' );
+                if ( !pend )
+                    break;
+
+                overlapping_strcpy( ptag, pend + 1 );
+            } while( true );
+        } //remove_tags
+
         static string utf8_to_us_ascii( const char * utf8str )
         {
             wstring_convert<codecvt_utf8<wchar_t>> wconv;
@@ -304,25 +318,9 @@ class CRssFeed
             replace_string( p, "&lt;", "<" );
             replace_string( p, "&amp;", "&" );
 
-            // replace a period then </p> with ". "
-
-            std::regex regxDotPTag( "\\.</p>" );
-            string sResult = std::regex_replace( p, regxDotPTag, ". " );
-
-            // replace </p> with ". "
-
-            std::regex regxPTag( "</p>" );
-            sResult = std::regex_replace( sResult, regxPTag, ". " );
-
-            // remove <foo> tags
-
-            std::regex regxStrip( "<[^>]*(>|$)" ); // match any character between '<' and '>', even when end tag is missing
-            sResult = std::regex_replace( sResult, regxStrip, "" );
-
-            // guaranteed to be <= length of original string because code above just removes charactes
-
-            assert( strlen( p ) >= strlen( sResult.c_str() ) );
-            strcpy( p, sResult.c_str() );
+            replace_string( p, ".</p>", ". " );
+            replace_string( p, "</p>", ". " );
+            remove_tags( p );
         } //make_ascii_string
         
         void parse_items( string response, const size_t max_item_size )
