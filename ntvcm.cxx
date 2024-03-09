@@ -8,6 +8,7 @@
 //          -- Also tested with MBasic.
 //          -- Use tinst.com to configure Turbo Pascal 1.00 for vT100 and 3.01A for ANSI to get the screen to work.
 //          -- pip.com runs for simple file copies. Not tested for other modes, which probably fail.
+//          -- Tested with AlgolM, Janus ADA, CB80, Turbo Modula 2, Multiplan, Microsoft Fortran, MT Pascal, and more.
 //          -- Can be run in 8080 or Z80 modes (the latter is required for Turbo Pascal).
 //          -- Optionally detects if an ESC character is output, and switches to 80,24 mode.
 //          -- Uses x80.?xx for 8080 and Z80 emulation
@@ -1261,14 +1262,17 @@ uint8_t map_input( uint8_t input )
 {
     uint8_t output = input;
 
-#ifdef _MSC_VER
-    if ( 0xe0 == input ) // likely Windows
+#if defined(_MSC_VER) || defined(WATCOM)
+    // On Windows, input is  0xe0 for standard arrow keys and 0 for keypad equivalents
+    // On DOS/WATCOM, input is 0 for both cases
+
+    if ( 0 == input || 0xe0 == input )
     {
         uint8_t next = (uint8_t) ConsoleConfiguration::portable_getch();
 
-        // map the arrow keys to ^ XSED used in many apps. map a handful of other characters
+        // map various keys to ^ XSEDCRG used in many apps.
 
-        if ( 'K' == next ) // left arrow
+        if ( 'K' == next )                   // left arrow
             output = 1 + 'S' - 'A';
         else if ( 'P' == next )              // down arrow
             output = 1 + 'X' - 'A';
@@ -1276,12 +1280,16 @@ uint8_t map_input( uint8_t input )
             output = 1 + 'D' - 'A';
         else if ( 'H' == next )              // up arrow
             output = 1 + 'E' - 'A';
+        else if ( 'Q' == next )              // page down
+            output = 1 + 'C' - 'A';
+        else if ( 'I' == next )              // page up
+            output = 1 + 'R' - 'A';
         else if ( 'S' == next )              // del
-            output = 0x7f;
+            output = 1 + 'G' - 'A';
         else
-            tracer.Trace( "no mapping for e0 second character %02x\n", next );
+            tracer.Trace( "  no map_input mapping for %02x, second character %02x\n", input, next );
 
-        tracer.Trace( "    next character after 0xe0: %02x == '%c' mapped to %02x\n", next, printable( next ), output );
+        tracer.Trace( "    next character after %02x: %02x == '%c' mapped to %02x\n", input, printable( next ), output );
     }
 #else // Linux / MacOS
     if ( 0x1b == input )
