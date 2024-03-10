@@ -696,6 +696,10 @@ void match_vt100( char * pc, size_t len )
                 uint8_t row = atoi( pc + 2 );
                 char * pcol = strchr( pc, ';' ) + 1;
                 uint8_t col = atoi( pcol );
+                if ( 0 == row )
+                    row = 1;
+                if ( 0 == col )
+                    col = 1;
                 //tracer.Trace( "  vt100: setting text position to %u, %u\n", row, col );
                 _settextposition( row, col );
                 pc[ 0 ] = 0;
@@ -711,6 +715,35 @@ void match_vt100( char * pc, size_t len )
                         _settextcolor( 7 );
                     else if ( 1 == val ) // bright
                         _settextcolor( 15 );
+                    else if ( 2 == val ) // dim
+                        _settextcolor( 7 ); // no dim available; just use normal
+                    else if ( 4 == val ) // underline
+                    {
+                        // no such feature
+                    }
+                    else if ( 5 == val || 25 == val ) // blink / unblink cursor
+                    {
+                        // yuck
+                    }
+                    else if ( 7 == val ) // reverse
+                    {
+                        _settextcolor( 0 );
+                        _setbkcolor( 7 );
+                    }
+                    else if ( 22 == val )
+                        _settextcolor( 7 );  // normal text
+                    else if ( 24 == val ) // remove underline
+                    {
+                        // no such feature
+                    }
+                    else if ( 27 == val ) // positive
+                    {
+                        _settextcolor( 7 );
+                        _setbkcolor( 0 );
+                    }
+                    else
+                        tracer.Trace( "  vt100 ignoring display attribute ^[%um\n", val );
+
                     pnext = strchr( pnext, ';' );
                     if ( pnext )
                         pnext++;
@@ -789,9 +822,27 @@ void match_vt100( char * pc, size_t len )
                 }
                 pc[ 0 ] = 0;
             }
-            else if ( 'k' == last )
+            else if ( 'k' == orig_last )
             {
                 tracer.Trace( "  vt100: unhandled K, full string '%s'\n", pc + 1 );
+                pc[ 0 ] = 0;
+            }
+            else if ( '?' == pc[ 2 ] && 'h' == orig_last ) // cursor commands
+            {
+                uint8_t cmd = atoi( pc + 3 );
+                if ( 25 == cmd ) // show cursor
+                    _settextcursor( 0x607 );
+                else
+                    tracer.Trace( "  vt100: unhandled h cursor command %u\n", cmd );
+                pc[ 0 ] = 0;
+            }
+            else if ( '?' == pc[ 2 ] && 'l' == orig_last ) // cursor commands
+            {
+                uint8_t cmd = atoi( pc + 3 );
+                if ( 25 == cmd ) // hide cursor
+                    _settextcursor( 0x2000 );
+                else
+                    tracer.Trace( "  vt100: unhandled l cursor command %u\n", cmd );
                 pc[ 0 ] = 0;
             }
             else if ( last >= 'a' && last <= 'z' )
@@ -845,7 +896,7 @@ void output_character( uint8_t c )
 
         if ( esc_len >= max_esc_seq )
         {
-            tracer.Trace( "unhandled vt100 escape sequence; throwing it away\n" );
+            tracer.Trace( "unhandled vt100 escape sequence ^%s length %zd; throwing it away\n", esc_seq + 1, esc_len );
             esc_len = 0;
             esc_seq[ 0 ] = 0;
             return;
