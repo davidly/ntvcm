@@ -712,7 +712,10 @@ void match_vt100( char * pc, size_t len )
                     uint8_t val = atoi( pnext );
 
                     if ( 0 == val )  // reset all attributes
+                    {
                         _settextcolor( 7 );
+                        _setbkcolor( 0 );
+                    }
                     else if ( 1 == val ) // bright
                         _settextcolor( 15 );
                     else if ( 2 == val ) // dim
@@ -830,7 +833,9 @@ void match_vt100( char * pc, size_t len )
             else if ( '?' == pc[ 2 ] && 'h' == orig_last ) // cursor commands
             {
                 uint8_t cmd = atoi( pc + 3 );
-                if ( 25 == cmd ) // show cursor
+                if ( 7 == cmd ) // enable text wrap mode
+                    _wrapon( _GWRAPON );
+                else if ( 25 == cmd ) // show cursor
                     _settextcursor( 0x607 );
                 else
                     tracer.Trace( "  vt100: unhandled h cursor command %u\n", cmd );
@@ -839,7 +844,9 @@ void match_vt100( char * pc, size_t len )
             else if ( '?' == pc[ 2 ] && 'l' == orig_last ) // cursor commands
             {
                 uint8_t cmd = atoi( pc + 3 );
-                if ( 25 == cmd ) // hide cursor
+                if ( 7 == cmd ) // reset text wrap mode
+                    _wrapon( _GWRAPOFF );
+                else if ( 25 == cmd ) // hide cursor
                     _settextcursor( 0x2000 );
                 else
                     tracer.Trace( "  vt100: unhandled l cursor command %u\n", cmd );
@@ -851,6 +858,11 @@ void match_vt100( char * pc, size_t len )
                 _outtext( pc );
                 pc[ 0 ] = 0;
             }
+        }
+        else if ( '<' == pc[ 1 ] )
+        {
+            // enter ANSI mode (already there)
+            pc[ 0 ] = 0;
         }
         else
         {
