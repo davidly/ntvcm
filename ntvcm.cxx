@@ -682,14 +682,14 @@ void append( char * pc, size_t len, char c )
 
 void match_vt100( char * pc, size_t len )
 {
+    static bool text_positive = true;
     assert( 0x1b == pc[ 0 ] );
     if ( len > 1 )
     {
-        char orig_last = pc[ len - 1 ];
-        char last = tolower( orig_last );
+        char last = pc[ len - 1 ];
         if ( '[' == pc[ 1 ] )
         {
-            if ( ( 'h' == last ) && ( strchr( pc, ';' ) ) ) // set cursor position
+            if ( ( 'H' == last ) && ( strchr( pc, ';' ) ) ) // set cursor position
             {
                 // rows and columns: vt-100 is 1-based, WATCOM library functions are 1-based. DOS is 0-based.
 
@@ -702,9 +702,8 @@ void match_vt100( char * pc, size_t len )
                     col = 1;
                 //tracer.Trace( "  vt100: setting text position to %u, %u\n", row, col );
                 _settextposition( row, col );
-                pc[ 0 ] = 0;
             }
-            else if ( 'm' == orig_last ) // other display attributes
+            else if ( 'm' == last ) // other display attributes
             {
                 char * pnext = pc + 2;
                 while ( pnext && ( 'm' != *pnext ) )
@@ -713,14 +712,36 @@ void match_vt100( char * pc, size_t len )
 
                     if ( 0 == val )  // reset all attributes
                     {
+                        //tracer.Trace( "vt100 reset text attributes\n" );
                         _settextcolor( 7 );
                         _setbkcolor( 0 );
+                        text_positive = true;
                     }
-                    else if ( 1 == val ) // bright
-                        _settextcolor( 15 );
+                    else if ( 1 == val ) // bright / bold
+                    {
+                        //tracer.Trace( "vt100 text bright\n" );
+                        grcolor tc = _gettextcolor();
+                        if ( tc < 8 )
+                        {
+                            tc += 8;
+                            _settextcolor( tc );
+                        }
+                    }
                     else if ( 2 == val ) // dim
-                        _settextcolor( 7 ); // no dim available; just use normal
-                    else if ( 4 == val ) // underline
+                    {
+                        //tracer.Trace( "vt100 text dim\n" );
+                        grcolor tc = _gettextcolor();
+                        if ( tc >= 8 )
+                        {
+                            tc -= 8;
+                            _settextcolor( tc );
+                        }
+                    }
+                    else if ( 3 == val || 23 == val ) // italic on/off
+                    {
+                        // no such feature
+                    }
+                    else if ( 4 == val || 24 == val ) // underline on/off
                     {
                         // no such feature
                     }
@@ -730,20 +751,56 @@ void match_vt100( char * pc, size_t len )
                     }
                     else if ( 7 == val ) // reverse
                     {
-                        _settextcolor( 0 );
-                        _setbkcolor( 7 );
+                        //tracer.Trace( "vt100 text reverse\n" );
+                        if ( text_positive )
+                        {
+                            long bk = _getbkcolor();
+                            grcolor tc = _gettextcolor();
+                            _settextcolor( bk );
+                            _setbkcolor( tc );
+                            text_positive = false;
+                            //tracer.Trace( "  reverse colors bk %u text %u\n", tc, bk );
+                        }
                     }
-                    else if ( 22 == val )
-                        _settextcolor( 7 );  // normal text
-                    else if ( 24 == val ) // remove underline
+                    else if ( 22 == val ) // turn off bold and dim/faint
                     {
-                        // no such feature
+                        //tracer.Trace( "vt100 normal text\n" );
+                        grcolor tc = _gettextcolor();
+                        _setbkcolor( 0 );
+
+                        if ( tc >= 8 )
+                        {
+                            tc -= 8;
+                            _setbkcolor( tc );
+                        }
                     }
                     else if ( 27 == val ) // positive
                     {
-                        _settextcolor( 7 );
-                        _setbkcolor( 0 );
+                        //tracer.Trace( "vt100 text positive\n" );
+                        if ( !text_positive )
+                        {
+                            long bk = _getbkcolor();
+                            grcolor tc = _gettextcolor();
+                            _settextcolor( bk );
+                            _setbkcolor( tc );
+                            text_positive = true;
+                            //tracer.Trace( "  positive colors bk %u text %u\n", tc, bk );
+                        }
                     }
+                    else if ( 31 == val ) // red
+                        _settextcolor( 4 );
+                    else if ( 32 == val ) // green
+                        _settextcolor( 2 );
+                    else if ( 33 == val ) // yellow
+                        _settextcolor( 6 );
+                    else if ( 34 == val ) // blue
+                        _settextcolor( 1 );
+                    else if ( 35 == val ) // magenta
+                        _settextcolor( 5 );
+                    else if ( 36 == val ) // cyan
+                        _settextcolor( 3 );
+                    else if ( 37 == val ) // white
+                        _settextcolor( 7 );
                     else
                         tracer.Trace( "  vt100 ignoring display attribute ^[%um\n", val );
 
@@ -751,9 +808,8 @@ void match_vt100( char * pc, size_t len )
                     if ( pnext )
                         pnext++;
                 }
-                pc[ 0 ] = 0;
             }
-            else if ( 'M' == orig_last ) // delete n lines from the buffer at the current line (scroll up what's above)
+            else if ( 'M' == last ) // delete n lines from the buffer at the current line (scroll up what's above)
             {
                 short n = atoi( pc + 2 );
                 if ( n > 0 )
@@ -769,14 +825,11 @@ void match_vt100( char * pc, size_t len )
                     _settextwindow( x, y, dx, dy ); // restore to the whole window
                     _settextposition( pos.row, pos.col ); // restore as the scroll moves this
                 }
-                pc[ 0 ] = 0;
-                pc[ 0 ] = 0;
             }
             else if ( !strcmp( pc + 1, "[H" ) ) // home cursor
             {
                 //tracer.Trace( "  vt100: home cursor\n" );
                 _settextposition( 1, 1 );
-                pc[ 0 ] = 0;
             }
             else if ( !strcmp( pc + 1, "[0K" ) || !strcmp( pc + 1, "[K" ) ) // clear line from cursor to right
             {
@@ -788,14 +841,12 @@ void match_vt100( char * pc, size_t len )
                 ac[ to_clear ] = 0;
                 _outtext( ac );
                 _settextposition( pos.row, pos.col ); // restore the cursor position
-                pc[ 0 ] = 0;
             }
             else if ( !strcmp( pc + 1, "[2J" ) ) // erase screen and home cursor
             {
                 //tracer.Trace( "  vt100: erase and home cursor\n" );
                 _clearscreen( _GCLEARSCREEN );
                 _settextposition( 1, 1 );
-                pc[ 0 ] = 0;
             }
             else if ( !strcmp( pc + 1, "[J" ) ) // erase from current line down to bottom of screen
             {
@@ -806,9 +857,8 @@ void match_vt100( char * pc, size_t len )
                 _clearscreen( _GWINDOW );
                 _settextwindow( x, y, dx, dy ); // restore to the whole window
                 _settextposition( pos.row, pos.col ); // restore cursor position
-                pc[ 0 ] = 0;
             }
-            else if ( 'L' == orig_last ) // insert n lines at the current line (scroll down what's below)
+            else if ( 'L' == last ) // insert n lines at the current line (scroll down what's below)
             {
                 short n = atoi( pc + 2 );
                 if ( n > 0 )
@@ -823,14 +873,12 @@ void match_vt100( char * pc, size_t len )
                     _settextwindow( x, y, dx, dy ); // restore to the whole window
                     _settextposition( pos.row, pos.col ); // restore as the scroll moves this
                 }
-                pc[ 0 ] = 0;
             }
-            else if ( 'k' == orig_last )
+            else if ( 'k' == last )
             {
                 tracer.Trace( "  vt100: unhandled K, full string '%s'\n", pc + 1 );
-                pc[ 0 ] = 0;
             }
-            else if ( '?' == pc[ 2 ] && 'h' == orig_last ) // cursor commands
+            else if ( '?' == pc[ 2 ] && 'h' == last ) // cursor commands
             {
                 uint8_t cmd = atoi( pc + 3 );
                 if ( 7 == cmd ) // enable text wrap mode
@@ -839,9 +887,8 @@ void match_vt100( char * pc, size_t len )
                     _settextcursor( 0x607 );
                 else
                     tracer.Trace( "  vt100: unhandled h cursor command %u\n", cmd );
-                pc[ 0 ] = 0;
             }
-            else if ( '?' == pc[ 2 ] && 'l' == orig_last ) // cursor commands
+            else if ( '?' == pc[ 2 ] && 'l' == last ) // cursor commands
             {
                 uint8_t cmd = atoi( pc + 3 );
                 if ( 7 == cmd ) // reset text wrap mode
@@ -850,26 +897,64 @@ void match_vt100( char * pc, size_t len )
                     _settextcursor( 0x2000 );
                 else
                     tracer.Trace( "  vt100: unhandled l cursor command %u\n", cmd );
-                pc[ 0 ] = 0;
             }
-            else if ( last >= 'a' && last <= 'z' )
+            else if ( tolower( last ) >= 'a' && tolower( last ) <= 'z' )
             {
                 tracer.Trace( "  vt100: unhandled termination char %c, full string '%s'\n", last, pc + 1 );
                 _outtext( pc );
-                pc[ 0 ] = 0;
+            }
+            else
+            {
+                //tracer.Trace( "  no vt100 match as of yet; waiting for more characters\n" );
+                return;
             }
         }
-        else if ( '<' == pc[ 1 ] )
+        else if ( '<' == pc[ 1 ] ) // enter ANSI mode
         {
-            // enter ANSI mode (already there)
-            pc[ 0 ] = 0;
+            // (already there)
+        }
+        else if ( 'A' == pc[ 1 ] ) // cursor up
+        {
+            rccoord rc = _gettextposition();
+            if ( rc.row > 1 )
+                _settextposition( rc.row - 1, rc.col );
+        }
+        else if ( 'B' == pc[ 1 ] ) // cursor down
+        {
+            rccoord rc = _gettextposition();
+            if (  rc.row < 24 )
+                _settextposition( rc.row + 1, rc.col );
+        }
+        else if ( 'C' == pc[ 1 ] ) // cursor right
+        {
+            rccoord rc = _gettextposition();
+            if ( rc.col < 80 )
+                _settextposition( rc.row, rc.col + 1 );
+        }
+        else if ( 'D' == pc[ 1 ] ) // cursor left
+        {
+            rccoord rc = _gettextposition();
+            if ( rc.col > 1 )
+                _settextposition( rc.row, rc.col - 1 );
+        }
+        else if ( 'H' == pc[ 1 ] ) // cursor home
+            _settextposition( 1, 1 );
+        else if ( 'c' == pc[ 1 ] ) // reset terminal
+        {
+            _clearscreen( 0 );
+            _settextposition( 1, 1 );
+            _settextcolor( 7 );
+            _setbkcolor( 0 );
+            _settextcursor( 0x607 );
+            text_positive = true;
         }
         else
         {
             tracer.Trace( "  vt100: output unhandled escape sequence doesn't start with a [: '%s'\n", pc + 1 );
             _outtext( pc );
-            pc[ 0 ] = 0;
         }
+
+        pc[ 0 ] = 0;
     }
 } //match_vt100
 
