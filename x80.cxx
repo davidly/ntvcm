@@ -1411,10 +1411,10 @@ void z80_renderByteReg( char * acfrom, uint8_t op, uint8_t fromval )
     else if ( 7 == fromval )
         acfrom[0] = 'a';
     else
-        sprintf( acfrom, "%s%c", 0xdd == op ? "ix" : "iy", 4 == fromval ? 'h' : 'l' );
+        snprintf( acfrom, 4, "%s%c", 0xdd == op ? "ix" : "iy", 4 == fromval ? 'h' : 'l' );
 } //z80_renderByteReg
 
-void z80_render( char * ac, uint8_t op, uint16_t address )
+void z80_render( char * ac, size_t bufferSize, uint8_t op, uint16_t address )
 {
     uint8_t op2 = memory[ address + 1 ];
     uint8_t op3 = memory[ address + 2 ];
@@ -1422,7 +1422,7 @@ void z80_render( char * ac, uint8_t op, uint16_t address )
     uint16_t op34 = (uint16_t) op3 + ( (uint16_t) op4 << 8 );
     int16_t op2int = (int16_t) (int8_t) op2;
     int16_t op3int = (int16_t) (int8_t) op3;
-    sprintf( ac, "z80 %02x %02x %02x NYI", op, op2, op3 );
+    snprintf( ac, bufferSize, "z80 %02x %02x %02x NYI", op, op2, op3 );
 
     if ( 0xdd == op || 0xfd == op ) // ix & iy operations
     {
@@ -1431,38 +1431,38 @@ void z80_render( char * ac, uint8_t op, uint16_t address )
         if ( 0x46 == ( op2 & 0x47 ) )
         {
             uint8_t src = ( ( op2 >> 3 ) & 0x7 );
-            sprintf( ac, "ld %s, (%s%s%d)", reg_strings[ src ], i, op3int >= 0 ? "+" : "", op3int );
+            snprintf( ac, bufferSize, "ld %s, (%s%s%d)", reg_strings[ src ], i, op3int >= 0 ? "+" : "", op3int );
         }                             
         else if ( 0x70 == ( op2 & 0xf8 ) )  
         {
             uint8_t src = op2 & 0x7;
             if ( 6 == src )
-                sprintf( ac, "ld (%s%s%d), %02x", i, op3int >= 0 ? "+" : "", op3int, op4 );
+                snprintf( ac, bufferSize, "ld (%s%s%d), %02x", i, op3int >= 0 ? "+" : "", op3int, op4 );
             else
-                sprintf( ac, "ld (%s%s%d), %s", i, op3int >= 0 ? "+" : "", op3int, reg_strings[ src ] );
+                snprintf( ac, bufferSize, "ld (%s%s%d), %s", i, op3int >= 0 ? "+" : "", op3int, reg_strings[ src ] );
         }
         else if ( 0x09 == ( op2 & 0xcf ) )
-            sprintf( ac, "add %s, %s", i, rp_strings[ ( op2 >> 4 ) & 0x3 ] );
+            snprintf( ac, bufferSize, "add %s, %s", i, rp_strings[ ( op2 >> 4 ) & 0x3 ] );
         else if ( 0x21 == op2 )
-            sprintf( ac, "ld %s, %04xh", i, op34 );
+            snprintf( ac, bufferSize, "ld %s, %04xh", i, op34 );
         else if ( 0x22 == op2 )
-            sprintf( ac, "ld (%04xh), %s", op34, i );
+            snprintf( ac, bufferSize, "ld (%04xh), %s", op34, i );
         else if ( 0x23 == op2 )
-            sprintf( ac, "inc %s", i );
+            snprintf( ac, bufferSize, "inc %s", i );
         else if ( 0x26 == op2 )
-            sprintf( ac, "ld %sh, %02x", i, op3 );
+            snprintf( ac, bufferSize, "ld %sh, %02x", i, op3 );
         else if ( 0x2a == op2 )
-            sprintf( ac, "ld %s, (%04xh)", i, op34 );
+            snprintf( ac, bufferSize, "ld %s, (%04xh)", i, op34 );
         else if ( 0x2b == op2 )
-            sprintf( ac, "dec %s", i );
+            snprintf( ac, bufferSize, "dec %s", i );
         else if ( 0x2e == op2 )
-            sprintf( ac, "ld %sl, %02x", i, op3 );
+            snprintf( ac, bufferSize, "ld %sl, %02x", i, op3 );
         else if ( 0x34 == op2 )
-            sprintf( ac, "inc (%s%s%d)", i, op3int >= 0 ? "+" : "", op3int );
+            snprintf( ac, bufferSize, "inc (%s%s%d)", i, op3int >= 0 ? "+" : "", op3int );
         else if ( 0x35 == op2 )
-            sprintf( ac, "dec (%s%s%d)", i, op3int >= 0 ? "+" : "", op3int );
+            snprintf( ac, bufferSize, "dec (%s%s%d)", i, op3int >= 0 ? "+" : "", op3int );
         else if ( 0x36 == op2 )
-            sprintf( ac, "ld (%s%s%d), %#xh", i, op3int >= 0 ? "+" : "", op3int, op4 );
+            snprintf( ac, bufferSize, "ld (%s%s%d), %#xh", i, op3int >= 0 ? "+" : "", op3int, op4 );
         else if ( ( op2 >= 0x40 && op2 <= 0x6f ) || ( op2 >= 0x78 && op2 <= 0x7f ) )
         {
             char acto[ 4 ] = {0};
@@ -1481,33 +1481,33 @@ void z80_render( char * ac, uint8_t op, uint16_t address )
             else if ( op2 <= 0x5f )
                 acto[0] = 'e';
             else if ( op2 <= 0x67 )
-                sprintf( acto, "%sh", i );
+                snprintf( acto, _countof( acto ), "%sh", i );
             else if ( op2 <= 0x6f )
-                sprintf( acto, "%sl", i );
+                snprintf( acto, _countof( acto ), "%sl", i );
             else
                 acto[0] = 'a';
 
-            sprintf( ac, "ld %s, %s", acto, acfrom );
+            snprintf( ac, bufferSize, "ld %s, %s", acto, acfrom );
         }
         else if ( 0x2a == op2 )
-            sprintf( ac, "ld %s, (%04x)", i, op34 );
+            snprintf( ac, bufferSize, "ld %s, (%04x)", i, op34 );
         else if ( 0x22 == op2 )
-            sprintf( ac, "ld (%04x), %s", op34, i );
+            snprintf( ac, bufferSize, "ld (%04x), %s", op34, i );
         else if ( 0x80 == ( op2 & 0xc2 ) ) // math on il and ih with a. 84/85/8c/8d/94/95/a4/a5/b4/b5/bc/bd
         {
             uint8_t math = ( ( op2 >> 3 ) & 0x7 );
-            sprintf( ac, "%s a,%s%c", z80_math_strings[ math ], i, ( op2 & 1 ) ? 'l' : 'h' );
+            snprintf( ac, bufferSize, "%s a,%s%c", z80_math_strings[ math ], i, ( op2 & 1 ) ? 'l' : 'h' );
         }
         else if ( 0x86 == ( op2 & 0xc7 ) ) // math on [ ix/iy + index ]. 86, 8e, 96, 9e, a6, ae, b6, be
         {
             uint8_t math = ( ( op2 >> 3 ) & 0x7 );
-            sprintf( ac, "%s a, (%s%s%d)", z80_math_strings[ math ], i, op3int >=0 ? "+" : "", op3int );
+            snprintf( ac, bufferSize, "%s a, (%s%s%d)", z80_math_strings[ math ], i, op3int >=0 ? "+" : "", op3int );
         }
         else if ( 0xcb == op2 && ( op4 <= 0x3f ) )
         {
             uint8_t rot = ( ( op4 >> 3 ) & 0x7 );
             int offset = (int) (int8_t) op3;
-            sprintf( ac, "%s %s, (%s%s%d)", z80_rotate_strings[ rot ], reg_strings[ op4 & 0x7 ], i, offset >= 0 ? "+" : "", offset );
+            snprintf( ac, bufferSize, "%s %s, (%s%s%d)", z80_rotate_strings[ rot ], reg_strings[ op4 & 0x7 ], i, offset >= 0 ? "+" : "", offset );
         }
         else if ( 0xcb == op2 && ( ( ( op4 & 0xf ) == 0xe ) || ( ( op4 & 0xf ) == 0x6 ) ) ) // bit operations on indexed memory
         {
@@ -1518,17 +1518,17 @@ void z80_render( char * ac, uint8_t op, uint16_t address )
             uint8_t top2bits = mod & 0xc0;
 
             if ( 0x40 == top2bits ) // bit
-                sprintf( ac, "bit %u, ( %s%s%d )", bit, i, index32 >= 0 ? "+" : "", index32 ); 
+                snprintf( ac, bufferSize, "bit %u, ( %s%s%d )", bit, i, index32 >= 0 ? "+" : "", index32 ); 
             else if ( 0x80 == top2bits ) // reset
-                sprintf( ac, "res %u, ( %s%s%d )", bit, i, index32 >= 0 ? "+" : "", index32 ); 
+                snprintf( ac, bufferSize, "res %u, ( %s%s%d )", bit, i, index32 >= 0 ? "+" : "", index32 ); 
             else if ( 0xc0 == top2bits ) // set
-                sprintf( ac, "set %u, ( %s%s%d )", bit, i, index32 >= 0 ? "+" : "", index32 );
+                snprintf( ac, bufferSize, "set %u, ( %s%s%d )", bit, i, index32 >= 0 ? "+" : "", index32 );
             else if ( 0x26 == op4 ) // sla
-                sprintf( ac, "sla (%s%s%d)", i, index32 >= 0 ? "+" : "", index32 );
+                snprintf( ac, bufferSize, "sla (%s%s%d)", i, index32 >= 0 ? "+" : "", index32 );
             else if ( 0x2e == op4 ) // sra
-                sprintf( ac, "sra (%s%s%d)", i, index32 >= 0 ? "+" : "", index32 );
+                snprintf( ac, bufferSize, "sra (%s%s%d)", i, index32 >= 0 ? "+" : "", index32 );
             else if ( 0x3e == op4 ) // srl
-                sprintf( ac, "srl (%s%s%d)", i, index32 >= 0 ? "+" : "", index32 );
+                snprintf( ac, bufferSize, "srl (%s%s%d)", i, index32 >= 0 ? "+" : "", index32 );
             else if ( 0x00 == top2bits ) // rlc/rl/rrc/rl rotate of (i + index)
             {
                 const char * pc = "n/a";
@@ -1540,38 +1540,38 @@ void z80_render( char * ac, uint8_t op, uint16_t address )
                     pc = "rl";
                 else if ( 0x1e == op4 )
                     pc = "rr";
-                sprintf( ac, "%s (%s%s%d)", pc, i, index32 >= 0 ? "+" : "", index32 );
+                snprintf( ac, bufferSize, "%s (%s%s%d)", pc, i, index32 >= 0 ? "+" : "", index32 );
             }
         }
         else if ( 0xe1 == op2 )
-            sprintf( ac, "pop %s", i );
+            snprintf( ac, bufferSize, "pop %s", i );
         else if ( 0xe3 == op2 )
-            sprintf( ac, "ex (sp),%s", i );
+            snprintf( ac, bufferSize, "ex (sp),%s", i );
         else if ( 0xe5 == op2 )
-            sprintf( ac, "push %s", i );
+            snprintf( ac, bufferSize, "push %s", i );
         else if ( 0xe9 == op2 )
-            sprintf( ac, "jp (%s)", i );    // this official syntax is bad; it's not indirect
+            snprintf( ac, bufferSize, "jp (%s)", i );    // this official syntax is bad; it's not indirect
         else if ( 0xf9 == op2 )
-            sprintf( ac, "ld sp, %s", i );
+            snprintf( ac, bufferSize, "ld sp, %s", i );
         else
-            sprintf( ac, "unknown 0xdd / 0xfd instruction, op2 %2x", op2 );
+            snprintf( ac, bufferSize, "unknown 0xdd / 0xfd instruction, op2 %2x", op2 );
     }
     else if ( 0xed == op ) // load and compare operations
     {
         if ( 0xb == ( op2 & 0xf ) )
-            sprintf( ac, "ld %s, (%04xh)", rp_strings[ ( ( op2 & 0xf0 ) >> 4 ) - 4 ], op34 );
+            snprintf( ac, bufferSize, "ld %s, (%04xh)", rp_strings[ ( ( op2 & 0xf0 ) >> 4 ) - 4 ], op34 );
         else if ( 0x3 == ( op2 & 0xf ) )
-            sprintf( ac, "ld (%04xh), %s", op34, rp_strings[ ( ( op2 & 0xf0 ) >> 4 ) - 4 ] );
+            snprintf( ac, bufferSize, "ld (%04xh), %s", op34, rp_strings[ ( ( op2 & 0xf0 ) >> 4 ) - 4 ] );
         else if ( 0x44 == op2 )
             strcpy( ac, "neg" );
         else if ( 0x47 == op2 )
-            sprintf( ac, "ld i,a" );
+            snprintf( ac, bufferSize, "ld i,a" );
         else if ( 0x4f == op2 )
-            sprintf( ac, "ld r,a" );
+            snprintf( ac, bufferSize, "ld r,a" );
         else if ( 0x57 == op2 )
-            sprintf( ac, "ld a,i" );
+            snprintf( ac, bufferSize, "ld a,i" );
         else if ( 0x5f == op2 )
-            sprintf( ac, "ld a,r" );
+            snprintf( ac, bufferSize, "ld a,r" );
         else if ( 0x67 == op2 )
             strcpy( ac, "rrd" );
         else if ( 0x6f == op2 )
@@ -1587,12 +1587,12 @@ void z80_render( char * ac, uint8_t op, uint16_t address )
         else if ( 0x02 == ( op2 & 0x8f ) )
         {
             uint8_t rp = ( ( ( op2 & 0x30 ) >> 4 ) & 3 );
-            sprintf( ac, "sbc hl, %s", rp_strings[ rp ] );
+            snprintf( ac, bufferSize, "sbc hl, %s", rp_strings[ rp ] );
         }
         else if ( 0x4a == ( op2 & 0xcf ) ) // adc hl, rp
         {
             uint8_t rp = ( ( op2 >> 4 ) & 3 );
-            sprintf( ac, "adc hl, %s", rp_strings[ rp ] );
+            snprintf( ac, bufferSize, "adc hl, %s", rp_strings[ rp ] );
         }
         else if ( 0xa1 == op2 )
             strcpy( ac, "cpi" );
@@ -1608,25 +1608,25 @@ void z80_render( char * ac, uint8_t op, uint16_t address )
         if ( 0x20 == ( op2 & 0xf8 ) ) // sla = shift left arithmetic
         {
             uint8_t rm = op2 & 0x7;
-            sprintf( ac, "sla %s", reg_strings[ rm ] );
+            snprintf( ac, bufferSize, "sla %s", reg_strings[ rm ] );
         }
         else if ( 0x28 == ( op2 & 0xf8 ) ) // sra = shift right arithmetic
         {
             uint8_t rm = op2 & 0x7;
-            sprintf( ac, "sra %s", reg_strings[ rm ] );
+            snprintf( ac, bufferSize, "sra %s", reg_strings[ rm ] );
         }
         else if ( op2 >= 0x30 && op2 <= 0x3f )
         {
             uint8_t rm = op2 & 0x7;
             if ( op2 <= 0x37 )
-                sprintf( ac, "sll %s", reg_strings[ rm ] );
+                snprintf( ac, bufferSize, "sll %s", reg_strings[ rm ] );
             else
-                sprintf( ac, "srl %s", reg_strings[ rm ] );
+                snprintf( ac, bufferSize, "srl %s", reg_strings[ rm ] );
         }
         else if ( 0x38 == ( op2 & 0xf8 ) ) // srl = shift right logical
         {
             uint8_t rm = op2 >> 4;
-            sprintf( ac, "srl %s", reg_strings[ rm ] );
+            snprintf( ac, bufferSize, "srl %s", reg_strings[ rm ] );
         }
         else if ( op2 <= 0x1f ) // rlc, rl, rrc, rr on rm
         {
@@ -1639,41 +1639,41 @@ void z80_render( char * ac, uint8_t op, uint16_t address )
                 rotateType = "rr";
 
             uint8_t rm = ( op2 & 0x7 );
-            sprintf( ac, "%s %s", rotateType, reg_strings[ rm ] );
+            snprintf( ac, bufferSize, "%s %s", rotateType, reg_strings[ rm ] );
         }
         else if ( op2 >= 0x40 && op2 <= 0x7f ) // bit #, rm
         {
             uint8_t rm = op2 & 0x7;
             uint8_t bit = ( op2 >> 3 ) & 0x7;
-            sprintf( ac, "bit %u, %s", bit, reg_strings[ rm ] );
+            snprintf( ac, bufferSize, "bit %u, %s", bit, reg_strings[ rm ] );
         }
         else if ( op2 >= 0x80 && op2 <= 0xbf ) // res bit #, rm
         {
             uint8_t rm = op2 & 0x7;
             uint8_t bit = ( op2 >> 3 ) & 0x7;
-            sprintf( ac, "res %u, %s", bit, reg_strings[ rm ] ); 
+            snprintf( ac, bufferSize, "res %u, %s", bit, reg_strings[ rm ] ); 
         }
         else if ( op2 >= 0xc0 && op2 <= 0xff ) // set bit #, rm
         {
             uint8_t rm = op2 & 0x7;
             uint8_t bit = ( op2 >> 3 ) & 0x7;
-            sprintf( ac, "set %u, %s", bit, reg_strings[ rm ] ); 
+            snprintf( ac, bufferSize, "set %u, %s", bit, reg_strings[ rm ] ); 
         }
     }
     else if ( 0x08 == op )
         strcpy( ac, "ex af, af'" );
     else if ( 0x10 == op )
-        sprintf( ac, "djnz %d", op2int );
+        snprintf( ac, bufferSize, "djnz %d", op2int );
     else if ( 0x18 == op )
-        sprintf( ac, "jr %d", op2int );    
+        snprintf( ac, bufferSize, "jr %d", op2int );    
     else if ( 0x20 == op )
-        sprintf( ac, "jr nz, %d", op2int );
+        snprintf( ac, bufferSize, "jr nz, %d", op2int );
     else if ( 0x28 == op )
-        sprintf( ac, "jr z, %d", op2int );
+        snprintf( ac, bufferSize, "jr z, %d", op2int );
     else if ( 0x30 == op )
-        sprintf( ac, "jr nc, %d", op2int );
+        snprintf( ac, bufferSize, "jr nc, %d", op2int );
     else if ( 0x38 == op )
-        sprintf( ac, "jr c, %d", op2int );
+        snprintf( ac, bufferSize, "jr c, %d", op2int );
     else if ( 0xd9 == op )
         strcpy( ac, "exx" );
 } //z80_render
@@ -1681,7 +1681,7 @@ void z80_render( char * ac, uint8_t op, uint16_t address )
 void replace_with_num( char * pc, const char * psearch, uint16_t num, uint8_t width )
 {
     char actemp[ 60 ];
-    sprintf( actemp, ( 16 == width ) ? "%04xh" : "%02xh", (uint32_t) num );
+    snprintf( actemp, _countof( actemp ), ( 16 == width ) ? "%04xh" : "%02xh", (uint32_t) num );
     strcat( actemp, pc + strlen( psearch ) );
     strcpy( pc, actemp );
 } //replace_with_num
@@ -1697,7 +1697,7 @@ const char * x80_render_operation( uint16_t address )
         strcpy( ac, z80_instructions[ op ] );
         if ( '*' == ac[ 0 ] )
         {
-            z80_render( ac, op, address );
+            z80_render( ac, _countof( ac ), op, address );
             renderData = false;
         }
     }
