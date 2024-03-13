@@ -1460,10 +1460,24 @@ uint8_t map_input( uint8_t input )
                     output = 1 + 'D' - 'A';
                 else if ( 'D' == nextb )         // left arrow
                     output = 1 + 'S' - 'A';
-                else if ( '3' == nextb )         // DEL on linux?
+                else if ( '5' == nextb )         // page up
                 {
                     uint8_t nextc = g_consoleConfig.portable_getch();
-                    tracer.Trace( "  nextc: %02x\n", nextc );
+                    tracer.Trace( "  5 nextc: %02x\n", nextc );
+                    if ( '~' == nextc )
+                        output = 1 + 'R' - 'A';
+                }
+                else if ( '6' == nextb )         // page down
+                {
+                    uint8_t nextc = g_consoleConfig.portable_getch();
+                    tracer.Trace( "  6 nextc: %02x\n", nextc );
+                    if ( '~' == nextc )
+                        output = 1 + 'C' - 'A';
+                }
+                else if ( '3' == nextb )         // DEL on linux
+                {
+                    uint8_t nextc = g_consoleConfig.portable_getch();
+                    tracer.Trace( "  3 nextc: %02x\n", nextc );
                     if ( '~' == nextc )
                         output = 0x7f;
                 }
@@ -2903,7 +2917,7 @@ int main( int argc, char * argv[] )
         //   0100-????: App run space growing upward until it collides with the stack
         //   ????-fefb: Stack growing downward until it collides with the app
         //   fefc-fefd: two bytes of 0 so apps can return instead of a standard app exit.
-        //   fefc-feff: JMP to feff for BDOS calls. Where addresses 5-7 jumps to. BDOS_ENTRY. Hook here breaks WordStar.
+        //   fefc-feff: JMP to feff for BDOS calls. Where addresses 5-7 jumps to. BDOS_ENTRY. Hook here breaks WordStar Spellcheck.
         //   ff00-ff33: bios jump table of 3*17 bytes. (0xff03 is stored at addess 0x1). BIOS_JUMP_TABLE
         //   ff40-ff50: where bios jump table addresses point, filled with OPCODE_HOOK. BIOS_FUNCTIONS
         //   ff60-ff6f: filled with the Disk Parameter Block for BDOS call 31 Get DPB. DPD_OFFSET
