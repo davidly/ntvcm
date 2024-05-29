@@ -263,7 +263,7 @@ extern uint8_t x80_invoke_hook( void );  // called with the OPCODE_HOOK instruct
 
 // emulator API
 
-extern uint64_t x80_emulate( uint64_t maxcycles );             // execute up to about maxcycles
+extern uint16_t x80_emulate( uint16_t maxcycles );             // execute up to about maxcycles
 extern void x80_trace_instructions( bool trace );              // enable/disable tracing each instruction
 extern void x80_trace_state( void );                           // trace the registers
 extern const char * x80_render_operation( uint16_t address );  // return a string with the disassembled instruction at address

@@ -715,7 +715,7 @@ void z80_op_srl( uint8_t * pval )
     *pval = val;
 } //z80_op_srl
 
-uint64_t z80_emulate( uint8_t op )    // this is just for instructions that aren't shared with 8080
+uint16_t z80_emulate( uint8_t op )    // this is just for instructions that aren't shared with 8080
 {
     uint16_t opaddress = reg.pc - 1;
     uint8_t op2 = memory[ reg.pc ];
@@ -1744,9 +1744,9 @@ bool check_conditional( uint8_t op ) // checks for conditional jump, call, and r
     return condition;
 } //check_conditional
 
-uint64_t x80_emulate( uint64_t maxcycles )
+uint16_t x80_emulate( uint16_t maxcycles )
 {
-    uint64_t cycles = 0;
+    uint16_t cycles = 0;
     const acycles_t & acycles = reg.fZ80Mode ? z80_cycles : i8080_cycles; // ms C++ will opportunistically read *both* in the loop below otherwise
 
     while ( cycles < maxcycles )        // 4% of runtime checking if we're done
