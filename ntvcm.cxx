@@ -1553,7 +1553,7 @@ void WriteRandom()
         if ( fp )
         {
             uint16_t record = pfcb->GetRandomIOOffset();
-            uint32_t file_offset = record * 128;
+            uint32_t file_offset = (uint32_t) record * (uint32_t) 128;
     
             fseek( fp, 0, SEEK_END );
             uint32_t file_size = ftell( fp );
@@ -2410,7 +2410,7 @@ uint8_t x80_invoke_hook()
                 {
                     uint32_t record = pfcb->GetRandomIOOffset();
                     tracer.Trace( "  read random record %u == %#x\n", record, record );
-                    uint32_t file_offset = record * 128;
+                    uint32_t file_offset = (uint32_t) record * (uint32_t) 128;
                     memset( g_DMA, 0x1a, 128 ); // fill with ^z, the EOF marker in CP/M
     
                     uint32_t file_size = portable_filelen( fp );
@@ -3005,7 +3005,7 @@ int main( int argc, char * argv[] )
         uint64_t total_cycles = 0;
         do
         {
-            total_cycles += x80_emulate( 1000 );
+            total_cycles += x80_emulate( 10000 );
     
             if ( g_haltExecuted )
                 break;
