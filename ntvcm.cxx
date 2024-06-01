@@ -8,7 +8,7 @@
 //          -- Also tested with MBasic.
 //          -- Use tinst.com to configure Turbo Pascal 1.00 for vT100 and 3.01A for ANSI to get the screen to work.
 //          -- pip.com runs for simple file copies. Not tested for other modes, which probably fail.
-//          -- Tested with AlgolM, Janus ADA, CB80, Turbo Modula 2, Multiplan, Microsoft Fortran, MT Pascal, and more.
+//          -- Tested with AlgolM, Janus ADA, CB80, Turbo Modula 2, Multiplan, Microsoft Fortran, MT Pascal, JRT Pascal, and more.
 //          -- Can be run in 8080 or Z80 modes (the latter is required for Turbo Pascal).
 //          -- Optionally detects if an ESC character is output, and switches to 80,24 mode.
 //          -- Uses x80.?xx for 8080 and Z80 emulation
@@ -974,6 +974,12 @@ void output_character( uint8_t c )
         tracer.Trace( "  establishing 80x24\n" );
         g_consoleConfig.EstablishConsoleOutput( 80, 24 );
     }
+
+    // Swallow CR when in terminal mode. LF will translate to CR/LF by the C runtime.
+    // Shen the console is established, apps like Turbo Pascal use CR to update line count during compiles
+
+    if ( ( 0xd == c ) && !g_consoleConfig.IsOutputEstablished() )
+        return;
 
     if ( g_kayproToCP437 )
         c = kaypro_to_cp437( c );
