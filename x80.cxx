@@ -1749,6 +1749,8 @@ uint16_t x80_emulate( uint16_t maxcycles )
     uint16_t cycles = 0;
     const acycles_t & acycles = reg.fZ80Mode ? z80_cycles : i8080_cycles; // ms C++ will opportunistically read *both* in the loop below otherwise
 
+    // with the Watcom compiler for real-mode DOS, the cycle check, cycle addition, and trace check consume 17% of runtime
+
     while ( cycles < maxcycles )        // 4% of runtime checking if we're done
     {
         if ( g_traceInstructions )      // 1% of runtime is checking this flag and branching
@@ -1963,6 +1965,8 @@ uint16_t x80_emulate( uint16_t maxcycles )
             {
                 if ( reg.fZ80Mode )
                     cycles += z80_emulate( op );
+                else if ( 0x08 == op ) // Pascal MT++ generates 8080 apps that use 0x08. Treat it as a NOP just like an 8080.
+                    break;
                 else
                     x80_hard_exit( "Error: 8080 undocumented instruction: %#x, next byte %#x\n", op, memory[ reg.pc + 1 ] );
             } //default
