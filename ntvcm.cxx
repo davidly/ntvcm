@@ -1607,6 +1607,9 @@ void WriteRandom()
     }
     else
         tracer.Trace( "ERROR: write random can't parse filename\n" );
+    reg.l = reg.a;
+    reg.b = 0;
+    reg.h = reg.b;
 } //WriteRandom
 
 // must return one of OPCODE_HLT, OPCODE_NOP, or OPCODE_RET
@@ -1701,6 +1704,8 @@ uint8_t x80_invoke_hook()
 
             uint8_t ch = (uint8_t) g_consoleConfig.portable_getch();
             reg.a = map_input( ch );
+            reg.l = reg.a;
+            reg.h = reg.b;
             tracer.Trace( "  bdos console in: %02x == '%c'\n", ch, printable( ch ) );
             output_character( ch );
             fflush( stdout );
@@ -1766,6 +1771,8 @@ uint8_t x80_invoke_hook()
                         kbd_poll_busyloops++;
                     reg.a = 0;
                 }
+
+                reg.h = reg.a;
             }
             else
             {
@@ -1835,21 +1842,26 @@ uint8_t x80_invoke_hook()
         }
         case 11:
         {
-            // console status. return A=0 if no characters are waiting or non-zero if a character is waiting
+            // get console status. return A=0 if no characters are waiting or non-zero if a character is waiting
 
             if ( g_consoleConfig.throttled_kbhit() )
                 reg.a = 0xff;
             else
                 reg.a = 0;
 
+            reg.l = reg.a;
+            reg.b = 0;     // required for HiSoft C v3.09 C runtime and lu.com
+            reg.h = reg.b; // required for HiSoft C v3.09 C runtime
             break;
         }
         case 12:
         {
             // return version number
 
-            reg.h = 0;      // CP/M
+            reg.h = 0; // 8080, plain CP/M
+            reg.b = reg.h;
             reg.l = 0x22;   // version 2.2
+            reg.a = reg.l;
             break;
         }
         case 13:
@@ -1857,6 +1869,7 @@ uint8_t x80_invoke_hook()
             // reset disks. returns 0xff if a file exists that starts with a $ or 0 otherwise
 
             reg.a = 0;
+            reg.l = reg.a;
             break;
         }
         case 14:
@@ -1871,6 +1884,7 @@ uint8_t x80_invoke_hook()
             else
                 reg.a = 0xff;
 
+            reg.l = reg.a;
             break;
         }
         case 15:
@@ -1927,6 +1941,7 @@ uint8_t x80_invoke_hook()
             else
                 tracer.Trace( "ERROR: can't parse filename in FCB\n" );
 
+            reg.l = reg.a;
             break;
         }
         case 16:
@@ -1955,6 +1970,7 @@ uint8_t x80_invoke_hook()
             else
                 tracer.Trace( "ERROR: can't parse filename in close call\n" );
 
+            reg.l = reg.a;
             break;
         }
         case 17:
@@ -2031,6 +2047,7 @@ uint8_t x80_invoke_hook()
             else
                 tracer.Trace( "ERROR: can't parse filename for search for first\n" );
 
+            reg.l = reg.a;
             break;
         }
         case 18:
@@ -2119,6 +2136,7 @@ uint8_t x80_invoke_hook()
             else
                 tracer.Trace( "ERROR: can't parse filename for search for first\n" );
 
+            reg.l = reg.a;
             break;
         }
         case 19:
@@ -2150,6 +2168,9 @@ uint8_t x80_invoke_hook()
             else
                 tracer.Trace( "ERROR: can't parse filename for delete file\n" );
 
+            reg.l = reg.a;
+            reg.b = 0;
+            reg.h = reg.b;
             break;
         }
         case 20:
@@ -2214,6 +2235,7 @@ uint8_t x80_invoke_hook()
             else
                 tracer.Trace( "ERROR: can't parse filename in read sequential file\n" );
     
+            reg.l = reg.a;
             break;
         }
         case 21:
@@ -2254,6 +2276,7 @@ uint8_t x80_invoke_hook()
             else
                 tracer.Trace( "ERROR: can't parse filename in write sequential file\n" );
 
+            reg.l = reg.a;
             break;
         }
         case 22:
@@ -2289,6 +2312,9 @@ uint8_t x80_invoke_hook()
             else
                 tracer.Trace( "ERROR: can't parse filename in make file\n" );
 
+            reg.b = 0;
+            reg.h = reg.b;
+            reg.l = reg.a;
             break;
         }
         case 23:
@@ -2322,6 +2348,7 @@ uint8_t x80_invoke_hook()
             else
                 tracer.Trace( "ERROR: can't parse old filename in rename\n" );
 
+            reg.l = reg.a;
             break;
         }
         case 24:
@@ -2337,6 +2364,7 @@ uint8_t x80_invoke_hook()
             // return current disk. 0..15 corresponding to A..P
     
             reg.a = 0;
+            reg.l = reg.a;
             break;
         }
         case 26:
@@ -2344,7 +2372,6 @@ uint8_t x80_invoke_hook()
             // set the dma address (128 byte buffer for doing I/O)
 
             tracer.Trace( "  updating DMA address; D %u = %#x\n", reg.D(), reg.D() );
-
             g_DMA = memory + reg.D();
             break;
         }
@@ -2384,6 +2411,7 @@ uint8_t x80_invoke_hook()
                 reg.a = 0;
             }
 
+            reg.l = reg.a;
             break;
         }
         case 31:
@@ -2399,6 +2427,7 @@ uint8_t x80_invoke_hook()
             // get/set current user
 
             reg.a = 0;
+            reg.l = reg.a;
             break;
         }
         case 33:
@@ -2467,6 +2496,9 @@ uint8_t x80_invoke_hook()
             else
                 tracer.Trace( "ERROR: read random can't parse filename\n" );
 
+            reg.l = reg.a;
+            reg.b = 0;
+            reg.h = reg.b;
             break;
         }
         case 34:
@@ -2511,6 +2543,7 @@ uint8_t x80_invoke_hook()
                     tracer.Trace( "ERROR: compute file size can't find file '%s'\n", acFilename );
             }
 
+            reg.l = reg.a;
             break;
         }
         case 36:
@@ -2540,6 +2573,7 @@ uint8_t x80_invoke_hook()
             else
                 tracer.Trace( "ERROR: set random record can't parse filename\n" );
 
+            reg.l = reg.a;
             break;
         }
         case 40:
@@ -2550,6 +2584,12 @@ uint8_t x80_invoke_hook()
             // I haven't found any apps that call this, so I can't say it's really tested.
 
             WriteRandom();
+            break;
+        }
+        case 102:
+        {
+            // Get file date and time
+
             break;
         }
         case 105:
@@ -2577,6 +2617,7 @@ uint8_t x80_invoke_hook()
             ptime->millisecond = (uint16_t) ( ms / 10 ); // hundredths of a second;
 #endif
             reg.a = 0;
+            reg.l = reg.a;
             break;
         }
         case 106:
@@ -2923,10 +2964,11 @@ int main( int argc, char * argv[] )
         //   0100-????: App run space growing upward until it collides with the stack
         //   ????-fefb: Stack growing downward until it collides with the app
         //   fefc-fefd: two bytes of 0 so apps can return instead of a standard app exit.
-        //   fefc-feff: JMP to feff for BDOS calls. Where addresses 5-7 jumps to. BDOS_ENTRY. Hook here breaks WordStar Spellcheck.
-        //   ff00-ff33: bios jump table of 3*17 bytes. (0xff03 is stored at addess 0x1). BIOS_JUMP_TABLE
-        //   ff40-ff50: where bios jump table addresses point, filled with OPCODE_HOOK. BIOS_FUNCTIONS
-        //   ff60-ff6f: filled with the Disk Parameter Block for BDOS call 31 Get DPB. DPD_OFFSET
+        //   fefc-fefe: BDOS_ENTRY. JMP to feff for BDOS calls. Where addresses 5-7 jumps to. Hook here breaks WordStar Spellcheck.
+        //   feff-feff: OPCODE_HOOK stored here to call back to C code for BDOS calls
+        //   ff00-ff33: BIOS_JUMP_TABLE. bios jump table of 3*17 bytes. (0xff03 is stored at addess 0x1). 
+        //   ff40-ff50: BIOS_FUNCTIONS. where bios jump table addresses point, filled with OPCODE_HOOK. 
+        //   ff60-ff6f: DPD_OFFSET. filled with the Disk Parameter Block for BDOS call 31 Get DPB. 
         //   ff70-ffff: unused, filled with 0
         //
         // On a typical CP/M machine:
