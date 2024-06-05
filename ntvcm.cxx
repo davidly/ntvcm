@@ -1545,6 +1545,18 @@ bool cpm_read_console( char * buf, size_t bufsize, uint8_t & out_len )
     return false;
 } //cpm_read_console
 
+void set_bdos_status()
+{
+    // Calls to bdos in CP/M 2.2 can trash any register, so this is generally safe.
+    // CP/M 2.2 generally mandates L = A on return.
+    // HiSoft C v3.09 and the apps it generates only look at HL for bdos results, not A or L.
+    // So H must be cleared so 16-bit HL checks just get the result in L.
+
+    reg.l = reg.a;
+    reg.b = 0;
+    reg.h = 0;
+} //set_bdos_status
+
 void WriteRandom()
 {
     FCB * pfcb = (FCB *) ( memory + reg.D() );
@@ -1607,9 +1619,8 @@ void WriteRandom()
     }
     else
         tracer.Trace( "ERROR: write random can't parse filename\n" );
-    reg.l = reg.a;
-    reg.b = 0;
-    reg.h = reg.b;
+
+    set_bdos_status();
 } //WriteRandom
 
 // must return one of OPCODE_HLT, OPCODE_NOP, or OPCODE_RET
@@ -1704,8 +1715,7 @@ uint8_t x80_invoke_hook()
 
             uint8_t ch = (uint8_t) g_consoleConfig.portable_getch();
             reg.a = map_input( ch );
-            reg.l = reg.a;
-            reg.h = reg.b;
+            set_bdos_status();
             tracer.Trace( "  bdos console in: %02x == '%c'\n", ch, printable( ch ) );
             output_character( ch );
             fflush( stdout );
@@ -1728,7 +1738,12 @@ uint8_t x80_invoke_hook()
         }
         case 3:
         {
-            // reader input
+            // reader input. aka raw console input. I haven't found an app that uses this yet.
+
+            uint8_t ch = (uint8_t) g_consoleConfig.portable_getch();
+            reg.a = map_input( ch );
+            set_bdos_status();
+            tracer.Trace( "  bdos reader input / raw console in: %02x == '%c'\n", ch, printable( ch ) );
             break;
         }
         case 4:
@@ -1772,7 +1787,7 @@ uint8_t x80_invoke_hook()
                     reg.a = 0;
                 }
 
-                reg.h = reg.a;
+                set_bdos_status();
             }
             else
             {
@@ -1849,9 +1864,7 @@ uint8_t x80_invoke_hook()
             else
                 reg.a = 0;
 
-            reg.l = reg.a;
-            reg.b = 0;     // required for HiSoft C v3.09 C runtime and lu.com
-            reg.h = reg.b; // required for HiSoft C v3.09 C runtime
+            set_bdos_status(); // required for HiSoft C v3.09 and its C runtime. And lu.com.
             break;
         }
         case 12:
@@ -1869,7 +1882,7 @@ uint8_t x80_invoke_hook()
             // reset disks. returns 0xff if a file exists that starts with a $ or 0 otherwise
 
             reg.a = 0;
-            reg.l = reg.a;
+            set_bdos_status();
             break;
         }
         case 14:
@@ -1884,12 +1897,12 @@ uint8_t x80_invoke_hook()
             else
                 reg.a = 0xff;
 
-            reg.l = reg.a;
+            set_bdos_status();
             break;
         }
         case 15:
         {
-            // open file. return 255 if file not found and 0..3 directory code otherwise
+            // open file. return 255 in a if file not found and 0..3 directory code otherwise
     
             FCB * pfcb = (FCB *) ( memory + reg.D() );
             pfcb->Trace();
@@ -1941,7 +1954,7 @@ uint8_t x80_invoke_hook()
             else
                 tracer.Trace( "ERROR: can't parse filename in FCB\n" );
 
-            reg.l = reg.a;
+            set_bdos_status();
             break;
         }
         case 16:
@@ -1970,7 +1983,7 @@ uint8_t x80_invoke_hook()
             else
                 tracer.Trace( "ERROR: can't parse filename in close call\n" );
 
-            reg.l = reg.a;
+            set_bdos_status();
             break;
         }
         case 17:
@@ -2047,7 +2060,7 @@ uint8_t x80_invoke_hook()
             else
                 tracer.Trace( "ERROR: can't parse filename for search for first\n" );
 
-            reg.l = reg.a;
+            set_bdos_status();
             break;
         }
         case 18:
@@ -2136,7 +2149,7 @@ uint8_t x80_invoke_hook()
             else
                 tracer.Trace( "ERROR: can't parse filename for search for first\n" );
 
-            reg.l = reg.a;
+            set_bdos_status();
             break;
         }
         case 19:
@@ -2168,9 +2181,7 @@ uint8_t x80_invoke_hook()
             else
                 tracer.Trace( "ERROR: can't parse filename for delete file\n" );
 
-            reg.l = reg.a;
-            reg.b = 0;
-            reg.h = reg.b;
+            set_bdos_status();
             break;
         }
         case 20:
@@ -2235,7 +2246,7 @@ uint8_t x80_invoke_hook()
             else
                 tracer.Trace( "ERROR: can't parse filename in read sequential file\n" );
     
-            reg.l = reg.a;
+            set_bdos_status();
             break;
         }
         case 21:
@@ -2276,7 +2287,7 @@ uint8_t x80_invoke_hook()
             else
                 tracer.Trace( "ERROR: can't parse filename in write sequential file\n" );
 
-            reg.l = reg.a;
+            set_bdos_status();
             break;
         }
         case 22:
@@ -2312,9 +2323,7 @@ uint8_t x80_invoke_hook()
             else
                 tracer.Trace( "ERROR: can't parse filename in make file\n" );
 
-            reg.b = 0;
-            reg.h = reg.b;
-            reg.l = reg.a;
+            set_bdos_status();
             break;
         }
         case 23:
@@ -2348,7 +2357,7 @@ uint8_t x80_invoke_hook()
             else
                 tracer.Trace( "ERROR: can't parse old filename in rename\n" );
 
-            reg.l = reg.a;
+            set_bdos_status();
             break;
         }
         case 24:
@@ -2364,7 +2373,7 @@ uint8_t x80_invoke_hook()
             // return current disk. 0..15 corresponding to A..P
     
             reg.a = 0;
-            reg.l = reg.a;
+            set_bdos_status();
             break;
         }
         case 26:
@@ -2411,7 +2420,7 @@ uint8_t x80_invoke_hook()
                 reg.a = 0;
             }
 
-            reg.l = reg.a;
+            set_bdos_status();
             break;
         }
         case 31:
@@ -2427,7 +2436,7 @@ uint8_t x80_invoke_hook()
             // get/set current user
 
             reg.a = 0;
-            reg.l = reg.a;
+            set_bdos_status();
             break;
         }
         case 33:
@@ -2496,9 +2505,7 @@ uint8_t x80_invoke_hook()
             else
                 tracer.Trace( "ERROR: read random can't parse filename\n" );
 
-            reg.l = reg.a;
-            reg.b = 0;
-            reg.h = reg.b;
+            set_bdos_status();
             break;
         }
         case 34:
@@ -2543,7 +2550,7 @@ uint8_t x80_invoke_hook()
                     tracer.Trace( "ERROR: compute file size can't find file '%s'\n", acFilename );
             }
 
-            reg.l = reg.a;
+            set_bdos_status();
             break;
         }
         case 36:
@@ -2573,7 +2580,7 @@ uint8_t x80_invoke_hook()
             else
                 tracer.Trace( "ERROR: set random record can't parse filename\n" );
 
-            reg.l = reg.a;
+            set_bdos_status();
             break;
         }
         case 40:
@@ -2616,8 +2623,7 @@ uint8_t x80_invoke_hook()
             ptime->second = (uint16_t) plocal->tm_sec;
             ptime->millisecond = (uint16_t) ( ms / 10 ); // hundredths of a second;
 #endif
-            reg.a = 0;
-            reg.l = reg.a;
+            set_bdos_status();
             break;
         }
         case 106:
@@ -2681,6 +2687,13 @@ uint8_t x80_invoke_hook()
 
             x80_trace_state();
             x80_hard_exit( "unhandled bods function", reg.c, 0 );
+
+            // CP/M 2.2 mandates returning a 0 status for function numbers that are out of range.
+            // When I find an app that relies on this behavior, I'll remove the hard_exit() above and do this:
+
+            reg.a = 0;
+            set_bdos_status();
+            break;
         }
     }
 
