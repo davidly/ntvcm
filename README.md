@@ -28,6 +28,7 @@ Tested with:
     JRT Pascal ver 4.0
     Hochstrasser Computing AG MODULA-2 Compiler for Z80-CP/M  Version 2.01  4-Jun-85
     FTL Modula-2 V1.30    
+    BD Software C Compiler v1.60
     
 Console input/output work for both bios bdos API. Disk input/output work via the bdos API. There is no attempt at emulating physical disks. Apps that use bdos for disk I/O will work but apps that use the BIOS or assume things about disk layout will not.
 
