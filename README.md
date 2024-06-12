@@ -24,7 +24,11 @@ Tested with:
     PASCAL/MT+ (80) Version 5.6.1
     PL/I-80 V1.3
     Eco-C Compiler Version 3.43
-    
+    HiSoft C v1.35 and v3.09
+    JRT Pascal ver 4.0
+    Hochstrasser Computing AG MODULA-2 Compiler for Z80-CP/M  Version 2.01  4-Jun-85
+    FTL Modula-2 V1.30    
+    BD Software C Compiler v1.60
     
 Console input/output work for both bios bdos API. Disk input/output work via the bdos API. There is no attempt at emulating physical disks. Apps that use bdos for disk I/O will work but apps that use the BIOS or assume things about disk layout will not.
 
@@ -43,7 +47,7 @@ I've done some testing on Linux and MacOS with the same set of test apps as Wind
 Performance of the CPU emulator is in the ballpark of other emulators I looked at. I wrote the code to be more readable than other emulators, whose use of lookup tables and macros I found to be nearly inscrutable (though I'm sure that's just me). I also wanted both 8080 and Z80
 modes, which hurts the performance of each. An interesting fact is that on modern CPUs, code for computing parity of a byte is faster than a 256-element lookup table. 
 
-zexall.com runs 5.748 billion instructions shared with the 8080, and just 16 million instructions unique to the Z80; optimizing the emulator for the 8080 will have the most impact. On my machine, zexall.com runs in about 18.4 seconds using the Microsoft compiler and 16.7 seconds using the Gnu compiler. On a real 4Mhz Z80 it'd take about 3 hours and 14 minutes.
+zexall.com runs 5.748 billion instructions shared with the 8080, and just 16 million instructions unique to the Z80; optimizing the emulator for the 8080 will have the most impact. On my AMD 5950x machine, zexall.com runs in about 18.4 seconds using the Microsoft compiler and 16.7 seconds using the Gnu compiler. On my Intel i9-14900KF the times are 12.3 and 11.7 seconds. On a real 4Mhz Z80 it'd take about 3 hours and 14 minutes.
 
 Cycle counts are pretty close, but not precise. I used documented numbers, which are sometimes incorrect. And I made guesses for cycle counts for undocumented Z80 instructions.
 
