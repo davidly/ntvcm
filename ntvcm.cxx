@@ -115,6 +115,21 @@ struct FCB
         this->r2 = 0;
     } //SetRandomIOOffset
 
+    void SetRecordCount( FILE * fp )
+    {
+        // set rc to file size in 128 byte records if < 16k, else 128
+        uint32_t file_size = portable_filelen( fp );
+        if ( file_size >= ( 16 * 1024 ) ) // CP/M 2.2 does this and Whitesmith C's A80.COM and LNK.COM depend on it
+            this->rc = 128;
+        else
+        {
+            uint32_t tail_size = ( file_size % ( 16 * 1024 ) ); // won't matter because of 16k check above
+            this->rc = (uint8_t) ( tail_size / 128 );
+            if ( 0 != ( tail_size % 128 ) )
+                this->rc++;
+        }
+    } //SetRecordCount
+
     void UpdateSequentialOffset( uint32_t offset )
     {
         cr = (uint8_t) ( ( offset % ( (uint32_t) 16 * 1024 ) ) / (uint32_t) 128 );
@@ -1920,7 +1935,7 @@ uint8_t x80_invoke_hook()
                     fseek( fp, 0, SEEK_SET );
                     reg.a = 0;
                     pfcb->cr = 0;
-                    pfcb->rc = 1;
+                    pfcb->SetRecordCount( fp ); // Whitesmith C 2.1 requires this to be set
                     // don't reset extent on a re-open or LK80.COM will fail. pfcb->ex = 0;
                     pfcb->s2 = 0;
                     tracer.Trace( "  open used existing file and rewound to offset 0\n" );
@@ -1939,10 +1954,10 @@ uint8_t x80_invoke_hook()
                         reg.a = 0;
 
                         // Digital Research's lk80.com linker has many undocumented expectations no other apps I've tested have.
-                        // including rc > 0 after an open
+                        // including rc > 0 after an open. Whitesmith C requires the record count set correctly.
 
                         pfcb->cr = 0;
-                        pfcb->rc = 1;
+                        pfcb->SetRecordCount( fp );
                         pfcb->ex = 0;
                         pfcb->s2 = 0;
                         tracer.Trace( "  file opened successfully, record count: %u\n", pfcb->rc );
@@ -2277,6 +2292,7 @@ uint8_t x80_invoke_hook()
                     {
                         reg.a = 0;
                         pfcb->UpdateSequentialOffset( curr + 128 );
+                        pfcb->SetRecordCount( fp ); // Whitesmith C v2.1's A80.COM assembler requires this
                     }
                     else
                         tracer.Trace( "ERROR: fwrite returned %zd, errno %d = %s\n", numwritten, errno, strerror( errno ) );
@@ -2310,7 +2326,7 @@ uint8_t x80_invoke_hook()
                     g_fileEntries.push_back( fe );
 
                     pfcb->cr = 0;
-                    pfcb->rc = 1;
+                    pfcb->rc = 0;
                     pfcb->ex = 0;
                     pfcb->s2 = 0;
 
