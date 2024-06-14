@@ -1,0 +1,222 @@
+/*
+    PL/I version of an app that proves you can't win at tic-tac-toe if the opponent is competent.
+    Written for Digital Research PL/I-80 V1.3 for CP/M.
+    To build:
+        ntvcm pli %1
+        ntvcm link %1
+*/
+
+ttt:
+
+proc options(main);
+    %replace
+        ScoreWin by 6,
+        ScoreTie by 5,
+        ScoreLose by 4,
+        ScoreMax by 9,
+        ScoreMin by 2,
+        pieceX by 1,
+        pieceO by 2,
+        pieceBlank by 0,
+        DefaultIterations by 1;
+
+    dcl board(9) fixed binary(7);
+    dcl movecount fixed binary;
+    dcl ( i, iterations ) fixed binary;
+
+    iterations = readcommandtail();
+    if 0 = iterations then
+        iterations = DefaultIterations;
+
+    do i = 1 to iterations;
+        movecount = 0;
+        call findsolution( 0 );
+        call findsolution( 1 );
+        call findsolution( 4 );
+    end;
+
+    put skip list( 'moves:      ', movecount );
+    put skip list( 'iterations: ', iterations );
+    stop;
+
+findsolution: proc( move );
+    dcl move fixed binary(7);
+    dcl res fixed binary(7);
+
+    board( move ) = pieceX;
+    res = minmax( ScoreMin, ScoreMax, 0, move );
+    board( move ) = pieceBlank;
+end findsolution;
+
+minmax: proc( alpha, beta, depth, move ) returns ( fixed binary(7) ) recursive;
+    dcl (alpha, beta, depth, move) fixed binary(7);
+    dcl (value, score, pieceMove, p, m) fixed binary(7);
+
+    /*
+    put skip list( '{', board(0), board(1), board(2), board(3), board(4), board(5),
+                   board(6), board(7), board(8), '}', alpha, beta, depth, move );
+    */
+
+    movecount = movecount + 1;
+
+    if depth >= 4 then do;
+        /* winner2 with a computed goto is about 7% faster than winner */
+        /* p = winner(); */
+        p = winner2( move );
+
+        if pieceBlank ^= p then do;
+            if pieceX = p then return ( ScoreWin );
+            return ( ScoreLose );
+        end;
+
+        if 8 = depth then return ( ScoreTie );
+    end;
+
+    if pieceO = board( move ) then do;
+        value = ScoreMin;
+        pieceMove = pieceX;
+    end;
+    else do;
+        value = ScoreMax;
+        pieceMove = pieceO;
+    end;
+
+    do m = 0 to 8;
+        if pieceBlank = board( m ) then do;
+            board( m ) = pieceMove;
+            score = minmax( alpha, beta, depth + 1, m );
+            board( m ) = pieceBlank;
+    
+            if pieceX = pieceMove then do;
+                /* put skip list ( 'odd depth, score: ', score ); */
+                if ScoreWin = score then return ( ScoreWin );
+                if score > value then do;
+                    /* put skip list ( 'score > value, alpha and beta ', score, value, alpha, beta ); */
+                    if score >= beta then return ( score );
+                    value = score;
+                    if value > alpha then alpha = value;
+                end;
+            end;
+            else do;
+                /* put skip list ( 'even depth, score: ', score ); */
+                if ScoreLose = score then return ( ScoreLose );
+                if score < value then do;
+                    /* put skip list ( 'score < value, alpha and beta ', score, value, alpha, beta ); */
+                    if score <= alpha then return ( score );
+                    value = score;
+                    if value < beta then beta = value;
+                end;
+            end;
+        end;
+    end;
+
+    return ( value );
+end minmax;
+
+winner: proc returns ( fixed binary(7) );
+    dcl p fixed binary(7);
+
+    p = board( 0 );
+    if pieceBlank ^= p then do;
+        if p = board(1) & p = board(2) then return ( p );
+        if p = board(3) & p = board(6) then return ( p );
+    end;
+    
+    p = board(3);
+    if PieceBlank ^= p & p = board(4) & p = board(5) then return ( p );
+
+    p = board(6);
+    if PieceBlank ^= p & p = board(7) & p = board(8) then return ( p );
+
+    p = board(1);
+    if PieceBlank ^= p & p = board(4) & p = board(7) then return ( p );
+
+    p = board(2);
+    if PieceBlank ^= p & p = board(5) & p = board(8) then return ( p );
+
+    p = board(4);
+    if pieceBlank ^= p then do;
+        if p = board(0) & p = board(8) then return ( p );
+        if p = board(2) & p = board(6) then return ( p );
+    end;
+
+    return ( pieceBlank );
+end winner;
+
+winner2: proc( m ) returns ( fixed binary(7) );
+    dcl m fixed binary(7);
+    dcl x fixed binary(7);
+    
+    x = board( m );
+
+    go to q( m );
+    q(0):
+        if x = board(1) & x = board(2) |
+           x = board(3) & x = board(6) |
+           x = board(4) & x = board(8) then return ( x );
+        return ( pieceBlank );
+    q(1):
+        if x = board(0) & x = board(2) |
+           x = board(4) & x = board(7) then return ( x );
+        return ( pieceBlank );
+    q(2):
+        if x = board(0) & x = board(1) |
+           x = board(5) & x = board(8) |
+           x = board(4) & x = board(6) then return ( x );
+        return ( pieceBlank );
+    q(3):
+        if x = board(4) & x = board(5) |
+           x = board(0) & x = board(6) then return ( x );
+        return ( pieceBlank );
+    q(4):
+        if x = board(0) & x = board(8) |
+           x = board(2) & x = board(6) |
+           x = board(1) & x = board(7) |
+           x = board(3) & x = board(5) then return ( x );
+        return ( pieceBlank );
+    q(5):
+        if x = board(3) & x = board(4) |
+           x = board(2) & x = board(8) then return ( x );
+        return ( pieceBlank );
+    q(6):
+        if x = board(7) & x = board(8) |
+           x = board(0) & x = board(3) |
+           x = board(4) & x = board(2) then return ( x );
+        return ( pieceBlank );
+    q(7):
+        if x = board(6) & x = board(8) |
+           x = board(1) & x = board(4) then return ( x );
+        return ( pieceBlank );
+    q(8):
+        if x = board(6) & x = board(7) |
+           x = board(2) & x = board(5) |
+           x = board(0) & x = board(4) then return ( x );
+        return ( pieceBlank );
+    endq:
+
+    return ( pieceBlank );
+end winner2;
+
+readcommandtail: proc returns ( fixed binary );
+    dcl memptr pointer;
+    dcl memory (0:256) bit(8) based( memptr );
+    dcl r fixed binary;
+    dcl ( ch, tailLen, x ) fixed binary(7);
+
+    tailLen = memory( 128 );
+    r = 0;
+    if tailLen > 0 then do;
+        do x = 1 to tailLen - 1;
+            ch = memory( 129 + x );
+            if ch < 48 | ch > 57 then do; /* is it 0-9? */
+                put skip list( 'invalid argument; expecting a number from 1 to 32767' );
+                stop;
+            end;
+            r = r * 10 + ch - 48;
+        end;
+    end;
+
+    return ( r );
+end readcommandtail;
+
+end ttt;

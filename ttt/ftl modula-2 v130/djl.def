@@ -1,0 +1,6 @@
+DEFINITION MODULE Djl;
+
+PROCEDURE Write(B:CHAR);
+
+END Djl.
+

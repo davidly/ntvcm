@@ -1,0 +1,4 @@
+ntvcm CC %1.C
+ntvcm C2 %1.COD
+ntvcm M80 =%1.ASM
+ntvcm L80 %1,FORMATIO,CRUNT2,FUNC,STDIO,ALLOC,C2RT,%1/N/E:CCSTAR
