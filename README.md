@@ -53,6 +53,8 @@ Cycle counts are pretty close, but not precise. I used documented numbers, which
 
 Support for Z80 undocumented instructions and the Y and X flags passes the tests specified above, but I can't vouch for more than that. Undocumented 8080 instructions are not implemented.
 
+The ttt folder has Windows build scripts for a variety of compilers along with a benchmark that has been ported to each compiler. More information can be found here: https://medium.com/@davidly_33504/cp-m-80-2-2-compilers-91958a8f1d58
+
 Non-standard BDOS calls are added for sleeping for a specified number of milliseconds and to fetch and iterate through RSS feeds. On Linux and MacOS, this creates dependencies on httplib.h from  https://github.com/yhirose/cpp-httplib and openssl. You must have these dependencies copied
 to your machine for NTVCM to build. Or, remove the RSS feature by not defining NTVCM_RSS_SUPPORT in your build script. Each build script includes lines for building with and without. I've been unable to build on MacOS with RSS enabled. rssrdr.c in the Aztec folder is a sample CP/M RSS reader app that can be built with that compiler using m.bat in that folder.
 
