@@ -207,7 +207,8 @@ struct DiskParameterBlock // for BDOS 31. https://www.seasip.info/Cpm/format22.h
 CDJLTrace tracer;
 ConsoleConfiguration g_consoleConfig;
 
-static bool g_haltExecuted;
+static bool g_haltExecuted = false;
+static bool g_emulationEnded = false;
 static uint8_t * g_DMA = memory + DEFAULT_DMA_OFFSET;
 static vector<FileEntry> g_fileEntries;
 static bool g_forceConsole = false;
@@ -499,6 +500,7 @@ void x80_invoke_halt()
 {
     tracer.Trace( "cpu_halt\n" );
     g_haltExecuted = true;
+    g_emulationEnded = true;
 } //x80_invoke_halt
 
 FILE * RemoveFileEntry( char * name )
@@ -1638,7 +1640,7 @@ void WriteRandom()
     set_bdos_status();
 } //WriteRandom
 
-// must return one of OPCODE_HLT, OPCODE_NOP, or OPCODE_RET
+// must return one of OPCODE_NOP or OPCODE_RET
 
 uint8_t x80_invoke_hook()
 {
@@ -1655,7 +1657,11 @@ uint8_t x80_invoke_hook()
         {
             case 0: // cold start; exit the app
             case 1: // warm boot; exit the app
-                return OPCODE_HLT;
+            {
+                x80_end_emulation();
+                g_emulationEnded = true;
+                return OPCODE_NOP;
+            }
             case 2: // const console status. A=0 if nothing available, A=0xff if a keystroke is available
             {
                 if ( g_consoleConfig.throttled_kbhit() )
@@ -1722,7 +1728,9 @@ uint8_t x80_invoke_hook()
         case 0:
         {
             // system reset. end execution of the app.
-            return OPCODE_HLT;
+            x80_end_emulation();
+            g_emulationEnded = true;
+            return OPCODE_NOP;
         }
         case 1:
         {
@@ -1859,7 +1867,9 @@ uint8_t x80_invoke_hook()
                 if ( reboot )
                 {
                     tracer.Trace( "  bdos read console buffer read a ^c at the first position, so it's terminating the app\n" );
-                    return OPCODE_HLT;
+                    x80_end_emulation();
+                    g_emulationEnded = true;
+                    return OPCODE_NOP;
                 }
 
                 pbuf[ 1 ] = out_len;
@@ -3060,7 +3070,6 @@ int main( int argc, char * argv[] )
         reg.fp = reg.ap = 0;         // apparently this is expected by CPUTEST
         reg.bp = reg.cp = reg.dp = reg.ep = reg.hp = reg.lp = 0;
         reg.ix = reg.iy = 0;
-        g_haltExecuted = false;
     
         if ( trace )
         {
@@ -3084,7 +3093,7 @@ int main( int argc, char * argv[] )
         {
             total_cycles += x80_emulate( 10000 );
     
-            if ( g_haltExecuted )
+            if ( g_emulationEnded )
                 break;
     
             delay.Delay( total_cycles );
@@ -3152,6 +3161,6 @@ int main( int argc, char * argv[] )
 
     fflush( stdout );
     tracer.Shutdown();
-    return 0;
+    return g_haltExecuted ? 1 : 0; // so apps that invoke ntvcm know if a HLT instruction terminated execution
 } //main
 

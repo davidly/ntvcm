@@ -35,10 +35,13 @@ static const char * reg_strings[ 8 ] = { "b", "c", "d", "e", "h", "l", "m", "a" 
 static const char * rp_strings[ 4 ] = { "bc", "de", "hl", "sp" };
 static const char * z80_math_strings[ 8 ] = { "add", "adc", "sub", "sbb", "and", "xor", "or", "cp" };
 static const char * z80_rotate_strings[ 8 ] = { "rlc", "rrc", "rl", "rr", "sla", "sra", "sll", "srl" };
-static bool g_traceInstructions = false;
-enum z80_value_source { vs_register, vs_memory, vs_indexed }; // this impacts how Z80 undocumented Y and X flags are updated
-void x80_trace_instructions( bool t ) { g_traceInstructions = t; }
+static uint32_t g_State = 0;
+const uint32_t stateTraceInstructions = 1;
+const uint32_t stateEndEmulation = 2;
+void x80_trace_instructions( bool t ) { if ( t ) g_State |= stateTraceInstructions; else g_State &= ~stateTraceInstructions; }
+void x80_end_emulation() { g_State |= stateEndEmulation; }
 
+enum z80_value_source { vs_register, vs_memory, vs_indexed }; // this impacts how Z80 undocumented Y and X flags are updated
 const uint8_t cyclesnt = 6;  // cycles not taken when a conditional call, jump, or return isn't taken
 
 // instructions starting with '*' are undocumented for 8080, and not implemented here. They also signal likely Z80 instructions
@@ -92,8 +95,8 @@ static const char z80_instructions[ 256 ][ 16 ] =
     /*38*/ "*",         "add hl,sp", "ld a,(a16)",  "dec sp",       "inc a",       "dec a",     "ld a,d8",    "ccf",
     /*40*/ "ld b,b",    "ld b,c",    "ld b,d",      "ld b,e",       "ld b,h",      "ld b,l",    "ld b,(hl)",  "ld b,a",
     /*48*/ "ld c,b",    "ld c,c",    "ld c,d",      "ld c,e",       "ld c,h",      "ld c,l",    "ld c,(hl)",  "ld c,a",
-    /*20*/ "ld d,b",    "ld d,c",    "ld d,d",      "ld d,e",       "ld d,h",      "ld d,l",    "ld d,(hl)",  "ld d,a",
-    /*28*/ "ld e,b",    "ld e,c",    "ld e,d",      "ld e,e",       "ld e,h",      "ld e,l",    "ld e,(hl)",  "ld e,a",
+    /*50*/ "ld d,b",    "ld d,c",    "ld d,d",      "ld d,e",       "ld d,h",      "ld d,l",    "ld d,(hl)",  "ld d,a",
+    /*58*/ "ld e,b",    "ld e,c",    "ld e,d",      "ld e,e",       "ld e,h",      "ld e,l",    "ld e,(hl)",  "ld e,a",
     /*60*/ "ld h,b",    "ld h,c",    "ld h,d",      "ld h,e",       "(hook)",      "ld h,l",    "ld h,(hl)",  "ld h,a",
     /*68*/ "ld l,b",    "ld l,c",    "ld l,d",      "ld l,e",       "ld l,h",      "ld l,l",    "ld l,(hl)",  "ld l,a",
     /*70*/ "ld (hl),b", "ld (hl),c", "ld (hl),d",   "ld (hl),e",    "ld (hl),h",   "ld (hl),l", "halt",       "ld (hl),a",
@@ -145,7 +148,7 @@ static const acycles_t z80_cycles =
     /*20*/  0, 10, 16,  6,  4,  4,  7,  4,    0, 11, 20,  6,  4,  4,  7,  4,
     /*30*/  0, 10, 13,  6, 11, 11, 10,  4,    0, 11, 13,  6,  4,  4,  7,  4,
     /*40*/  4,  4,  4,  4,  4,  4,  7,  4,    4,  4,  4,  4,  4,  4,  7,  4,
-    /*20*/  4,  4,  4,  4,  4,  4,  7,  4,    4,  4,  4,  4,  4,  4,  7,  4,
+    /*50*/  4,  4,  4,  4,  4,  4,  7,  4,    4,  4,  4,  4,  4,  4,  7,  4,
     /*60*/  4,  4,  4,  4,  0,  4,  7,  4,    4,  4,  4,  4,  4,  4,  7,  4,
     /*70*/  7,  7,  7,  7,  7,  7,  4,  7,    4,  4,  4,  4,  4,  4,  7,  4,
     /*80*/  4,  4,  4,  4,  4,  4,  7,  4,    4,  4,  4,  4,  4,  4,  7,  4,
@@ -1725,6 +1728,7 @@ not_inlined void x80_trace_state()
     uint8_t op3 = memory[ reg.pc + 2 ];
     uint8_t op4 = memory[ reg.pc + 3 ];
 
+//    tracer.TraceBinaryData( memory + 0x1fe, 10, 4 );
     if ( reg.fZ80Mode )
         tracer.Trace( "pc %04x, op %02x, op2 %02x, op3 %02x, op4 %02x, a %02x, B %04x, D %04x, H %04x, ix %04x, iy %04x, sp %04x, %s, %s\n",
                       reg.pc, op, op2, op3, op4, reg.a, reg.B(), reg.D(), reg.H(), reg.ix, reg.iy, reg.sp,
@@ -1744,6 +1748,17 @@ bool check_conditional( uint8_t op ) // checks for conditional jump, call, and r
     return condition;
 } //check_conditional
 
+not_inlined bool handle_state() // this code exists to reduce what would be multiple checks per instruction loop to just one check
+{
+    if ( g_State & stateEndEmulation )
+        return true;
+
+    if ( g_State & stateTraceInstructions )
+        x80_trace_state();
+
+    return false;
+} //handle_state
+
 uint16_t x80_emulate( uint16_t maxcycles )
 {
     uint16_t cycles = 0;
@@ -1753,8 +1768,9 @@ uint16_t x80_emulate( uint16_t maxcycles )
 
     while ( cycles < maxcycles )        // 4% of runtime checking if we're done
     {
-        if ( g_traceInstructions )      // 1% of runtime is checking this flag and branching
-            x80_trace_state();
+        if ( 0 != g_State )     
+            if ( handle_state() )
+                break;
 
         uint8_t op = memory[ reg.pc ];  // 1% of runtime
         reg.pc++;                       // 7% of runtime
