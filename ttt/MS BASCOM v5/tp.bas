@@ -22,7 +22,7 @@
 37 dim sb%(10)
 38 mc% = 0
 39 print "start time: "; time$
-40 for l% = 1 to 100
+40 for l% = 1 to 10
 41 mc% = 0
 42 al% = 2
 43 be% = 9

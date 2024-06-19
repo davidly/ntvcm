@@ -1,3 +1,4 @@
+Pragma RangeCheck(off); Pragma Debug(off); Pragma Arithcheck(off);
 --    Janus Ada v1.5 of an app that proves you can't win at tic-tac-toe if the opponent is competent.
 --    Build like this:
 --        ntvcm janus %1 /L

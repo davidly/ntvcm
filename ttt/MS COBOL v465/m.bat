@@ -1,13 +1,11 @@
 @echo off
-del %1.rel
-del %1.com
+del %1.rel 2>nul
+del %1.com 2>nul
 
 rem compile
-ntvcm -t cobol %1,%1=%1
-copy ntvcm.log compile.log 1>nul 2>nul
+ntvcm cobol %1,%1=%1
 
 rem link
-ntvcm -t l80 %1,%1/N/E
-copy ntvcm.log link.log 1>nul 2>nul
+ntvcm l80 %1,%1/N/E
 
 

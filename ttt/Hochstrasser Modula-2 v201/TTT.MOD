@@ -1,13 +1,3 @@
-(*  Turbo Modula 2 version of proving you can't win at tic-tac-toe if the opponent is competent
-
-    In order for turbo modula 2 to produce a .com file:
-
-    1) go in Options and select Native
-    2) when Linking, specify xxx.com as the output file
-
-    otherwise it'll build a p-code .mcd file, not a Z80 code .com file.
-*)
-
 MODULE ttt;
 (*$L-*)
 (*$O-*)
