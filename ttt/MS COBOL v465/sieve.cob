@@ -2,7 +2,7 @@
          PROGRAM-ID.  SIEVE.
       *  REMARKS. BYTE magazine benchmark.
       *  REMARKS. MS Cobol limits array sizes to 1023.
-      *  REMARKS. Projected runtime for 8190 is 4.85m sec.
+      *  REMARKS. Projected runtime for 8190 is 4853 seconds.
          ENVIRONMENT DIVISION.
          CONFIGURATION SECTION.
          DATA DIVISION.
