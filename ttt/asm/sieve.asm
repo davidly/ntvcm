@@ -50,11 +50,11 @@ size   equ 8190
 sizehi equ size SHR 8
 sizelo equ size AND 0ffh
 
-sizep1hi equ ( size + 1 ) SHR 8
-sizep1lo equ ( size + 1 ) AND 0ffh
+sizep1hi equ ( size + 1 ) SHR 8     ; size plus 1 high
+sizep1lo equ ( size + 1 ) AND 0ffh  ; size plus 1 low
 
 org     100h
-        mvi        c, sizep1hi      ; set this constant for the duration for performance
+        mvi        c, ( afterFlags AND 0ffh ) ; constant for performance
 
   iteragain:                        ; for ( iter = 1; iter <= 10; iter++ )
         lxi        h, 0             ; count = 0
@@ -104,7 +104,7 @@ org     100h
         ; then exit k loop. both values are guaranteed to be positive numbers given where the app is loaded by cp/m
 
         mov        a, l
-        sui        ( afterFlags AND 0ffh )
+        sub        c                ; c has ( afterFlags AND 0ffh ). sub is faster than sui.
         mov        a, h
         sbi        ( ( afterFlags SHR 8 ) AND 0ffh )
         jnc        inccount
@@ -121,7 +121,7 @@ org     100h
 
   flagisoff:                        ; check if outer loop is done
         inx        d
-        mov        a, c
+        mvi        a, sizep1hi
         cmp        d
         jnz        nextprime
         mvi        a, sizep1lo
