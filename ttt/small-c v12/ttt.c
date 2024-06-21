@@ -16,7 +16,7 @@
 #define PieceO 2
 #define PieceBlank 0
 
-#define ttype int
+#define ttype char
 
 int g_Iterations;
 int g_IMoves;
