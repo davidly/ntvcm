@@ -7,7 +7,6 @@
 #define DIGITS_TO_FIND 200 /*9009;*/
 int main() {
   int n, x, N;
-  char buf[ 128 ];
   int a[ DIGITS_TO_FIND ];
 
   x = 0;
