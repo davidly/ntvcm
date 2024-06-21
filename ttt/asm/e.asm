@@ -56,9 +56,8 @@ org     100h
         ;     n := n - 1;
         ; end;
 
-        ; register c is n. hl is a[]. b is a constant 1, a is a constant 0
+        ; register c is n. hl is a[]. b is a constant 1
 
-        mvi        a, 0
         mvi        b, 1
         mvi        c, DIGITS - 1
         lxi        h, array + DIGITS - 1
@@ -67,7 +66,6 @@ org     100h
         mov        m, b
         dcx        h
         dcr        c
-        cmp        c
         jnz        ainit
 
         ; a[ 1 ] := 2;
@@ -102,7 +100,7 @@ org     100h
         mov        m, a             ; a[ n ] := x MOD n;
 
         dcx        h                ; make hl point to a[ n - 1 ]
-        mov        e, m	            ; put a[ n - 1 ] in de
+        mov        e, m             ; put a[ n - 1 ] in de
         mvi        d, 0
         mov        h, d             ; put the typically smaller mul argument (10) in hl for better performance
         mvi        l, 10
@@ -111,8 +109,6 @@ org     100h
         dad        d                ; add the two parts together. x (aka hl) := (mul result + div result)
 
         dcr        c                ; n := n - 1;
-        xra        a
-        cmp        c
         jnz        innerloop        ; if n isn't 0 then loop again
 
         call       PrintNumber      ; show the next digit(s) of e
@@ -219,47 +215,31 @@ PUTHL:                              ; print the signed 16-bit number in HL
 ; unsigned multiply de by hl, result in hl
 umul:
         mov     a, l
-        cpi     0
-        jnz     umul$notzero
-        mov     a, h
-        cpi     0
-        jnz     umul$notzero
-        ret
-  umul$notzero:
-        push    b ! push d
-        push    h
-        pop     b
+        ora     h
+        rz
+        push    b
+        mov     b, h
+        mov     c, l
         lxi     h, 0
-        shld    mulTmp
   umul$loop:
         dad     d
-        jnc     umul$done
-        push    h
-        lhld    mulTmp
-        inx     h
-        shld    mulTmp
-        pop     h
-  umul$done:
         dcx     b
         mov     a, b
         ora     c
         jnz     umul$loop
-        pop     d ! pop b
+        pop     b
         ret
 
-; unsigned divide de by hl, result in hl. remainder in divRem
+; unsigned divide de by hl, result in hl. remainder in divRem. divide by 0 not checked.
 udiv:
-        xra     a
-        cmp     e
-        jnz     udiv$notzero
-        cmp     d
+        mov     a, e
+        ora     d
         jnz     udiv$notzero
         lxi     h, 0
         shld    divRem              ; 0 mod x is 0
         ret
-
   udiv$notzero:
-        push    b ! push d
+        push    b
         xchg
         lxi     b, 0
   udiv$loop:
@@ -277,7 +257,7 @@ udiv:
         shld    divRem
         mov     l, c
         mov     h, b
-        pop     d ! pop b
+        pop     b
         ret
 
 NEGF:       db      0               ; Space for negative flag
@@ -286,7 +266,6 @@ NUM:        db      '$'             ; Space for number. cp/m strings end with a 
 CRLF:       db      13,10,0
 STRDONE:    db      'done.', 13, 10, 0
 
-MULTMP:     dw      0
 DIVREM:     dw      0
 ARRAY:      ds      DIGITS
 
@@ -337,8 +316,8 @@ imul:
         call    neg$hl
         call    neg$de
   imul$notneg:
-        push    h
-        pop     b
+        mov     b, h
+        mov     c, l
         lxi     h, 0
         shld    mulTmp
   imul$loop:
