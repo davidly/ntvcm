@@ -10,7 +10,7 @@ Tested with:
     Turbo Pascal v3.01A
     WordStar Release 4
     mbasic.com BASIC-80 rev. 5.21 (startrek and other apps)
-    Aztec C v1.06 (compiler, assembler, linker, and generated apps)
+    MANX Aztec C v1.05 and v1.06 (compiler, assembler, linker, and generated apps)
     CalcStar v1.0
     Microsoft fortran-80 v3.4
     Microsoft Multiplan (C) 1981
@@ -29,8 +29,20 @@ Tested with:
     Hochstrasser Computing AG MODULA-2 Compiler for Z80-CP/M  Version 2.01  4-Jun-85
     FTL Modula-2 V1.30    
     BD Software C Compiler v1.60
+    Small-C v1.2 and 2.7
+    MIX C v2.0,0
+    Software Toolworks C/80 v3.1
+    Janus Ada v1.5.0
+    SuperSoft Ada v2.10
+    SuperSoft C v1.1.25
+    MI - C v3.18I    
     
 Console input/output work for both bios bdos API. Disk input/output work via the bdos API. There is no attempt at emulating physical disks. Apps that use bdos for disk I/O will work but apps that use the BIOS or assume things about disk layout will not.
+
+For example, assuming CP/M 2.2's asm.com and load.com are in the current directory, this will assemble test.asm and generate test.com on Windows, Linux, or MacOS.
+
+    ntvcm asm test
+    ntvcm load test
 
 The x80 emulator passes at 100% for:
     
