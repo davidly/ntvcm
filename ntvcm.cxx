@@ -1721,7 +1721,7 @@ uint8_t x80_invoke_hook()
     if ( ( 6 != reg.c ) || ( 0xff != reg.e ) )
         kbd_poll_busyloops = 0;
 
-    // Only BDOS calls called by apps I tested are implemented. 
+    // Generally, only BDOS calls called by apps I tested are implemented.
 
     switch( reg.c )
     {
@@ -1747,7 +1747,8 @@ uint8_t x80_invoke_hook()
         case 2:
         {
             // console output
-            // CP/M checks for a ^c from the keyboard and ends the application if found. This code doesn't do that yet.
+            // CP/M 2.2 checks for ^s and ^q to pause and resume output. If output is paused due to ^s,
+            // a subsequent ^c terminates the application. ^q resumes output then ^c has no effect.
 
             uint8_t ch = reg.e;
             if ( 0x0d != ch )             // skip carriage return because line feed turns into cr+lf
@@ -3127,16 +3128,20 @@ int main( int argc, char * argv[] )
                 printf( "      %20s\n", "unbounded" );
                 uint64_t total_ms = total_cycles / ( reg.fZ80Mode ? 4000 : 2000 );
                 if ( reg.fZ80Mode )
-                    printf( "approx ms at 4Mhz: %19s == ", CDJLTrace::RenderNumberWithCommas( total_ms, ac ) );
+                    printf( "approx ms at 4Mhz: %19s", CDJLTrace::RenderNumberWithCommas( total_ms, ac ) );
                 else
-                    printf( "approx ms at 2Mhz: %19s == ", CDJLTrace::RenderNumberWithCommas( total_ms, ac ) );
+                    printf( "approx ms at 2Mhz: %19s", CDJLTrace::RenderNumberWithCommas( total_ms, ac ) );
     
                 uint16_t days = (uint16_t) ( total_ms / 1000 / 60 / 60 / 24 );
                 uint16_t hours = (uint16_t) ( ( total_ms % ( (uint32_t) 1000 * 60 * 60 * 24 ) ) / 1000 / 60 / 60 );
                 uint16_t minutes = (uint16_t) ( ( total_ms % ( (uint32_t) 1000 * 60 * 60 ) ) / 1000 / 60 );
-                uint16_t seconds = (uint16_t) ( ( total_ms % ( (uint32_t) 1000 * 60 ) ) / 1000 );
-                uint64_t milliseconds = ( ( total_ms % 1000 ) );
-                printf( "%u days, %u hours, %u minutes, %u seconds, %llu milliseconds\n", days, hours, minutes, seconds, milliseconds );
+                if ( 0 != days || 0 != hours || 0 != minutes )
+                {
+                    uint16_t seconds = (uint16_t) ( ( total_ms % ( (uint32_t) 1000 * 60 ) ) / 1000 );
+                    uint64_t milliseconds = ( ( total_ms % 1000 ) );
+                    printf( " == %u days, %u hours, %u minutes, %u seconds, %llu milliseconds", days, hours, minutes, seconds, milliseconds );
+                }
+                printf( "\n" );
             }
             else
                 printf( "      %20s Hz\n", CDJLTrace::RenderNumberWithCommas( clockrate, ac ) );
