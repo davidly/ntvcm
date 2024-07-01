@@ -209,6 +209,8 @@ ConsoleConfiguration g_consoleConfig;
 
 static bool g_haltExecuted = false;
 static bool g_emulationEnded = false;
+static bool g_exitCodeSet = false;
+static int g_exitCode = 0;
 static uint8_t * g_DMA = memory + DEFAULT_DMA_OFFSET;
 static vector<FileEntry> g_fileEntries;
 static bool g_forceConsole = false;
@@ -595,6 +597,8 @@ const char * get_bdos_function( uint8_t id )
         return "rand";
     if ( 110 == id )
         return "enable/disable instruction tracing";
+    if ( 111 == id )
+        return "set app exit code";
 
     return "unknown";
 } //get_bdos_function
@@ -2707,6 +2711,16 @@ uint8_t x80_invoke_hook()
             x80_trace_instructions( 0 != reg.D() );
             break;
         }
+        case 111:
+        {
+            // non-standard BDOS call: set app exit code
+            // the value in register e will be NTVCM's exit code
+
+            g_exitCodeSet = true;
+            g_exitCode = (int8_t) reg.e;
+            tracer.Trace( "  app exit code set to %d\n", g_exitCode );
+            break;
+        }
         default:
         {
             tracer.Trace( "unhandled BDOS FUNCTION!!!!!!!!!!!!!!!: %u = %#x\n", reg.c, reg.c );
@@ -3166,6 +3180,6 @@ int main( int argc, char * argv[] )
 
     fflush( stdout );
     tracer.Shutdown();
-    return g_haltExecuted ? 1 : 0; // so apps that invoke ntvcm know if a HLT instruction terminated execution
+    return g_haltExecuted ? 1 : g_exitCodeSet ? g_exitCode : 0;
 } //main
 
