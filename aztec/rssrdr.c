@@ -16,18 +16,18 @@ int g_sleep = 1;
 
 void bdos_sleep( ms ) unsigned int ms;
 {
-    bdos( 106, ms );
+    bdos( 181, ms );
 } /*bdos_sleep*/
 
 int bdos_feed_load_rss( pfeeds ) char * pfeeds[];
 {
-    return bdoshl( 107, pfeeds );
+    return bdoshl( 182, pfeeds );
 } /*bdos_feed_load_rss*/
 
 int bdos_item_load_rss( item ) int item;
 {
     bdos( 26, g_rss_item ); /* set dma address */
-    return bdos( 108, item );
+    return bdos( 183, item );
 } /*bdos_item_load_rss*/
 
 int bdos_kbhit()

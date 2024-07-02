@@ -429,24 +429,24 @@ struct CPMTimeValue
 
 void print_time_now()
 {
-    /* This CP/M BDOS call of 105 is only implemented in NTVCM -- it's not a standard CP/M 2.2 call */
+    /* This CP/M BDOS call of 180 is only implemented in NTVCM -- it's not a standard CP/M 2.2 call */
 
     struct CPMTimeValue t;
     t.h = t.m = t.s = t.l = 0;
 
-    bdos( 105, &t );
+    bdos( 180, &t );
     printf( "current time: %02d:%02d:%02d.%02d\n", t.h, t.m, t.s, t.l );
 } /*print_time_now*/
 
 long get_ms()
 {
-    /* This CP/M BDOS call of 105 is only implemented in NTVCM -- it's not a standard CP/M 2.2 call */
+    /* This CP/M BDOS call of 180 is only implemented in NTVCM -- it's not a standard CP/M 2.2 call */
 
     long h, m, s, l;
     struct CPMTimeValue t;
     t.h = t.m = t.s = t.l = 0;
 
-    bdos( 105, &t );
+    bdos( 180, &t );
     h = t.h;
     m = t.m;
     s = t.s;

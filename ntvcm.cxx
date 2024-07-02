@@ -55,6 +55,7 @@
 #endif //NTVCM_RSS_SUPPORT
 
 #include "x80.hxx"
+#include "ntvcm.h" // get bdos extensions
 
 // CP/M constants for memory addresses where OS-global state is stored
 
@@ -210,7 +211,7 @@ ConsoleConfiguration g_consoleConfig;
 static bool g_haltExecuted = false;
 static bool g_emulationEnded = false;
 static bool g_exitCodeSet = false;
-static int g_exitCode = 0;
+static uint16_t g_exitCode = 0;
 static uint8_t * g_DMA = memory + DEFAULT_DMA_OFFSET;
 static vector<FileEntry> g_fileEntries;
 static bool g_forceConsole = false;
@@ -585,20 +586,20 @@ const char * get_bdos_function( uint8_t id )
 {
     if ( id < _countof( bdos_functions ) )
         return bdos_functions[ id ];
-    if ( 105 == id )
+    if ( BDOS_GET_TIME == id )
         return "get time";
-    if ( 106 == id )
+    if ( BDOS_SLEEP == id )
         return "sleep";
-    if ( 107 == id )
+    if ( BDOS_INITIALIZE_RSS_FEED == id )
         return "initialize rss feed";
-    if ( 108 == id )
+    if ( BDOS_FETCH_RSS_ITEM == id )
         return "fetch rss item";
-    if ( 109 == id )
+    if ( BDOS_RAND == id )
         return "rand";
-    if ( 110 == id )
+    if ( BDOS_ENABLE_INSTRUCTION_TRACING == id )
         return "enable/disable instruction tracing";
-    if ( 111 == id )
-        return "set app exit code";
+    if ( BDOS_GET_PUT_PROGRAM_RETURN_CODE == id )
+        return "get/put program return code";
 
     return "unknown";
 } //get_bdos_function
@@ -2630,7 +2631,7 @@ uint8_t x80_invoke_hook()
 
             break;
         }
-        case 105:
+        case BDOS_GET_TIME:
         {
             // non-standard BDOS call GetTime. DE points to a CPMTime structure
 
@@ -2657,7 +2658,7 @@ uint8_t x80_invoke_hook()
             set_bdos_status();
             break;
         }
-        case 106:
+        case BDOS_SLEEP:
         {
             // non-standard BDOS call sleep. DE contains a count of milliseconds 0-32767
 
@@ -2666,7 +2667,7 @@ uint8_t x80_invoke_hook()
             break;
         }
 #ifdef NTVCM_RSS_SUPPORT
-        case 107:
+        case BDOS_INITIALIZE_RSS_FEED:
         {
             // non-standard BDOS call load rss feeds. DE points to a 0-terminated list of URLs
             // hl returns the # of items loaded
@@ -2684,7 +2685,7 @@ uint8_t x80_invoke_hook()
             reg.SetH( (uint16_t) result );
             break;
         }
-        case 108:
+        case BDOS_FETCH_RSS_ITEM:
         {
             // non-standard BDOS call load rss item. DE is the item to load. DMA points to
             // a 2048 byte buffer of the form name0title0description0
@@ -2695,7 +2696,7 @@ uint8_t x80_invoke_hook()
             break;
         }
 #endif //NTVCM_RSS_SUPPORT
-        case 109:
+        case BDOS_RAND:
         {
             // non-standard BDOS call puts a random number in A
             // also put random values in hl because the Eco-C C Compiler _bdos function assumes return values are there
@@ -2705,20 +2706,26 @@ uint8_t x80_invoke_hook()
             reg.l = (uint8_t) rand();
             break;
         }
-        case 110:
+        case BDOS_ENABLE_INSTRUCTION_TRACING:
         {
             // non-standard BDOS call: enable/disable tracing if DE is non-zero/zero
             x80_trace_instructions( 0 != reg.D() );
             break;
         }
-        case 111:
+        case BDOS_GET_PUT_PROGRAM_RETURN_CODE:
         {
-            // non-standard BDOS call: set app exit code
-            // the value in register e will be NTVCM's exit code
+            // This is not a CP/M v2.2 function. It is in CP/M v3 and it's so handy that it's here too
+            // if DE = 0xffff then return current code in HL
+            // otherwise, set the current code to the value in DE
 
-            g_exitCodeSet = true;
-            g_exitCode = (int8_t) reg.e;
-            tracer.Trace( "  app exit code set to %d\n", g_exitCode );
+            if ( 0xffff == reg.D() )
+                reg.SetH( g_exitCode );
+            else
+            {
+                g_exitCodeSet = true;
+                g_exitCode = reg.D();
+                tracer.Trace( "  app exit code set to %u\n", g_exitCode );
+            }
             break;
         }
         default:
@@ -3180,6 +3187,6 @@ int main( int argc, char * argv[] )
 
     fflush( stdout );
     tracer.Shutdown();
-    return g_haltExecuted ? 1 : g_exitCodeSet ? g_exitCode : 0;
+    return g_haltExecuted ? 1 : g_exitCodeSet ? (int) g_exitCode : 0;
 } //main
 

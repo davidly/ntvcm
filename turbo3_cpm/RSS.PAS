@@ -9,18 +9,18 @@ var
 
 procedure bdos_sleep( ms: integer );
 begin
-  bdos( 106, ms );
+  bdos( 181, ms );
 end;
 
 function bdos_feed_load : integer;
 begin
-  bdos_feed_load := BdosHL( 107, Addr( feeds ) );
+  bdos_feed_load := BdosHL( 182, Addr( feeds ) );
 end;
 
 function bdos_feed_get( i: integer ) : integer;
 begin
   Bdos( 26, Addr( buff ) ); { set dma address }
-  bdos_feed_get := Bdos( 108, i );
+  bdos_feed_get := Bdos( 183, i );
 end;
 
 procedure halt_on_keystroke;
@@ -135,4 +135,3 @@ begin { rss }
     end;
   until false;
 end. { rss }
-
