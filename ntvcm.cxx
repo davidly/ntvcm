@@ -3187,6 +3187,6 @@ int main( int argc, char * argv[] )
 
     fflush( stdout );
     tracer.Shutdown();
-    return g_haltExecuted ? 1 : g_exitCodeSet ? (int) g_exitCode : 0;
+    return g_haltExecuted ? -1 : g_exitCodeSet ? (int) g_exitCode : 0;
 } //main
 
