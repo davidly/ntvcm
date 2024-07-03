@@ -2975,7 +2975,13 @@ int main( int argc, char * argv[] )
             {
                 strcat( acCOM, ".com" );
                 if ( !file_exists( acCOM ) )
-                    usage( "can't find command file" );
+                {
+                    strcpy( acCOM, pcCOM );
+                    strcat( acCOM, ".COM" );       // for case-sensitive file systems
+                    
+                    if ( !file_exists( acCOM ) )
+                        usage( "can't find command file" );
+                }
             }
         }
 
