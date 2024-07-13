@@ -1545,7 +1545,7 @@ bool cpm_read_console( char * buf, size_t bufsize, uint8_t & out_len )
     while ( out_len < (uint8_t) bufsize )
     {
         ch = get_next_kbd_char();
-        tracer.Trace( "  cpm_read_console read character %02x -- '%c'\n", ch, printable( ch ) );
+        tracer.Trace( "  get_next_kbd_char read character %02x -- '%c'\n", ch, printable( ch ) );
 
         // CP/M read console buffer treats these control characters as special: c, e, h, j, m, r, u, x
         // per http://www.gaby.de/cpm/manuals/archive/cpm22htm/ch5.htm
@@ -1556,11 +1556,7 @@ bool cpm_read_console( char * buf, size_t bufsize, uint8_t & out_len )
             return true;
 
         if ( '\n' == ch || '\r' == ch )
-        {
-            printf( "\r" );
-            fflush( stdout ); // fflush is required on linux or it'll be buffered and not seen until the app ends.
             break;
-        }
 
         if ( 0x7f == ch || 8 == ch ) // backspace (it's not 8 for some reason)
         {
@@ -1871,7 +1867,7 @@ uint8_t x80_invoke_hook()
         }
         case 10:
         {
-            // read console buffer. DE: buffer address. buffer:
+            // read console buffer. aka buffered console input. DE: buffer address. buffer:
             //   0      1       2       3
             //   in_len out_len char1   char2 ...
 
