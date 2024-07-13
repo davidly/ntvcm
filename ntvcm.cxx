@@ -218,6 +218,8 @@ static bool g_forceConsole = false;
 static bool g_forceLowercase = false;
 static bool g_backspaceToDel = false;
 static bool g_kayproToCP437 = false;
+static size_t g_fileInputOffset = 0;
+static vector<char> g_fileInputText;
 
 enum terminal_escape { termVT100, termVT52, termKayproII };
 static terminal_escape g_termEscape = termVT100;
@@ -1523,13 +1525,26 @@ uint8_t map_input( uint8_t input )
     return output;
 } //map_input
 
+char get_next_kbd_char()
+{
+    if ( g_fileInputOffset < g_fileInputText.size() )
+        return g_fileInputText[ g_fileInputOffset++ ];
+
+    return (char) ConsoleConfiguration::portable_getch();
+} //get_next_kbd_char
+
+bool is_kbd_char_available()
+{
+    return ( ( g_fileInputOffset < g_fileInputText.size() ) || g_consoleConfig.throttled_kbhit() );
+} //is_kbd_char_available    
+
 bool cpm_read_console( char * buf, size_t bufsize, uint8_t & out_len )
 {
     char ch = 0;
     out_len = 0;
     while ( out_len < (uint8_t) bufsize )
     {
-        ch = (char) ConsoleConfiguration::portable_getch();
+        ch = get_next_kbd_char();
         tracer.Trace( "  cpm_read_console read character %02x -- '%c'\n", ch, printable( ch ) );
 
         // CP/M read console buffer treats these control characters as special: c, e, h, j, m, r, u, x
@@ -1669,7 +1684,7 @@ uint8_t x80_invoke_hook()
             }
             case 2: // const console status. A=0 if nothing available, A=0xff if a keystroke is available
             {
-                if ( g_consoleConfig.throttled_kbhit() )
+                if ( is_kbd_char_available() )
                     reg.a = 0xff;
                 else
                     reg.a = 0;
@@ -1677,7 +1692,7 @@ uint8_t x80_invoke_hook()
             }
             case 3: // conin. wait until the keyboard has a character and return it in a.
             {
-                uint8_t input = (uint8_t) g_consoleConfig.portable_getch();
+                uint8_t input = (uint8_t) get_next_kbd_char();
                 tracer.Trace( "  conin got %02xh from getch()\n", input );
                 reg.a = map_input( input );
                 tracer.Trace( "  conin is returning %02xh = '%c'\n", reg.a, printable( reg.a ) );
@@ -1741,7 +1756,7 @@ uint8_t x80_invoke_hook()
         {
             // console input. echo input to console
 
-            uint8_t ch = (uint8_t) g_consoleConfig.portable_getch();
+            uint8_t ch = (uint8_t) get_next_kbd_char();
             reg.a = map_input( ch );
             set_bdos_status();
             tracer.Trace( "  bdos console in: %02x == '%c'\n", ch, printable( ch ) );
@@ -1769,7 +1784,7 @@ uint8_t x80_invoke_hook()
         {
             // reader input. aka raw console input. I haven't found an app that uses this yet.
 
-            uint8_t ch = (uint8_t) g_consoleConfig.portable_getch();
+            uint8_t ch = (uint8_t) get_next_kbd_char();
             reg.a = map_input( ch );
             set_bdos_status();
             tracer.Trace( "  bdos reader input / raw console in: %02x == '%c'\n", ch, printable( ch ) );
@@ -1793,10 +1808,10 @@ uint8_t x80_invoke_hook()
 
             if ( 0xff == reg.e )
             {
-                if ( g_consoleConfig.throttled_kbhit() )
+                if ( is_kbd_char_available() )
                 {
                     kbd_poll_busyloops = 0;
-                    uint8_t input = (uint8_t) g_consoleConfig.portable_getch();
+                    uint8_t input = (uint8_t) get_next_kbd_char();
                     tracer.Trace( "  read character %u == %02x == '%c'\n", input, input, printable( input ) );
                     reg.a = map_input( input );
                 }
@@ -1890,7 +1905,7 @@ uint8_t x80_invoke_hook()
         {
             // get console status. return A=0 if no characters are waiting or non-zero if a character is waiting
 
-            if ( g_consoleConfig.throttled_kbhit() )
+            if ( is_kbd_char_available() )
                 reg.a = 0xff;
             else
                 reg.a = 0;
@@ -2762,8 +2777,9 @@ void usage( char const * perr = 0 )
     printf( "         -c     never auto-detect ESC characters and change to to 80x24 mode\n" );
     printf( "         -C     always switch to 80x24 mode (Windows only)\n" );
     printf( "         -d     don't clear the display on app exit when in 80x24 mode\n" );
+    printf( "         -f:<file> plain text file of characters fed to the app as keystrokes.\n" );
     printf( "         -i     trace 8080/Z80 instructions when tracing with -t\n" );
-    printf( "         -k     translate Kaypro II extended characters to Windows code page 437 or Linux ascii art\n" );
+    printf( "         -k     translate Kaypro II extended characters to approximate native characters\n" );
     printf( "         -l     force CP/M filenames to be lowercase (can be useful on Linux)\n" );
     printf( "         -p     show performance information at app exit\n" ); 
     printf( "         -s:X   speed in Hz. Default is 0, which is as fast as possible.\n" );
@@ -2786,6 +2802,40 @@ void usage( char const * perr = 0 )
     printf( "  %s\n", build_string() );
     exit( -1 );
 } //usage
+
+static void  load_input_file_text( const char * file_path )
+{
+    FILE * fp = fopen( file_path, "rb" );
+    if ( !fp )
+        usage( "-f file not found" );
+    CFile thefile( fp );
+
+    size_t file_size = portable_filelen( fp );
+    vector<char> original;
+    original.resize( file_size );
+    bool ok = ( 1 == fread( original.data(), file_size, 1, fp ) );
+    if ( !ok )
+    {
+        printf( "can't read from text input file '%s', error %d = %s\n", file_path, errno, strerror( errno ) );
+        usage( "can't read from -f file" );
+    }
+
+    // remove any line feeds. stop at ^z. pass through CR and TAB. fail on other non-alpha characters.
+
+    for ( size_t cur = 0; cur < file_size; cur++ )
+    {
+        char c = original[ cur ];
+        if ( ( c >= 0x20 && c <= 0x7e ) || ( 13 == c || 9 == c ) ) // normal, CR, TAB
+            g_fileInputText.push_back( c );
+        else if ( 0x1a == c ) // ^z
+            break;
+        else if ( 10 != c ) // line feed
+        {
+            tracer.Trace( "input file has byte %02x at offset %zd\n", c, cur );
+            usage( "-f input file can't contain binary data" );
+        }
+    }
+} //load_input_file_text
 
 bool write_fcb_arg( FCB * arg, char * pc )
 {
@@ -2846,6 +2896,7 @@ int main( int argc, char * argv[] )
         char * pcCOM = 0;
         char * pcArg1 = 0;
         char * pcArg2 = 0;
+        char * pfileInputText = 0;
         bool trace = false;
         bool traceInstructions = false;
         uint64_t clockrate = 0;
@@ -2898,6 +2949,13 @@ int main( int argc, char * argv[] )
                     clearDisplayOnExit = false;
                 else if ( '8' == ca )
                     reg.fZ80Mode = false;
+                else if ( 'f' == ca )
+                {
+                    if ( ( ':' != parg[2] ) || !strlen( parg + 3 ) )
+                        usage( ":<filename> expected with -f" );
+
+                    pfileInputText = parg + 3;
+                }
                 else if ( 'i' == ca )
                     traceInstructions = true;
                 else if ( 'l' == ca )
@@ -2951,7 +3009,13 @@ int main( int argc, char * argv[] )
         tracer.SetQuiet( true );
         tracer.SetFlushEachTrace( true );
         x80_trace_instructions( traceInstructions );
-    
+
+        if ( pfileInputText )
+        {
+            load_input_file_text( pfileInputText );
+            tracer.Trace( "-f input file has %ld characters\n", g_fileInputText.size() );
+        }
+
         if ( 0 != processAffinityMask )
             set_process_affinity( processAffinityMask );
     
