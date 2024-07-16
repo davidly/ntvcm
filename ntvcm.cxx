@@ -220,6 +220,7 @@ static bool g_backspaceToDel = false;
 static bool g_kayproToCP437 = false;
 static size_t g_fileInputOffset = 0;
 static vector<char> g_fileInputText;
+static bool g_sleepOnKbdLoop = true;
 
 enum terminal_escape { termVT100, termVT52, termKayproII };
 static terminal_escape g_termEscape = termVT100;
@@ -1817,9 +1818,14 @@ uint8_t x80_invoke_hook()
                     {
                         // some apps like forth and multiplan call this in a busy loop.
                         // don't sleep every call because sometimes they alternate calling this with updating the display.
+                        // other apps like nevada basic poll for input as they interpret apps which makes them run slowly.
 
-                        sleep_ms( 1 );
-                        tracer.Trace( "  sleeping in direct console i/o\n" );
+                        if ( g_sleepOnKbdLoop )
+                        {
+                            sleep_ms( 1 );
+                            tracer.Trace( "  sleeping in direct console i/o\n" );
+                        }
+
                         kbd_poll_busyloops = 0;
                     }
                     else
@@ -2228,7 +2234,7 @@ uint8_t x80_invoke_hook()
         }
         case 20:
         {
-            // read sequential. return 0 on success or non-0 on failure (end of file)
+            // read sequential. return 0 on success or non-0 on failure:
             // reads 128 bytes from cr of the extent and increments cr.
             // if cr overflows, the extent is incremented and cr is set to 0 for the next read
     
@@ -2777,6 +2783,7 @@ void usage( char const * perr = 0 )
     printf( "         -i     trace 8080/Z80 instructions when tracing with -t\n" );
     printf( "         -k     translate Kaypro II extended characters to approximate native characters\n" );
     printf( "         -l     force CP/M filenames to be lowercase (can be useful on Linux)\n" );
+    printf( "         -n     don't sleep for apps in tight bdos 6 loops. use with apps like nvbasic.\n" );
     printf( "         -p     show performance information at app exit\n" ); 
     printf( "         -s:X   speed in Hz. Default is 0, which is as fast as possible.\n" );
     printf( "                for 4Mhz, use -s:4000000\n" );
@@ -2934,17 +2941,16 @@ int main( int argc, char * argv[] )
             {
                 char ca = (char) tolower( parg[1] );
     
-                if ( 's' == ca )
-                {
-                    if ( ':' == parg[2] )
-                        clockrate = strtoull( parg + 3 , 0, 10 );
-                    else
-                        usage( "colon required after s argument" );
-                }
+                if ( '8' == ca )
+                    reg.fZ80Mode = false;
+                else if ( 'b' == parg[1] )
+                    g_backspaceToDel = true;
+                else if ( 'c' == parg[1] )
+                    g_forceConsole = true;
+                else if ( 'C' == parg[1] )
+                    force80x24 = true;
                 else if ( 'd' == ca )
                     clearDisplayOnExit = false;
-                else if ( '8' == ca )
-                    reg.fZ80Mode = false;
                 else if ( 'f' == ca )
                 {
                     if ( ( ':' != parg[2] ) || !strlen( parg + 3 ) )
@@ -2954,16 +2960,23 @@ int main( int argc, char * argv[] )
                 }
                 else if ( 'i' == ca )
                     traceInstructions = true;
-                else if ( 'l' == ca )
-                    g_forceLowercase = true;
                 else if ( 'k' == ca )
                     g_kayproToCP437 = true;
-                else if ( 't' == ca )
-                    trace = true;
+                else if ( 'l' == ca )
+                    g_forceLowercase = true;
+                else if ( 'n' == ca )
+                    g_sleepOnKbdLoop = false;
                 else if ( 'p' == ca )
                     showPerformance = true;
-                else if ( 'b' == parg[1] )
-                    g_backspaceToDel = true;
+                else if ( 's' == ca )
+                {
+                    if ( ':' == parg[2] )
+                        clockrate = strtoull( parg + 3 , 0, 10 );
+                    else
+                        usage( "colon required after s argument" );
+                }
+                else if ( 't' == ca )
+                    trace = true;
                 else if ( 'v' == parg[1] )
                 {
                     if ( ':' != parg[2] )
@@ -2976,10 +2989,6 @@ int main( int argc, char * argv[] )
                     else
                         usage( "invalid terminal emulation identifier. Only 5 and k are supported" );
                 }
-                else if ( 'c' == parg[1] )
-                    g_forceConsole = true;
-                else if ( 'C' == parg[1] )
-                    force80x24 = true;
                 else if ( 'z' == ca )
                 {
                     if ( ':' == parg[2] )
