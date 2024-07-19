@@ -399,7 +399,7 @@ void op_cmc()
     if ( reg.fZ80Mode )
     {
         reg.fWasSubtract = false;
-        reg.fAuxCarry = !reg.fCarry;
+        reg.fAuxCarry = !reg.fCarry; // some docs say !reg.fAuxCarry
         reg.z80_assignYX( reg.a );
     }
 } //op_cmc
@@ -674,7 +674,6 @@ void z80_op_sla( uint8_t * pval )
     uint8_t val = *pval;
     reg.fCarry = ( 0 != ( val & 0x80 ) );
     val <<= 1;
-    val &= 0xfe;
     set_sign_zero_parity( val );
     reg.clearHN();
     reg.z80_assignYX( val );
@@ -698,7 +697,6 @@ void z80_op_sra( uint8_t * pval )
     uint8_t val = *pval;
     reg.fCarry = ( 0 != ( val & 1 ) );
     val >>= 1;
-    val &= 0x7f;
     val |= ( ( *pval ) & 0x80 ); // leave high bit unchanged
     set_sign_zero_parity( val );
     reg.clearHN();
@@ -849,6 +847,8 @@ uint16_t z80_emulate( uint8_t op )    // this is just for instructions that aren
             {
                 cycles = 8;
                 uint8_t rm = op2 & 0x7;
+                if ( 6 == rm )
+                    cycles += 4;
                 uint8_t bit = ( op2 >> 3 ) & 0x7;
                 uint8_t val = src_value_rm( rm );
                 z80_op_bit( val, bit, ( 6 == rm ) ? vs_memory : vs_register );
@@ -857,6 +857,8 @@ uint16_t z80_emulate( uint8_t op )    // this is just for instructions that aren
             {
                 cycles = 8;
                 uint8_t rm = op2 & 0x7;
+                if ( 6 == rm )
+                    cycles += 7;
                 uint8_t bit = ( op2 >> 3 ) & 0x7;
                 uint8_t val = src_value_rm( rm );
                 uint8_t mask = ~ ( 1 << bit );
@@ -867,6 +869,8 @@ uint16_t z80_emulate( uint8_t op )    // this is just for instructions that aren
             {
                 cycles = 8;
                 uint8_t rm = op2 & 0x7;
+                if ( 6 == rm )
+                    cycles += 7;
                 uint8_t bit = ( op2 >> 3 ) & 0x7;
                 uint8_t val = src_value_rm( rm );
                 uint8_t mask = 1 << bit;
@@ -1143,12 +1147,12 @@ uint16_t z80_emulate( uint8_t op )    // this is just for instructions that aren
                 reg.z80_setIndex( op, val );
             }
             else if ( 0xe3 == op2 ) // ex (sp), ix/iy
-           {
+            {
                 cycles = 23;
                 uint16_t val = reg.z80_getIndex( op );
                 reg.z80_setIndex( op, mword( reg.sp ) );
                 setmword( reg.sp, val );
-           }
+            }
             else if ( 0xe5 == op2 )  // push ix/iy
             {
                 cycles = 15;
@@ -1440,16 +1444,16 @@ void z80_render( char * ac, size_t bufferSize, uint8_t op, uint16_t address )
         {
             uint8_t src = op2 & 0x7;
             if ( 6 == src )
-                snprintf( ac, bufferSize, "ld (%s%s%d), %02x", i, op3int >= 0 ? "+" : "", op3int, op4 );
+                snprintf( ac, bufferSize, "ld (%s%s%d),%02x", i, op3int >= 0 ? "+" : "", op3int, op4 );
             else
-                snprintf( ac, bufferSize, "ld (%s%s%d), %s", i, op3int >= 0 ? "+" : "", op3int, reg_strings[ src ] );
+                snprintf( ac, bufferSize, "ld (%s%s%d),%s", i, op3int >= 0 ? "+" : "", op3int, reg_strings[ src ] );
         }
         else if ( 0x09 == ( op2 & 0xcf ) )
-            snprintf( ac, bufferSize, "add %s, %s", i, rp_strings[ ( op2 >> 4 ) & 0x3 ] );
+            snprintf( ac, bufferSize, "add %s,%s", i, rp_strings[ ( op2 >> 4 ) & 0x3 ] );
         else if ( 0x21 == op2 )
-            snprintf( ac, bufferSize, "ld %s, %04xh", i, op34 );
+            snprintf( ac, bufferSize, "ld %s,%04xh", i, op34 );
         else if ( 0x22 == op2 )
-            snprintf( ac, bufferSize, "ld (%04xh), %s", op34, i );
+            snprintf( ac, bufferSize, "ld (%04xh),%s", op34, i );
         else if ( 0x23 == op2 )
             snprintf( ac, bufferSize, "inc %s", i );
         else if ( 0x26 == op2 )
@@ -1465,7 +1469,7 @@ void z80_render( char * ac, size_t bufferSize, uint8_t op, uint16_t address )
         else if ( 0x35 == op2 )
             snprintf( ac, bufferSize, "dec (%s%s%d)", i, op3int >= 0 ? "+" : "", op3int );
         else if ( 0x36 == op2 )
-            snprintf( ac, bufferSize, "ld (%s%s%d), %#xh", i, op3int >= 0 ? "+" : "", op3int, op4 );
+            snprintf( ac, bufferSize, "ld (%s%s%d),%02xh", i, op3int >= 0 ? "+" : "", op3int, op4 );
         else if ( ( op2 >= 0x40 && op2 <= 0x6f ) || ( op2 >= 0x78 && op2 <= 0x7f ) )
         {
             char acto[ 4 ] = {0};
@@ -1490,12 +1494,12 @@ void z80_render( char * ac, size_t bufferSize, uint8_t op, uint16_t address )
             else
                 acto[0] = 'a';
 
-            snprintf( ac, bufferSize, "ld %s, %s", acto, acfrom );
+            snprintf( ac, bufferSize, "ld %s,%s", acto, acfrom );
         }
         else if ( 0x2a == op2 )
-            snprintf( ac, bufferSize, "ld %s, (%04x)", i, op34 );
+            snprintf( ac, bufferSize, "ld %s,(%04x)", i, op34 );
         else if ( 0x22 == op2 )
-            snprintf( ac, bufferSize, "ld (%04x), %s", op34, i );
+            snprintf( ac, bufferSize, "ld (%04x),%s", op34, i );
         else if ( 0x80 == ( op2 & 0xc2 ) ) // math on il and ih with a. 84/85/8c/8d/94/95/a4/a5/b4/b5/bc/bd
         {
             uint8_t math = ( ( op2 >> 3 ) & 0x7 );
@@ -1504,13 +1508,13 @@ void z80_render( char * ac, size_t bufferSize, uint8_t op, uint16_t address )
         else if ( 0x86 == ( op2 & 0xc7 ) ) // math on [ ix/iy + index ]. 86, 8e, 96, 9e, a6, ae, b6, be
         {
             uint8_t math = ( ( op2 >> 3 ) & 0x7 );
-            snprintf( ac, bufferSize, "%s a, (%s%s%d)", z80_math_strings[ math ], i, op3int >=0 ? "+" : "", op3int );
+            snprintf( ac, bufferSize, "%s a,(%s%s%d)", z80_math_strings[ math ], i, op3int >=0 ? "+" : "", op3int );
         }
         else if ( 0xcb == op2 && ( op4 <= 0x3f ) )
         {
             uint8_t rot = ( ( op4 >> 3 ) & 0x7 );
             int offset = (int) (int8_t) op3;
-            snprintf( ac, bufferSize, "%s %s, (%s%s%d)", z80_rotate_strings[ rot ], reg_strings[ op4 & 0x7 ], i, offset >= 0 ? "+" : "", offset );
+            snprintf( ac, bufferSize, "%s %s,(%s%s%d)", z80_rotate_strings[ rot ], reg_strings[ op4 & 0x7 ], i, offset >= 0 ? "+" : "", offset );
         }
         else if ( 0xcb == op2 && ( ( ( op4 & 0xf ) == 0xe ) || ( ( op4 & 0xf ) == 0x6 ) ) ) // bit operations on indexed memory
         {
@@ -1521,11 +1525,11 @@ void z80_render( char * ac, size_t bufferSize, uint8_t op, uint16_t address )
             uint8_t top2bits = mod & 0xc0;
 
             if ( 0x40 == top2bits ) // bit
-                snprintf( ac, bufferSize, "bit %u, ( %s%s%d )", bit, i, index32 >= 0 ? "+" : "", index32 ); 
+                snprintf( ac, bufferSize, "bit %u,( %s%s%d )", bit, i, index32 >= 0 ? "+" : "", index32 ); 
             else if ( 0x80 == top2bits ) // reset
-                snprintf( ac, bufferSize, "res %u, ( %s%s%d )", bit, i, index32 >= 0 ? "+" : "", index32 ); 
+                snprintf( ac, bufferSize, "res %u,( %s%s%d )", bit, i, index32 >= 0 ? "+" : "", index32 ); 
             else if ( 0xc0 == top2bits ) // set
-                snprintf( ac, bufferSize, "set %u, ( %s%s%d )", bit, i, index32 >= 0 ? "+" : "", index32 );
+                snprintf( ac, bufferSize, "set %u,( %s%s%d )", bit, i, index32 >= 0 ? "+" : "", index32 );
             else if ( 0x26 == op4 ) // sla
                 snprintf( ac, bufferSize, "sla (%s%s%d)", i, index32 >= 0 ? "+" : "", index32 );
             else if ( 0x2e == op4 ) // sra
@@ -1555,16 +1559,16 @@ void z80_render( char * ac, size_t bufferSize, uint8_t op, uint16_t address )
         else if ( 0xe9 == op2 )
             snprintf( ac, bufferSize, "jp (%s)", i );    // this official syntax is bad; it's not indirect
         else if ( 0xf9 == op2 )
-            snprintf( ac, bufferSize, "ld sp, %s", i );
+            snprintf( ac, bufferSize, "ld sp,%s", i );
         else
             snprintf( ac, bufferSize, "unknown 0xdd / 0xfd instruction, op2 %2x", op2 );
     }
     else if ( 0xed == op ) // load and compare operations
     {
         if ( 0xb == ( op2 & 0xf ) )
-            snprintf( ac, bufferSize, "ld %s, (%04xh)", rp_strings[ ( ( op2 & 0xf0 ) >> 4 ) - 4 ], op34 );
+            snprintf( ac, bufferSize, "ld %s,(%04xh)", rp_strings[ ( ( op2 & 0xf0 ) >> 4 ) - 4 ], op34 );
         else if ( 0x3 == ( op2 & 0xf ) )
-            snprintf( ac, bufferSize, "ld (%04xh), %s", op34, rp_strings[ ( ( op2 & 0xf0 ) >> 4 ) - 4 ] );
+            snprintf( ac, bufferSize, "ld (%04xh),%s", op34, rp_strings[ ( ( op2 & 0xf0 ) >> 4 ) - 4 ] );
         else if ( 0x44 == op2 )
             strcpy( ac, "neg" );
         else if ( 0x47 == op2 )
@@ -1590,12 +1594,12 @@ void z80_render( char * ac, size_t bufferSize, uint8_t op, uint16_t address )
         else if ( 0x02 == ( op2 & 0x8f ) )
         {
             uint8_t rp = ( ( ( op2 & 0x30 ) >> 4 ) & 3 );
-            snprintf( ac, bufferSize, "sbc hl, %s", rp_strings[ rp ] );
+            snprintf( ac, bufferSize, "sbc hl,%s", rp_strings[ rp ] );
         }
         else if ( 0x4a == ( op2 & 0xcf ) ) // adc hl, rp
         {
             uint8_t rp = ( ( op2 >> 4 ) & 3 );
-            snprintf( ac, bufferSize, "adc hl, %s", rp_strings[ rp ] );
+            snprintf( ac, bufferSize, "adc hl,%s", rp_strings[ rp ] );
         }
         else if ( 0xa1 == op2 )
             strcpy( ac, "cpi" );
@@ -1648,37 +1652,39 @@ void z80_render( char * ac, size_t bufferSize, uint8_t op, uint16_t address )
         {
             uint8_t rm = op2 & 0x7;
             uint8_t bit = ( op2 >> 3 ) & 0x7;
-            snprintf( ac, bufferSize, "bit %u, %s", bit, reg_strings[ rm ] );
+            snprintf( ac, bufferSize, "bit %u,%s", bit, reg_strings[ rm ] );
         }
         else if ( op2 >= 0x80 && op2 <= 0xbf ) // res bit #, rm
         {
             uint8_t rm = op2 & 0x7;
             uint8_t bit = ( op2 >> 3 ) & 0x7;
-            snprintf( ac, bufferSize, "res %u, %s", bit, reg_strings[ rm ] ); 
+            snprintf( ac, bufferSize, "res %u,%s", bit, reg_strings[ rm ] ); 
         }
         else if ( op2 >= 0xc0 && op2 <= 0xff ) // set bit #, rm
         {
             uint8_t rm = op2 & 0x7;
             uint8_t bit = ( op2 >> 3 ) & 0x7;
-            snprintf( ac, bufferSize, "set %u, %s", bit, reg_strings[ rm ] ); 
+            snprintf( ac, bufferSize, "set %u,%s", bit, reg_strings[ rm ] ); 
         }
     }
     else if ( 0x08 == op )
-        strcpy( ac, "ex af, af'" );
+        strcpy( ac, "ex af,af'" );
     else if ( 0x10 == op )
         snprintf( ac, bufferSize, "djnz %d", op2int );
     else if ( 0x18 == op )
         snprintf( ac, bufferSize, "jr %d", op2int );    
     else if ( 0x20 == op )
-        snprintf( ac, bufferSize, "jr nz, %d", op2int );
+        snprintf( ac, bufferSize, "jr nz,%d", op2int );
     else if ( 0x28 == op )
-        snprintf( ac, bufferSize, "jr z, %d", op2int );
+        snprintf( ac, bufferSize, "jr z,%d", op2int );
     else if ( 0x30 == op )
-        snprintf( ac, bufferSize, "jr nc, %d", op2int );
+        snprintf( ac, bufferSize, "jr nc,%d", op2int );
     else if ( 0x38 == op )
-        snprintf( ac, bufferSize, "jr c, %d", op2int );
+        snprintf( ac, bufferSize, "jr c,%d", op2int );
     else if ( 0xd9 == op )
         strcpy( ac, "exx" );
+    else
+        strcpy( ac, "unknown instruction" );
 } //z80_render
 
 void replace_with_num( char * pc, const char * psearch, uint16_t num, uint8_t width )
@@ -1728,7 +1734,6 @@ not_inlined void x80_trace_state()
     uint8_t op3 = memory[ reg.pc + 2 ];
     uint8_t op4 = memory[ reg.pc + 3 ];
 
-//    tracer.TraceBinaryData( memory + 0x1fe, 10, 4 );
     if ( reg.fZ80Mode )
         tracer.Trace( "pc %04x, op %02x, op2 %02x, op3 %02x, op4 %02x, a %02x, B %04x, D %04x, H %04x, ix %04x, iy %04x, sp %04x, %s, %s\n",
                       reg.pc, op, op2, op3, op4, reg.a, reg.B(), reg.D(), reg.H(), reg.ix, reg.iy, reg.sp,

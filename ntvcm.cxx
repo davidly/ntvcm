@@ -113,7 +113,7 @@ struct FCB
     {
         this->r0 = ( 0xff & o );
         this->r1 = ( ( o & 0xff00 ) >> 8 );
-        this->r2 = 0;
+        // unused in cp/m 2.2 this->r2 = 0;
     } //SetRandomIOOffset
 
     void SetRecordCount( FILE * fp )
@@ -153,7 +153,7 @@ struct FCB
 
     void Trace( bool justArg = false ) // justArg is the first 16 bytes at app startup
     {
-        tracer.Trace( "  FCB:\n" );
+        tracer.Trace( "  FCB at address %04x:\n", (uint32_t) ( (uint8_t * ) this - memory ) );
         tracer.Trace( "    drive:    %#x == %c\n", dr, ( 0 == dr ) ? 'A' : 'A' + dr - 1 );
         tracer.Trace( "    filename: '%c%c%c%c%c%c%c%c'\n", 0x7f & f[0], 0x7f & f[1], 0x7f & f[2], 0x7f & f[3],
                                                             0x7f & f[4], 0x7f & f[5], 0x7f & f[6], 0x7f & f[7] );
@@ -460,7 +460,7 @@ bool parse_FCB_Filename( FCB * pfcb, char * pcFilename )
 
     *pcFilename = 0;
 
-    // CP/M assumes all filenames are upper case. Linux users generally use all lowercase filenames
+    // CP/M assumes all filenames are uppercase. Linux users generally use all lowercase filenames
 
     if ( g_forceLowercase )
         _strlwr( orig );
@@ -516,7 +516,7 @@ FILE * RemoveFileEntry( char * name )
         if ( !strcmp( name, g_fileEntries[ i ].acName ) )
         {
             FILE * fp = g_fileEntries[ i ].fp;
-            tracer.Trace( "removing file entry '%s'\n", name );
+            tracer.Trace( "  removing file entry '%s'\n", name );
             g_fileEntries.erase( g_fileEntries.begin() + i );
             return fp;
         }
@@ -2342,6 +2342,7 @@ uint8_t x80_invoke_hook()
         case 22:
         {
             // make file. return 255 if out of space or the file exists. 0..3 directory code otherwise.
+            // "the Make function has the side effect of activating the FCB and thus a subsequent open is not necessary."
     
             FCB * pfcb = (FCB *) ( memory + reg.D() );
             pfcb->Trace();
@@ -2574,7 +2575,7 @@ uint8_t x80_invoke_hook()
             bool ok = parse_FCB_Filename( pfcb, acFilename );
             if ( ok )
             {
-                pfcb->r2 = 0; // only supported in cp/m post version 2.2
+                //pfcb->r2 = 0; // only supported in cp/m post version 2.2
 
                 FILE * fp = FindFileEntry( acFilename );
                 bool found = false;
@@ -2612,7 +2613,7 @@ uint8_t x80_invoke_hook()
             bool ok = parse_FCB_Filename( pfcb, acFilename );
             if ( ok )
             {
-                pfcb->r2 = 0;
+                // unused in cp/m 2.2: pfcb->r2 = 0;
 
                 FILE * fp = FindFileEntry( acFilename );
                 if ( fp )
@@ -3054,6 +3055,12 @@ int main( int argc, char * argv[] )
             }
         }
 
+        // The Pascal/Z compiler's pasopt.com optimizer has a bug that depends on uninitialized RAM
+        // being set to non-zero values. If the BDOS moves, this must move too or the app will fail.
+
+        if ( ends_with( acCOM, "pasopt.com" ) )
+            memset( memory + 0xf400, 0x69, 0x800 );
+
         // setup command-line arguments
     
         FCB * arg1 = (FCB *) ( memory + FCB_ARG1_OFFSET );
@@ -3159,7 +3166,6 @@ int main( int argc, char * argv[] )
         pdpb->cks = 64;
         pdpb->off = 0;
     
-        memory[ 0x100 + file_size ] = OPCODE_HLT; // in case the app doesn't shutdown properly
         reg.powerOn();               // set default values of registers
         reg.pc = 0x100;
         reg.sp = BDOS_ENTRY - 2;     // the stack is written to below this address. 2 bytes here are zero for ret from app
@@ -3167,7 +3173,7 @@ int main( int argc, char * argv[] )
         reg.fp = reg.ap = 0;         // apparently this is expected by CPUTEST
         reg.bp = reg.cp = reg.dp = reg.ep = reg.hp = reg.lp = 0;
         reg.ix = reg.iy = 0;
-    
+
         if ( trace )
         {
             x80_trace_state();
