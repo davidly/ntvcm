@@ -3056,10 +3056,16 @@ int main( int argc, char * argv[] )
         }
 
         // The Pascal/Z compiler's pasopt.com optimizer has a bug that depends on uninitialized RAM
-        // being set to non-zero values. If the BDOS moves, this must move too or the app will fail.
+        // being set to a non-zero value. The location is -30eH bytes from the BDOS address.
+        // Specifically, execution is like this:
+        //   pc 0db7, op 5e, op2 7b, op3 fe, op4 00, a 00, B 0001, D 009f, H fbee, ix f0dd, iy fe9f, sp f0db, SzYHXvnC, ld e,(hl)
+        //   pc 0db8, op 7b, op2 fe, op3 00, op4 c2, a 00, B 0001, D 0000, H fbee, ix f0dd, iy fe9f, sp f0db, SzYHXvnC, ld a,e
+        //   pc 0db9, op fe, op2 00, op3 c2, op4 ff, a 00, B 0001, D 0000, H fbee, ix f0dd, iy fe9f, sp f0db, SzYHXvnC, cp 00h
+        //   pc 0dbb, op c2, op2 ff, op3 0d, op4 af, a 00, B 0001, D 0000, H fbee, ix f0dd, iy fe9f, sp f0db, sZyhxvNc, jp nz,0dffh
+        // The byte at 0xfbee is uninitialized RAM and must be non-zero for the app to work.
 
         if ( ends_with( acCOM, "pasopt.com" ) )
-            memset( memory + 0xf400, 0x69, 0x800 );
+            memory[ BDOS_ENTRY - 0x30e ] = 0xff; // address 0xfbee for NTVCM's BDOS address. the value is arbitrary non-zero.
 
         // setup command-line arguments
     
