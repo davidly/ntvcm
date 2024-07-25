@@ -1851,8 +1851,7 @@ uint8_t x80_invoke_hook()
 
             uint16_t i = reg.D();
             uint32_t count = 0;
-            //tracer.TraceBinaryData( memory + i, 0x20, 0 );
-    
+
             while ( '$' != memory[i] )
             {
                 if ( count++ > 2000 ) // arbitrary limit, but probably a bug if this long
@@ -1869,6 +1868,7 @@ uint8_t x80_invoke_hook()
                 }
             }
 
+            tracer.TraceBinaryData( memory + reg.D(), count, 4 );
             break;
         }
         case 10:
@@ -2751,8 +2751,8 @@ uint8_t x80_invoke_hook()
             tracer.Trace( "unhandled BDOS FUNCTION!!!!!!!!!!!!!!!: %u = %#x\n", reg.c, reg.c );
             printf( "unhandled BDOS FUNCTION!!!!!!!!!!!!!!!: %u = %#x\n", reg.c, reg.c );
 
-            x80_trace_state();
-            x80_hard_exit( "unhandled bods function", reg.c, 0 );
+//            x80_trace_state();
+//            x80_hard_exit( "unhandled bods function", reg.c, 0 );
 
             // CP/M 2.2 mandates returning a 0 status for function numbers that are out of range.
             // When I find an app that relies on this behavior, I'll remove the hard_exit() above and do this:
@@ -3063,6 +3063,7 @@ int main( int argc, char * argv[] )
         //   pc 0db9, op fe, op2 00, op3 c2, op4 ff, a 00, B 0001, D 0000, H fbee, ix f0dd, iy fe9f, sp f0db, SzYHXvnC, cp 00h
         //   pc 0dbb, op c2, op2 ff, op3 0d, op4 af, a 00, B 0001, D 0000, H fbee, ix f0dd, iy fe9f, sp f0db, sZyhxvNc, jp nz,0dffh
         // The byte at 0xfbee is uninitialized RAM and must be non-zero for the app to work.
+        // Otherwise pasopt.com goes into an infinite loop writing junk to the output file.
 
         if ( ends_with( acCOM, "pasopt.com" ) )
             memory[ BDOS_ENTRY - 0x30e ] = 0xff; // address 0xfbee for NTVCM's BDOS address. the value is arbitrary non-zero.
