@@ -603,6 +603,8 @@ const char * get_bdos_function( uint8_t id )
         return "enable/disable instruction tracing";
     if ( BDOS_GET_PUT_PROGRAM_RETURN_CODE == id )
         return "get/put program return code";
+    if ( 45 == id )
+        return "non - cp/m 2.2: set action on hardware error";
 
     return "unknown";
 } //get_bdos_function
@@ -2633,6 +2635,13 @@ uint8_t x80_invoke_hook()
             set_bdos_status();
             break;
         }
+        case 37: // called by BASIC/Z
+        {
+            // selectively reset disc drives. DE = bitmap of drives to reset. result: A=0 if OK and ffh if error
+            reg.a = 0;
+            set_bdos_status();
+            break;
+        }
         case 40:
         {
             // write random with zero fill.
@@ -2641,6 +2650,13 @@ uint8_t x80_invoke_hook()
             // I haven't found any apps that call this, so I can't say it's really tested.
 
             WriteRandom();
+            break;
+        }
+        case 45: // called by BASIC/Z
+        {
+            // non - CP/M 2.2: set action on hardware error
+            reg.a = 0;
+            set_bdos_status();
             break;
         }
         case 102:
