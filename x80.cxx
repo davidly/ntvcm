@@ -85,38 +85,38 @@ static const char i8080_instructions[ 256 ][ 16 ] =
 // instructions listed here are the overlap with 8080 but with the Z80 naming.
 static const char z80_instructions[ 256 ][ 16 ] =
 {
-    /*00*/ "nop",       "ld bc,d16", "ld (bc),a",   "inc bc",       "inc b",       "dec b",     "ld b,d8",    "rlca",
-    /*08*/ "*'",        "add hl,bc", "ld a,(bc)",   "dec bc",       "inc c",       "dec c",     "ld c,d8",    "rrca",
-    /*10*/ "*",         "ld de,d16", "ld (de),a",   "inc de",       "inc d",       "dec d",     "ld d,d8",    "rla",
-    /*18*/ "*",         "add hl,de", "ld a,(de)",   "dec de",       "inc e",       "dec e",     "ld e,d8",    "rra",
-    /*20*/ "*",         "ld hl,d16", "ld (a16),hl", "inc hl",       "inc h",       "dec h",     "ld h,d8",    "daa",
-    /*28*/ "*",         "add hl,hl", "ld hl,(a16)", "dec hl",       "inc l",       "dec l",     "ld l,d8",    "cpl",
-    /*30*/ "*",         "ld sp,d16", "ld (a16),a",  "inc sp",       "inc (hl)",    "dec (hl)",  "ld (hl),d8", "scf",
-    /*38*/ "*",         "add hl,sp", "ld a,(a16)",  "dec sp",       "inc a",       "dec a",     "ld a,d8",    "ccf",
-    /*40*/ "ld b,b",    "ld b,c",    "ld b,d",      "ld b,e",       "ld b,h",      "ld b,l",    "ld b,(hl)",  "ld b,a",
-    /*48*/ "ld c,b",    "ld c,c",    "ld c,d",      "ld c,e",       "ld c,h",      "ld c,l",    "ld c,(hl)",  "ld c,a",
-    /*50*/ "ld d,b",    "ld d,c",    "ld d,d",      "ld d,e",       "ld d,h",      "ld d,l",    "ld d,(hl)",  "ld d,a",
-    /*58*/ "ld e,b",    "ld e,c",    "ld e,d",      "ld e,e",       "ld e,h",      "ld e,l",    "ld e,(hl)",  "ld e,a",
-    /*60*/ "ld h,b",    "ld h,c",    "ld h,d",      "ld h,e",       "(hook)",      "ld h,l",    "ld h,(hl)",  "ld h,a",
-    /*68*/ "ld l,b",    "ld l,c",    "ld l,d",      "ld l,e",       "ld l,h",      "ld l,l",    "ld l,(hl)",  "ld l,a",
-    /*70*/ "ld (hl),b", "ld (hl),c", "ld (hl),d",   "ld (hl),e",    "ld (hl),h",   "ld (hl),l", "halt",       "ld (hl),a",
-    /*78*/ "ld a,b",    "ld a,c",    "ld a,d",      "ld a,e",       "ld a,h",      "ld a,l",    "ld a,(hl)",  "ld a,a",
-    /*80*/ "add a,b",   "add a,c",   "add a,d",     "add a,e",      "add a,h",     "add a,l",   "add a,(hl)", "add a,a",
-    /*88*/ "adc a,b",   "adc a,c",   "adc a,d",     "adc a,e",      "adc a,h",     "adc a,l",   "adc a,(hl)", "adc a,a",
-    /*90*/ "sub b",     "sub c",     "sub d",       "sub e",        "sub h",       "sub l",     "sub (hl)",   "sub a",
-    /*98*/ "sbc b",     "sbc c",     "sbc d",       "sbc e",        "sbc h",       "sbc l",     "sbc (hl)",   "sbc a",
-    /*a0*/ "and b",     "and c",     "and d",       "and e",        "and h",       "and l",     "and (hl)",   "and a",
-    /*a8*/ "xor b",     "xor c",     "xor d",       "xor e",        "xor h",       "xor l",     "xor (hl)",   "xor a",
-    /*b0*/ "or b",      "or c",      "or d",        "or e",         "or h",        "or l",      "or (hl)",    "or a",
-    /*b8*/ "cp b",      "cp c",      "cp d",        "cp e",         "cp h",        "cp l",      "cp (hl)",    "cp a",
-    /*c0*/ "ret nz",    "pop bc",    "jp nz,a16",   "jp a16",       "call nz,a16", "push bc",   "add a,d8",   "rst 0",
-    /*c8*/ "ret z",     "ret",       "jp z,a16",    "*",            "call z,a16",  "call a16",  "adc a,d8",   "rst 1",
-    /*d0*/ "ret nc",    "pop de",    "jp nc,a16",   "out (d8),a",   "call nc,a16", "push de",   "sub d8",     "rst 2",
-    /*d8*/ "ret c",     "*",         "jp c,a16",    "in a,(d8)",    "call c,a16",  "*",         "sbc d8",     "rst 3",
-    /*e0*/ "ret po",    "pop hl",    "jp po,a16",   "ex (sp),hl",   "call po,a16", "push hl",   "and d8",     "rst 4",
-    /*e8*/ "ret pe",    "jp (hl)",   "jp pe,a16",   "ex de,hl",     "call pe,a16", "*",         "xor d8",     "rst 5",
-    /*f0*/ "ret p",     "pop af",    "jp p,a16",    "di",           "call p,a16",  "push af",   "or d8",      "rst 6",
-    /*f8*/ "ret m",     "ld sp,hl",  "jp m,a16",    "ei",           "call m,a16",  "*",         "cp d8",      "rst 7",
+    /*00*/ "nop",        "ld bc, d16", "ld (bc), a",   "inc bc",      "inc b",        "dec b",      "ld b, d8",    "rlca",
+    /*08*/ "*'",         "add hl, bc", "ld a, (bc)",   "dec bc",      "inc c",        "dec c",      "ld c, d8",    "rrca",
+    /*10*/ "*",          "ld de, d16", "ld (de), a",   "inc de",      "inc d",        "dec d",      "ld d, d8",    "rla",
+    /*18*/ "*",          "add hl, de", "ld a, (de)",   "dec de",      "inc e",        "dec e",      "ld e, d8",    "rra",
+    /*20*/ "*",          "ld hl, d16", "ld (a16), hl", "inc hl",      "inc h",        "dec h",      "ld h, d8",    "daa",
+    /*28*/ "*",          "add hl, hl", "ld hl, (a16)", "dec hl",      "inc l",        "dec l",      "ld l, d8",    "cpl",
+    /*30*/ "*",          "ld sp, d16", "ld (a16), a",  "inc sp",      "inc (hl)",     "dec (hl)",   "ld (hl), d8", "scf",
+    /*38*/ "*",          "add hl, sp", "ld a, (a16)",  "dec sp",      "inc a",        "dec a",      "ld a, d8",    "ccf",
+    /*40*/ "ld b, b",    "ld b, c",    "ld b, d",      "ld b, e",     "ld b, h",      "ld b, l",    "ld b, (hl)",  "ld b, a",
+    /*48*/ "ld c, b",    "ld c, c",    "ld c, d",      "ld c, e",     "ld c, h",      "ld c, l",    "ld c, (hl)",  "ld c, a",
+    /*50*/ "ld d, b",    "ld d, c",    "ld d, d",      "ld d, e",     "ld d, h",      "ld d, l",    "ld d, (hl)",  "ld d, a",
+    /*58*/ "ld e, b",    "ld e, c",    "ld e, d",      "ld e, e",     "ld e, h",      "ld e, l",    "ld e, (hl)",  "ld e, a",
+    /*60*/ "ld h, b",    "ld h, c",    "ld h, d",      "ld h, e",     "(hook)",       "ld h, l",    "ld h, (hl)",  "ld h, a",
+    /*68*/ "ld l, b",    "ld l, c",    "ld l, d",      "ld l, e",     "ld l, h",      "ld l, l",    "ld l, (hl)",  "ld l, a",
+    /*70*/ "ld (hl), b", "ld (hl), c", "ld (hl), d",   "ld (hl), e",  "ld (hl), h",   "ld (hl), l", "halt",        "ld (hl), a",
+    /*78*/ "ld a, b",    "ld a, c",    "ld a, d",      "ld a, e",     "ld a, h",      "ld a, l",    "ld a, (hl)",  "ld a, a",
+    /*80*/ "add a, b",   "add a, c",   "add a, d",     "add a, e",    "add a, h",     "add a, l",   "add a, (hl)", "add a, a",
+    /*88*/ "adc a, b",   "adc a, c",   "adc a, d",     "adc a, e",    "adc a, h",     "adc a, l",   "adc a, (hl)", "adc a, a",
+    /*90*/ "sub b",      "sub c",      "sub d",        "sub e",       "sub h",        "sub l",      "sub (hl)",    "sub a",
+    /*98*/ "sbc b",      "sbc c",      "sbc d",        "sbc e",       "sbc h",        "sbc l",      "sbc (hl)",    "sbc a",
+    /*a0*/ "and b",      "and c",      "and d",        "and e",       "and h",        "and l",      "and (hl)",    "and a",
+    /*a8*/ "xor b",      "xor c",      "xor d",        "xor e",       "xor h",        "xor l",      "xor (hl)",    "xor a",
+    /*b0*/ "or b",       "or c",       "or d",         "or e",        "or h",         "or l",       "or (hl)",     "or a",
+    /*b8*/ "cp b",       "cp c",       "cp d",         "cp e",        "cp h",         "cp l",       "cp (hl)",     "cp a",
+    /*c0*/ "ret nz",     "pop bc",     "jp nz, a16",   "jp a16",      "call nz, a16", "push bc",    "add a, d8",   "rst 0",
+    /*c8*/ "ret z",      "ret",        "jp z, a16",    "*",           "call z, a16",  "call a16",   "adc a, d8",   "rst 1",
+    /*d0*/ "ret nc",     "pop de",     "jp nc, a16",   "out (d8), a", "call nc, a16", "push de",    "sub d8",      "rst 2",
+    /*d8*/ "ret c",      "*",          "jp c, a16",    "in a, (d8)",  "call c, a16",  "*",          "sbc d8",      "rst 3",
+    /*e0*/ "ret po",     "pop hl",     "jp po, a16",   "ex (sp), hl", "call po, a16", "push hl",    "and d8",      "rst 4",
+    /*e8*/ "ret pe",     "jp (hl)",    "jp pe, a16",   "ex de, hl",   "call pe, a16", "*",          "xor d8",      "rst 5",
+    /*f0*/ "ret p",      "pop af",     "jp p, a16",    "di",          "call p, a16",  "push af",    "or d8",       "rst 6",
+    /*f8*/ "ret m",      "ld sp, hl",  "jp m, a16",    "ei",          "call m, a16",  "*",          "cp d8",       "rst 7",
 };
 
 // base cycles. 8080 conditional calls take 11 (not 17) if not taken. conditional returns take 5 (not 11) if not taken.
@@ -496,7 +496,6 @@ uint8_t src_value_rm( uint8_t rm )
 {
     if ( 6 != rm )
         return * ( reg.regOffset( rm ) );
-
     return memory[ reg.H() ];
 } //src_value_rm
 
@@ -1444,16 +1443,16 @@ void z80_render( char * ac, size_t bufferSize, uint8_t op, uint16_t address )
         {
             uint8_t src = op2 & 0x7;
             if ( 6 == src )
-                snprintf( ac, bufferSize, "ld (%s%s%d),%02x", i, op3int >= 0 ? "+" : "", op3int, op4 );
+                snprintf( ac, bufferSize, "ld (%s%s%d), %02x", i, op3int >= 0 ? "+" : "", op3int, op4 );
             else
-                snprintf( ac, bufferSize, "ld (%s%s%d),%s", i, op3int >= 0 ? "+" : "", op3int, reg_strings[ src ] );
+                snprintf( ac, bufferSize, "ld (%s%s%d), %s", i, op3int >= 0 ? "+" : "", op3int, reg_strings[ src ] );
         }
         else if ( 0x09 == ( op2 & 0xcf ) )
-            snprintf( ac, bufferSize, "add %s,%s", i, rp_strings[ ( op2 >> 4 ) & 0x3 ] );
+            snprintf( ac, bufferSize, "add %s, %s", i, rp_strings[ ( op2 >> 4 ) & 0x3 ] );
         else if ( 0x21 == op2 )
-            snprintf( ac, bufferSize, "ld %s,%04xh", i, op34 );
+            snprintf( ac, bufferSize, "ld %s, %04xh", i, op34 );
         else if ( 0x22 == op2 )
-            snprintf( ac, bufferSize, "ld (%04xh),%s", op34, i );
+            snprintf( ac, bufferSize, "ld (%04xh), %s", op34, i );
         else if ( 0x23 == op2 )
             snprintf( ac, bufferSize, "inc %s", i );
         else if ( 0x26 == op2 )
@@ -1469,7 +1468,7 @@ void z80_render( char * ac, size_t bufferSize, uint8_t op, uint16_t address )
         else if ( 0x35 == op2 )
             snprintf( ac, bufferSize, "dec (%s%s%d)", i, op3int >= 0 ? "+" : "", op3int );
         else if ( 0x36 == op2 )
-            snprintf( ac, bufferSize, "ld (%s%s%d),%02xh", i, op3int >= 0 ? "+" : "", op3int, op4 );
+            snprintf( ac, bufferSize, "ld (%s%s%d), %02xh", i, op3int >= 0 ? "+" : "", op3int, op4 );
         else if ( ( op2 >= 0x40 && op2 <= 0x6f ) || ( op2 >= 0x78 && op2 <= 0x7f ) )
         {
             char acto[ 4 ] = {0};
@@ -1494,27 +1493,27 @@ void z80_render( char * ac, size_t bufferSize, uint8_t op, uint16_t address )
             else
                 acto[0] = 'a';
 
-            snprintf( ac, bufferSize, "ld %s,%s", acto, acfrom );
+            snprintf( ac, bufferSize, "ld %s, %s", acto, acfrom );
         }
         else if ( 0x2a == op2 )
-            snprintf( ac, bufferSize, "ld %s,(%04x)", i, op34 );
+            snprintf( ac, bufferSize, "ld %s, (%04x)", i, op34 );
         else if ( 0x22 == op2 )
-            snprintf( ac, bufferSize, "ld (%04x),%s", op34, i );
+            snprintf( ac, bufferSize, "ld (%04x), %s", op34, i );
         else if ( 0x80 == ( op2 & 0xc2 ) ) // math on il and ih with a. 84/85/8c/8d/94/95/a4/a5/b4/b5/bc/bd
         {
             uint8_t math = ( ( op2 >> 3 ) & 0x7 );
-            snprintf( ac, bufferSize, "%s a,%s%c", z80_math_strings[ math ], i, ( op2 & 1 ) ? 'l' : 'h' );
+            snprintf( ac, bufferSize, "%s a, %s%c", z80_math_strings[ math ], i, ( op2 & 1 ) ? 'l' : 'h' );
         }
         else if ( 0x86 == ( op2 & 0xc7 ) ) // math on [ ix/iy + index ]. 86, 8e, 96, 9e, a6, ae, b6, be
         {
             uint8_t math = ( ( op2 >> 3 ) & 0x7 );
-            snprintf( ac, bufferSize, "%s a,(%s%s%d)", z80_math_strings[ math ], i, op3int >=0 ? "+" : "", op3int );
+            snprintf( ac, bufferSize, "%s a, (%s%s%d)", z80_math_strings[ math ], i, op3int >=0 ? "+" : "", op3int );
         }
         else if ( 0xcb == op2 && ( op4 <= 0x3f ) )
         {
             uint8_t rot = ( ( op4 >> 3 ) & 0x7 );
             int offset = (int) (int8_t) op3;
-            snprintf( ac, bufferSize, "%s %s,(%s%s%d)", z80_rotate_strings[ rot ], reg_strings[ op4 & 0x7 ], i, offset >= 0 ? "+" : "", offset );
+            snprintf( ac, bufferSize, "%s %s, (%s%s%d)", z80_rotate_strings[ rot ], reg_strings[ op4 & 0x7 ], i, offset >= 0 ? "+" : "", offset );
         }
         else if ( 0xcb == op2 && ( ( ( op4 & 0xf ) == 0xe ) || ( ( op4 & 0xf ) == 0x6 ) ) ) // bit operations on indexed memory
         {
@@ -1525,11 +1524,11 @@ void z80_render( char * ac, size_t bufferSize, uint8_t op, uint16_t address )
             uint8_t top2bits = mod & 0xc0;
 
             if ( 0x40 == top2bits ) // bit
-                snprintf( ac, bufferSize, "bit %u,( %s%s%d )", bit, i, index32 >= 0 ? "+" : "", index32 ); 
+                snprintf( ac, bufferSize, "bit %u, (%s%s%d)", bit, i, index32 >= 0 ? "+" : "", index32 ); 
             else if ( 0x80 == top2bits ) // reset
-                snprintf( ac, bufferSize, "res %u,( %s%s%d )", bit, i, index32 >= 0 ? "+" : "", index32 ); 
+                snprintf( ac, bufferSize, "res %u, (%s%s%d)", bit, i, index32 >= 0 ? "+" : "", index32 ); 
             else if ( 0xc0 == top2bits ) // set
-                snprintf( ac, bufferSize, "set %u,( %s%s%d )", bit, i, index32 >= 0 ? "+" : "", index32 );
+                snprintf( ac, bufferSize, "set %u, (%s%s%d)", bit, i, index32 >= 0 ? "+" : "", index32 );
             else if ( 0x26 == op4 ) // sla
                 snprintf( ac, bufferSize, "sla (%s%s%d)", i, index32 >= 0 ? "+" : "", index32 );
             else if ( 0x2e == op4 ) // sra
@@ -1553,32 +1552,32 @@ void z80_render( char * ac, size_t bufferSize, uint8_t op, uint16_t address )
         else if ( 0xe1 == op2 )
             snprintf( ac, bufferSize, "pop %s", i );
         else if ( 0xe3 == op2 )
-            snprintf( ac, bufferSize, "ex (sp),%s", i );
+            snprintf( ac, bufferSize, "ex (sp), %s", i );
         else if ( 0xe5 == op2 )
             snprintf( ac, bufferSize, "push %s", i );
         else if ( 0xe9 == op2 )
             snprintf( ac, bufferSize, "jp (%s)", i );    // this official syntax is bad; it's not indirect
         else if ( 0xf9 == op2 )
-            snprintf( ac, bufferSize, "ld sp,%s", i );
+            snprintf( ac, bufferSize, "ld sp, %s", i );
         else
             snprintf( ac, bufferSize, "unknown 0xdd / 0xfd instruction, op2 %2x", op2 );
     }
     else if ( 0xed == op ) // load and compare operations
     {
         if ( 0xb == ( op2 & 0xf ) )
-            snprintf( ac, bufferSize, "ld %s,(%04xh)", rp_strings[ ( ( op2 & 0xf0 ) >> 4 ) - 4 ], op34 );
+            snprintf( ac, bufferSize, "ld %s, (%04xh)", rp_strings[ ( ( op2 & 0xf0 ) >> 4 ) - 4 ], op34 );
         else if ( 0x3 == ( op2 & 0xf ) )
-            snprintf( ac, bufferSize, "ld (%04xh),%s", op34, rp_strings[ ( ( op2 & 0xf0 ) >> 4 ) - 4 ] );
+            snprintf( ac, bufferSize, "ld (%04xh), %s", op34, rp_strings[ ( ( op2 & 0xf0 ) >> 4 ) - 4 ] );
         else if ( 0x44 == op2 )
             strcpy( ac, "neg" );
         else if ( 0x47 == op2 )
-            snprintf( ac, bufferSize, "ld i,a" );
+            snprintf( ac, bufferSize, "ld i, a" );
         else if ( 0x4f == op2 )
-            snprintf( ac, bufferSize, "ld r,a" );
+            snprintf( ac, bufferSize, "ld r, a" );
         else if ( 0x57 == op2 )
-            snprintf( ac, bufferSize, "ld a,i" );
+            snprintf( ac, bufferSize, "ld a, i" );
         else if ( 0x5f == op2 )
-            snprintf( ac, bufferSize, "ld a,r" );
+            snprintf( ac, bufferSize, "ld a, r" );
         else if ( 0x67 == op2 )
             strcpy( ac, "rrd" );
         else if ( 0x6f == op2 )
@@ -1594,12 +1593,12 @@ void z80_render( char * ac, size_t bufferSize, uint8_t op, uint16_t address )
         else if ( 0x02 == ( op2 & 0x8f ) )
         {
             uint8_t rp = ( ( ( op2 & 0x30 ) >> 4 ) & 3 );
-            snprintf( ac, bufferSize, "sbc hl,%s", rp_strings[ rp ] );
+            snprintf( ac, bufferSize, "sbc hl, %s", rp_strings[ rp ] );
         }
         else if ( 0x4a == ( op2 & 0xcf ) ) // adc hl, rp
         {
             uint8_t rp = ( ( op2 >> 4 ) & 3 );
-            snprintf( ac, bufferSize, "adc hl,%s", rp_strings[ rp ] );
+            snprintf( ac, bufferSize, "adc hl, %s", rp_strings[ rp ] );
         }
         else if ( 0xa1 == op2 )
             strcpy( ac, "cpi" );
@@ -1652,19 +1651,19 @@ void z80_render( char * ac, size_t bufferSize, uint8_t op, uint16_t address )
         {
             uint8_t rm = op2 & 0x7;
             uint8_t bit = ( op2 >> 3 ) & 0x7;
-            snprintf( ac, bufferSize, "bit %u,%s", bit, reg_strings[ rm ] );
+            snprintf( ac, bufferSize, "bit %u, %s", bit, reg_strings[ rm ] );
         }
         else if ( op2 >= 0x80 && op2 <= 0xbf ) // res bit #, rm
         {
             uint8_t rm = op2 & 0x7;
             uint8_t bit = ( op2 >> 3 ) & 0x7;
-            snprintf( ac, bufferSize, "res %u,%s", bit, reg_strings[ rm ] ); 
+            snprintf( ac, bufferSize, "res %u, %s", bit, reg_strings[ rm ] ); 
         }
         else if ( op2 >= 0xc0 && op2 <= 0xff ) // set bit #, rm
         {
             uint8_t rm = op2 & 0x7;
             uint8_t bit = ( op2 >> 3 ) & 0x7;
-            snprintf( ac, bufferSize, "set %u,%s", bit, reg_strings[ rm ] ); 
+            snprintf( ac, bufferSize, "set %u, %s", bit, reg_strings[ rm ] ); 
         }
     }
     else if ( 0x08 == op )
@@ -1674,13 +1673,13 @@ void z80_render( char * ac, size_t bufferSize, uint8_t op, uint16_t address )
     else if ( 0x18 == op )
         snprintf( ac, bufferSize, "jr %d", op2int );    
     else if ( 0x20 == op )
-        snprintf( ac, bufferSize, "jr nz,%d", op2int );
+        snprintf( ac, bufferSize, "jr nz, %d", op2int );
     else if ( 0x28 == op )
-        snprintf( ac, bufferSize, "jr z,%d", op2int );
+        snprintf( ac, bufferSize, "jr z, %d", op2int );
     else if ( 0x30 == op )
-        snprintf( ac, bufferSize, "jr nc,%d", op2int );
+        snprintf( ac, bufferSize, "jr nc, %d", op2int );
     else if ( 0x38 == op )
-        snprintf( ac, bufferSize, "jr c,%d", op2int );
+        snprintf( ac, bufferSize, "jr c, %d", op2int );
     else if ( 0xd9 == op )
         strcpy( ac, "exx" );
     else
