@@ -372,6 +372,7 @@ class ConsoleConfiguration
                         printf( "\x1b[?25l" );
                     else
                         printf( "\x1b[?25h" );
+                    fflush( stdout );
                 }
              #endif
         } //SetCursorInfo
@@ -578,21 +579,20 @@ class ConsoleConfiguration
 
         int portable_kbhit()
         {
-            int result = 0;
+            if ( !isatty( fileno( stdin ) ) )
+                return ( 0 == feof( stdin) );
 
             #ifdef _WIN32
                 if ( 0 != aReady[ 0 ] )
                     return true;
-                result = _kbhit();
+                return _kbhit();
             #else
                 fd_set set;
                 FD_ZERO( &set );
                 FD_SET( STDIN_FILENO, &set );
                 struct timeval timeout = {0};
-                result = ( select( 1, &set, NULL, NULL, &timeout ) > 0 );
+                return ( select( 1, &set, NULL, NULL, &timeout ) > 0 );
             #endif
-
-            return result;
         } //portable_kbhit
 
 #ifdef _WIN32
@@ -600,6 +600,14 @@ class ConsoleConfiguration
 
         int linux_getch()
         {
+            if ( !isatty( fileno( stdin ) ) )
+            {
+                char data;
+                if ( 1 == read( 0, &data, 1 ) )
+                    return data;
+                return EOF;
+            }
+
             size_t cReady = strlen( aReady );
             if ( 0 != cReady )
             {
@@ -646,6 +654,18 @@ class ConsoleConfiguration
 
         static int portable_getch()
         {
+            if ( !isatty( fileno( stdin ) ) )
+            {
+                char data;
+                if ( 1 == read( 0, &data, 1 ) )
+                {
+                    if ( 0x0a == data )
+                        data = 0x0d;
+                    return data;
+                }
+                return EOF;
+            }
+
             #ifdef _WIN32
                 return _getch();
             #else
