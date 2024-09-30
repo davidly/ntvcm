@@ -92,18 +92,18 @@ const uint16_t DPB_OFFSET =          ( ( DPB_OFFSET_HI << 8 ) | DPB_OFFSET_LO );
 
 struct FCB
 {
-    uint8_t dr;            // 0 = default drive, 1 = A ... 16 = P
-    uint8_t f[8];          // file name. uppercase ascii or spaces
-    uint8_t t[3];          // file type. uppercase ascii or spaces
-    uint8_t ex;            // extent 0..31 during I/O
-    uint8_t s1;            // reserved for CP/M
-    uint8_t s2;            // reserved for CP/M. extent high byte
-    uint8_t rc;            // record count for extent ex. 0..127
-    uint8_t dImage[16];    // second half of directory entry OR rename new name
-    uint8_t cr;            // current record to read or write in sequential file operations
-    uint8_t r0;            // low byte of random I/O offset.  Also for Compute File Size.
-    uint8_t r1;            // high byte of random I/O offset. Also for Compute File Size.
-    uint8_t r2;            // overflow of r0 and r1 (unused in CP/M 2.2)
+    uint8_t dr;            // 00 0 = default drive, 1 = A ... 16 = P
+    uint8_t f[8];          // 01 file name. uppercase ascii or spaces
+    uint8_t t[3];          // 09 file type. uppercase ascii or spaces
+    uint8_t ex;            // 12 extent 0..31 during I/O
+    uint8_t s1;            // 13 reserved for CP/M
+    uint8_t s2;            // 14 reserved for CP/M. extent high byte
+    uint8_t rc;            // 15 record count for extent ex. 0..127
+    uint8_t dImage[16];    // 16 second half of directory entry OR rename new name
+    uint8_t cr;            // 32 current record to read or write in sequential file operations
+    uint8_t r0;            // 33 low byte of random I/O offset.  Also for Compute File Size.
+    uint8_t r1;            // 34 high byte of random I/O offset. Also for Compute File Size.
+    uint8_t r2;            // 35 overflow of r0 and r1 (unused in CP/M 2.2)
 
     // r0 and r1 are a 16-bit count of 128 byte records
 
@@ -2893,6 +2893,8 @@ static bool load_file( char const * file_path, long & file_size, void * buffer )
 
         ok = ( 1 == fread( buffer, file_size, 1, fp ) );
         fclose( fp );
+        tracer.Trace( "loading success: %d, read %ld == 0x%lx bytes, addresses 256 == 0x100 through %ld == 0x%lx\n",
+                      ok, file_size, file_size, file_size + 0x100, file_size + 0x100 );
     }
 
     return ok;
