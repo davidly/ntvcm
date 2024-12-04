@@ -20,6 +20,10 @@
 #include <cstring>
 #include <djl_os.hxx>
 
+#ifdef _WIN32
+#include <process.h>
+#endif
+
 #if !defined(_WIN32) && !defined(WATCOM)
 
     #include <sys/unistd.h>
@@ -232,7 +236,7 @@ class CDJLTrace
         {
             if ( NULL != fp )
             {
-                fprintf( fp, format, args );
+                vfprintf( fp, format, args );
                 if ( flush )
                     fflush( fp );
             }
