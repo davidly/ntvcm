@@ -265,6 +265,13 @@ int ends_with( const char * str, const char * end )
     return ( 0 == _stricmp( str + len - lenend, end ) );
 } //ends_with
 
+bool IsAFolder( const char * pc )
+{
+    struct stat file_stat;
+    int result = stat( pc, &file_stat );
+    return ( ( 0 == result ) && ( 0 != ( S_IFDIR & file_stat.st_mode ) ) );
+} //IsAFolder
+
 bool ValidCPMFilename( char * pc )
 {
     if ( !strcmp( pc, "." ) )
@@ -334,6 +341,58 @@ bool ValidCPMFilename( char * pc )
         }
     } //CloseFindFirst
 
+    void ExtractFilename( const char * filename, char * name, char * ext )
+    {
+        bool pastdot = false;
+        const char * p = filename;
+        int extlen = 0;
+        int namelen = 0;
+        while ( *p )
+        {
+            if ( '.' == *p )
+                pastdot = true;
+            else
+            {
+                if ( pastdot )
+                    ext[ extlen++ ] = *p;
+                else
+                    name[ namelen++ ] = *p;
+            }
+
+            p++;
+        }
+
+        assert( namelen <= 8 );
+        assert( extlen <= 3 );
+        name[ namelen ] = 0;
+        ext[ extlen ] = 0;
+    } //ExtractFilename
+
+    bool IsCPMPatternMatch( const char * pattern, const char * name )
+    {
+        bool match = true;
+        int o_pattern = 0, o_name = 0;
+        while ( pattern[ o_pattern ] || name[ o_name ] )
+        {
+            char cp = pattern[ o_pattern ];
+            char cn = name[ o_name ];
+
+            if ( ( '?' != cp ) && ( cp != cn ) )
+            {
+                tracer.Trace( "  not a pattern match at offsets %d / %d\n", o_pattern, o_name );
+                match = false;
+                break;
+            }
+
+            if ( cp )
+                o_pattern++;
+            if ( cn )
+                o_name++;
+        }
+
+        return match;
+    } //IsCPMPatternMatch
+
     bool FindNextFileLinux( const char * pattern, DIR * pdir, LINUX_FIND_DATA & fd )
     {
         do
@@ -344,33 +403,30 @@ bool ValidCPMFilename( char * pc )
 
             // ignore files CP/M just wouldn't understand
 
-            if ( !ValidCPMFilename( pent->d_name ) )
+            if ( !ValidCPMFilename( pent->d_name ) || IsAFolder( pent->d_name ) )
                 continue;
 
             tracer.Trace( "  FindNextFileLinux is matching '%s' with '%s'\n", pattern, pent->d_name );
 
-            // if the first character is ?, match any filename per CP/M rules
-
-            if ( '?' != pattern[ 0 ] )
+            bool match = true;
+            if ( strcmp( pattern, "????????.???" ) )
             {
-                // If the pattern isn't a question mark, look for a literal match
+                // cp/m patterns contain '?' (match anything including nothing), ' ' (match nothing), or literal characters
 
-                if ( strcmp( pattern, pent->d_name ) )
-                    continue;
+                char acName[ 9 ], acExt[ 4 ];
+                char acPatternName[ 9 ], acPatternExt[ 4 ];
+                ExtractFilename( pattern, acPatternName, acPatternExt );
+                ExtractFilename( pent->d_name, acName, acExt );
+
+                tracer.Trace( "  extracted pattern name '%s' ext '%s', file name '%s', ext '%s'\n", acPatternName, acPatternExt, acName, acExt );
+
+                match = IsCPMPatternMatch( acPatternName, acName );
+                if ( match )
+                    match = IsCPMPatternMatch( acPatternExt, acExt );
             }
-            else
-            {
-                char const * pdot = strchr( pattern, '.' );
-                if ( pdot )
-                {
-                    if ( '?' != pdot[ 1 ] )
-                    {
-                        const char * pentdot = strchr( pent->d_name, '.' );
-                        if ( !pentdot || strcmp( pentdot + 1, pdot + 1 ) )
-                            continue;
-                    }
-                }
-            }
+
+            if ( !match )
+                continue;
 
             strcpy( fd.cFileName, pent->d_name );
             return true;
@@ -2061,7 +2117,7 @@ uint8_t x80_invoke_hook()
                 {
                     do
                     {
-                        if ( ValidCPMFilename( fd.cFileName ) )
+                        if ( ValidCPMFilename( fd.cFileName ) && ! IsAFolder( fd.cFileName ) )
                         {
                             ParseFoundFile( fd.cFileName );
                             reg.a = 0;
@@ -2136,7 +2192,7 @@ uint8_t x80_invoke_hook()
                         found = FindNextFileA( g_hFindFirst, &fd );
                         if ( found )
                         {
-                            if ( ValidCPMFilename( fd.cFileName ) )
+                            if ( ValidCPMFilename( fd.cFileName ) && !IsAFolder( fd.cFileName ) )
                             {
                                 ParseFoundFile( fd.cFileName );
                                 reg.a = 0;
