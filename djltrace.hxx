@@ -284,7 +284,7 @@ class CDJLTrace
                     fflush( fp );
             }
             #else
-#if !defined( WATCOM ) && !defined( __APPLE__ )
+#if !defined( WATCOM ) && !defined( __APPLE__ ) && !defined( __clang__ )
             condition; // unused
             format; // unused
 #endif
