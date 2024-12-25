@@ -1903,6 +1903,21 @@ uint8_t x80_invoke_hook()
 
             break;
         }
+        case 7:
+        {
+            // get I/O byte
+            //      Bits     Bits 6,7    Bits 4,5    Bits 2,3    Bits 0,1
+            //      Device   LIST        PUNCH       READER      CONSOLE
+            //    Value
+            //       00      TTY:        TTY:        TTY:        TTY:
+            //       01      CRT:        PTP:        PTR:        CRT:
+            //       10      LPT:        UP1:        UR1:        BAT:
+            //       11      UL1:        UP2:        UR2:        UC1:
+
+            reg.a = memory[ 3 ]; // list = tty, punch = tty, reader = tty, console = tty
+            set_bdos_status();
+            break;
+        }
         case 9:
         {
             // print string terminated by a dollar sign $. string is pointed to by DE
