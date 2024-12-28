@@ -538,8 +538,6 @@ void z80_op_rlc( uint8_t * pval )
     reg.fCarry = bit7;
     if ( bit7 )
         x |= 1;
-    else
-        x &= 0xfe;
     set_sign_zero_parity( x );
     reg.fAuxCarry = false;
     reg.fWasSubtract = false;
@@ -556,8 +554,6 @@ void z80_op_rl( uint8_t * pval )
     x <<= 1;
     if ( reg.fCarry )
         x |= 1;
-    else
-        x &= 0xfe;
     reg.fCarry = bit7;
     set_sign_zero_parity( x );
     reg.fAuxCarry = false;
@@ -576,8 +572,6 @@ void z80_op_rrc( uint8_t * pval )
     reg.fCarry = bit0;
     if ( bit0 )
         x |= 0x80;
-    else
-        x &= 0x7f;
     set_sign_zero_parity( x );
     reg.fAuxCarry = false;
     reg.fWasSubtract = false;
@@ -594,8 +588,6 @@ void z80_op_rr( uint8_t * pval )
     x >>= 1;
     if ( reg.fCarry )
         x |= 0x80;
-    else
-        x &= 0x7f;
     reg.fCarry = bit0;
     set_sign_zero_parity( x );
     reg.fAuxCarry = false;
@@ -708,7 +700,6 @@ void z80_op_srl( uint8_t * pval )
     uint8_t val = *pval;
     reg.fCarry = ( val & 1 );
     val >>= 1;
-    val &= 0x7f;
     set_sign_zero_parity( val );
     reg.clearHN();
     reg.z80_assignYX( val );
