@@ -1803,7 +1803,8 @@ uint16_t x80_emulate( uint16_t maxcycles )
             {
                 reg.fCarry = ( 0 != ( reg.a & 0x80 ) );
                 reg.a <<= 1;
-                reg.a = reg.fCarry ? ( reg.a | 1 ) : ( reg.a & 0xfe );
+                if ( reg.fCarry )
+                    reg.a |= 1;
                 if ( reg.fZ80Mode )
                 {
                     reg.clearHN();
@@ -1838,7 +1839,8 @@ uint16_t x80_emulate( uint16_t maxcycles )
                 bool c = reg.fCarry;
                 reg.fCarry = ( 0 != ( 0x80 & reg.a ) );
                 reg.a <<= 1;
-                reg.a = c ? ( reg.a | 1 ) : ( reg.a & 0xfe );
+                if ( c )
+                    reg.a |= 1;
                 if ( reg.fZ80Mode )
                 {
                     reg.clearHN();
@@ -1852,7 +1854,8 @@ uint16_t x80_emulate( uint16_t maxcycles )
                 bool c = reg.fCarry;
                 reg.fCarry = ( 0 != ( reg.a & 1 ) );
                 reg.a >>= 1;
-                reg.a = c ? ( reg.a | 0x80 ) : ( reg.a & 0x7f );
+                if ( c )
+                    reg.a |= 0x80;
                 if ( reg.fZ80Mode )
                 {
                     reg.clearHN();
