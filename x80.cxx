@@ -35,9 +35,9 @@ static const char * reg_strings[ 8 ] = { "b", "c", "d", "e", "h", "l", "m", "a" 
 static const char * rp_strings[ 4 ] = { "bc", "de", "hl", "sp" };
 static const char * z80_math_strings[ 8 ] = { "add", "adc", "sub", "sbb", "and", "xor", "or", "cp" };
 static const char * z80_rotate_strings[ 8 ] = { "rlc", "rrc", "rl", "rr", "sla", "sra", "sll", "srl" };
-static uint32_t g_State = 0;
-const uint32_t stateTraceInstructions = 1;
-const uint32_t stateEndEmulation = 2;
+static uint8_t g_State = 0;
+const uint8_t stateTraceInstructions = 1;
+const uint8_t stateEndEmulation = 2;
 void x80_trace_instructions( bool t ) { if ( t ) g_State |= stateTraceInstructions; else g_State &= ~stateTraceInstructions; }
 void x80_end_emulation() { g_State |= stateEndEmulation; }
 
@@ -104,7 +104,7 @@ static const char z80_instructions[ 256 ][ 16 ] =
     /*80*/ "add a, b",   "add a, c",   "add a, d",     "add a, e",    "add a, h",     "add a, l",   "add a, (hl)", "add a, a",
     /*88*/ "adc a, b",   "adc a, c",   "adc a, d",     "adc a, e",    "adc a, h",     "adc a, l",   "adc a, (hl)", "adc a, a",
     /*90*/ "sub b",      "sub c",      "sub d",        "sub e",       "sub h",        "sub l",      "sub (hl)",    "sub a",
-    /*98*/ "sbc b",      "sbc c",      "sbc d",        "sbc e",       "sbc h",        "sbc l",      "sbc (hl)",    "sbc a",
+    /*98*/ "sbc a, b",   "sbc a, c",   "sbc a, d",     "sbc a, e",    "sbc a, h",     "sbc a, l",   "sbc a, (hl)", "sbc a, a",
     /*a0*/ "and b",      "and c",      "and d",        "and e",       "and h",        "and l",      "and (hl)",    "and a",
     /*a8*/ "xor b",      "xor c",      "xor d",        "xor e",       "xor h",        "xor l",      "xor (hl)",    "xor a",
     /*b0*/ "or b",       "or c",       "or d",         "or e",        "or h",         "or l",       "or (hl)",     "or a",
