@@ -1793,7 +1793,7 @@ uint8_t x80_invoke_hook()
     tracer.Trace( "bdos function %d: %s, bc %04x, de %04x, hl %04x\n", function, get_bdos_function( function ), reg.B(), reg.D(), reg.H() );
     char acFilename[ CPM_FILENAME_LEN ];
 
-    if ( ( 6 != reg.c ) || ( 0xff != reg.e ) )
+    if ( ( 12 != reg.c ) && ( ( 6 != reg.c ) || ( 0xff != reg.e ) ) ) // hisoft c apps busy loop on get version (12) and console i/o (6)
         kbd_poll_busyloops = 0;
 
     // Generally, only BDOS calls called by apps I tested are implemented.
@@ -2663,7 +2663,6 @@ uint8_t x80_invoke_hook()
                     file_size = round_up( file_size, (uint32_t) 128 ); // cp/m files round up in 128 byte records
                     pfcb->SetRandomIOOffset( (uint16_t) ( file_size / 128 ) );
                     reg.a = 0;
-
                     tracer.Trace( "  file size is %u == %u records; r1 %#x r0 %#x\n", file_size, file_size / 128, pfcb->r1, pfcb->r0 );
 
                     if ( !found )
@@ -2694,7 +2693,6 @@ uint8_t x80_invoke_hook()
                     uint32_t curr = ftell( fp );
                     pfcb->SetRandomIOOffset( (uint16_t) ( curr / 128 ) );
                     reg.a = 0;
-
                     tracer.Trace( "  random record current is %u == %u records; r1 %#x r0 %#x\n", curr, curr / 128, pfcb->r1, pfcb->r0 );
                 }
                 else
@@ -2732,8 +2730,7 @@ uint8_t x80_invoke_hook()
         }
         case 102:
         {
-            // Get file date and time
-
+            // Get file date and time (not in cp/m 2.2)
             break;
         }
         case BDOS_GET_TIME:
@@ -2838,11 +2835,7 @@ uint8_t x80_invoke_hook()
             tracer.Trace( "unhandled BDOS FUNCTION!!!!!!!!!!!!!!!: %u = %#x\n", reg.c, reg.c );
             printf( "unhandled BDOS FUNCTION!!!!!!!!!!!!!!!: %u = %#x\n", reg.c, reg.c );
 
-//            x80_trace_state();
-//            x80_hard_exit( "unhandled bods function", reg.c, 0 );
-
             // CP/M 2.2 mandates returning a 0 status for function numbers that are out of range.
-            // When I find an app that relies on this behavior, I'll remove the hard_exit() above and do this:
 
             reg.a = 0;
             set_bdos_status();
@@ -2959,8 +2952,11 @@ static bool load_file( char const * file_path, long & file_size, void * buffer )
     {
         file_size = portable_filelen( fp );
 
-        if ( file_size > ( 65536 - 1024 ) ) // save room for initial 0x100 reserved + bdos + bios
-            usage( "the input file can't be a cp/m com file" );
+        if ( ( file_size + 0x100 ) > BDOS_ENTRY ) // save room for initial 0x100 + bdos + bios. This doesn't account for BSS; app startup code should do that.
+        {
+            printf( "file size %#08lx, BDOS_ENTRY %#04x\n", file_size, BDOS_ENTRY );
+            usage( "the input file is too large to fit in memory" );
+        }
 
         ok = ( 1 == fread( buffer, file_size, 1, fp ) );
         fclose( fp );
@@ -3202,7 +3198,7 @@ int main( int argc, char * argv[] )
         //   0040-00ff: CP/M global storage
         //   0100-????: App run space growing upward until it collides with the stack
         //   ????-fefb: Stack growing downward until it collides with the app
-        //   fefc-fefd: two bytes of 0 so apps can return instead of a standard app exit.
+        //   fefa-fefb: two bytes of 0 so apps can return instead of a standard app exit.
         //   fefc-fefe: BDOS_ENTRY. JMP to feff for BDOS calls. Where addresses 5-7 jumps to. Hook here breaks WordStar Spellcheck.
         //   feff-feff: OPCODE_HOOK stored here to call back to C code for BDOS calls
         //   ff00-ff33: BIOS_JUMP_TABLE. bios jump table of 3*17 bytes. (0xff03 is stored at addess 0x1). 
@@ -3273,7 +3269,7 @@ int main( int argc, char * argv[] )
         if ( trace )
         {
             x80_trace_state();
-            tracer.Trace( "starting execution of app '%s' size %d\n", acCOM, file_size );
+            tracer.Trace( "starting execution of app '%s' size %ld\n", acCOM, file_size );
         }
     
         if ( force80x24 )
