@@ -3017,6 +3017,7 @@ int main( int argc, char * argv[] )
     
                 strcat( pCommandTail, " " );
                 strcat( pCommandTail, parg );
+                strupr( pCommandTail );
             }
     
             if ( 0 == pcCOM && ( '-' == c
