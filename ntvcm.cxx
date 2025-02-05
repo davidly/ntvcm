@@ -45,6 +45,13 @@
 #include <djl_con.hxx>
 #include <djl_cycle.hxx>
 
+#define  FILENAME   "ntvcm"
+#define  VERSION    "0.1"
+#define  BUILD      "0312"
+#if !defined(COMMIT_ID)
+#define  COMMIT_ID  ""
+#endif
+
 // On non-Windows platforms djl_rssrdr.hxx has a dependency on:
 //     httplib.h from https://github.com/yhirose/cpp-httplib
 //     openssl headers and libraries
@@ -2846,52 +2853,82 @@ uint8_t x80_invoke_hook()
     return OPCODE_RET;
 } //x80_invoke_hook
 
-void usage( char const * perr = 0 )
+void usage()
 {
-    g_consoleConfig.RestoreConsole( false );
-
-    if ( perr )
-        printf( "error: %s\n", perr );
-
-    printf( "NT Virtual CP/M 2.2 Machine: emulates a CP/M 2.2 i8080/Z80 runtime environment\n" );
-    printf( "usage: ntvcm [-c] [-p] [-s:X] [-t] <cp/m 2.2 .com file> [filearg1] [filearg2]\n" );
-    printf( "  notes: filearg1 and filearg2 optionally specify filename arguments for the CP/M command\n" );
-    printf( "         -b     turn bios console key backspace/BS/0x08 to delete/DEL/0x7f. for Turbo Pascal\n" );
-    printf( "         -c     never auto-detect ESC characters and change to to 80x24 mode\n" );
-    printf( "         -C     always switch to 80x24 mode (Windows only)\n" );
-    printf( "         -d     don't clear the display on app exit when in 80x24 mode\n" );
-    printf( "         -f:<file> plain text file of characters fed to the app as keystrokes.\n" );
-    printf( "         -i     trace 8080/Z80 instructions when tracing with -t\n" );
-    printf( "         -k     translate Kaypro II extended characters to approximate native characters\n" );
-    printf( "         -l     force CP/M filenames to be lowercase (can be useful on Linux)\n" );
-    printf( "         -n     don't sleep for apps in tight bdos 6 loops. use with apps like nvbasic.\n" );
-    printf( "         -p     show performance information at app exit\n" ); 
-    printf( "         -s:X   speed in Hz. Default is 0, which is as fast as possible.\n" );
-    printf( "                for 4Mhz, use -s:4000000\n" );
-    printf( "         -t     enable debug tracing to ntvcm.log\n" );
-    printf( "         -v:X   translate escape sequences to VT-100 where X can be one of:\n" );
-    printf( "                  5:  translate vt-52 escape sequences. for CalcStar and other apps\n" );
-    printf( "                  k:  translate Kaypro II / Lear-Siegler ADM-3A escape sequences. for strtrk.com\n" );
-    printf( "         -z:X   applies X as a hex mask to SetProcessAffinityMask, e.g.:\n" );
-    printf( "                  /z:11    2 performance cores on an i7-1280P\n" );
-    printf( "                  /z:3000  2 efficiency cores on an i7-1280P\n" );
-    printf( "                  /z:11    2 random good cores on a 5950x\n" );
-    printf( "         -8     emulate the i8080, not Z80\n" );
-    printf( "  e.g. to assemble, load, and run test.asm:\n" );
-    printf( "       ntvcm asm.com test\n" );
-    printf( "       ntvcm load.com test\n" );
-    printf( "       ntvcm test.com\n" );
-    printf( "  e.g. to run Star Trek in mbasic in 80x24 mode using i8080 emulation:\n" );
-    printf( "       ntvcm -8 -C mbasic startrek.bas\n" );
-    printf( "  %s\n", build_string() );
-    exit( -1 );
+    printf( "Usage: ntvcm [-?] [-c] [-p] [-s:X] [-t] <command> [arg1] [arg2]\n" );
 } //usage
 
-static void  load_input_file_text( const char * file_path )
+void help()
+{
+    usage();
+    printf ("A CP/M 2.2 emulator.\n\n");
+    printf( "  -b        backspace/BS/0x08 key sends delete/DEL/0x7f.\n" );
+    printf( "            (for use with Turbo Pascal).\n" );
+    printf( "  -c        never auto-detect ESC characters and always change\n" );
+    printf( "            to to 80x24 mode.\n" );
+#if defined( _WIN32 )  // Windows only
+    printf( "  -C        always switch to 80x24 mode.\n" );
+#endif
+    printf( "  -d        don't clear the display on exit when in 80x24 mode.\n" );
+    printf( "  -f:<file> specify an input file containing keystrokes.\n" );
+    printf( "  -i        trace 8080/Z80 instructions when tracing with -t.\n" );
+    printf( "  -k        translate Kaypro II extended characters to ASCII\n" );
+    printf( "            equivalents.\n" );
+    printf( "  -l        force CP/M filenames to be lowercase.\n" );
+    printf( "  -n        don't sleep for apps in tight bdos 6 loops. (Use\n" );
+    printf( "            with apps like nvbasic).\n" );
+    printf( "  -p        show performance information at app exit.\n" ); 
+    printf( "  -s:X      specify clock speed in Hz.\n" ); 
+    printf( "            defaults to 0 which is as fast as possible.\n" );
+    printf( "  -t        enable debug tracing to ntvcm.log.\n" );
+    printf( "  -V        display version and exit.\n" );
+    printf( "  -v:X      translate escape sequences to VT-100\n" );
+    printf( "  -v:X      where X can be one of:\n" );
+    printf( "     5:     for vt-52 escape sequences (use with CalcStar etc)\n" );
+    printf( "     k:     for Kaypro II/Lear-Siegler ADM-3A escape sequences.\n" );
+    printf( "            (use with strtrk).\n" );
+    printf( "  -z:X      applies X as a hex mask to SetProcessAffinityMask.\n" );
+    printf( "              e.g.:\n" );
+    printf( "              /z:11    2 performance cores on an i7-1280P\n" );
+    printf( "              /z:3000  2 efficiency cores on an i7-1280P\n" );
+    printf( "              /z:11    2 random good cores on a 5950x\n" );
+    printf( "  -8        use 8080 instruction set, not Z80\n\n" );
+    printf( "  e.g. to assemble, load, and run test.asm:\n" );
+    printf( "            ntvcm asm.com test\n" );
+    printf( "            ntvcm load.com test\n" );
+    printf( "            ntvcm test.com\n\n" );
+    printf( "  e.g. to run test.com at 4MHz:\n" );
+    printf( "            ntvcm -s:4000000 test\n\n" );
+    printf( "  e.g. to run Star Trek in mbasic in 80x24 mode using i8080 emulation:\n" );
+    printf( "            ntvcm -8 -C mbasic startrek.bas\n\n" );
+    exit( 0 );
+} //help
+
+
+void version()  // Display version information
+{
+   printf("%s: Version %s.%s%s Compiled: ", FILENAME, VERSION, BUILD, COMMIT_ID);
+   if (__DATE__[4] == ' ') 
+      printf( "0%c %c%c%c %s %s\n", __DATE__[5], __DATE__[0], __DATE__[1], __DATE__[2], &__DATE__[7], __TIME__ );
+   else
+      printf( "%c%c %c%c%c %s %s\n", __DATE__[4], __DATE__[5], __DATE__[0], __DATE__[1], __DATE__[2], &__DATE__[7], __TIME__ );
+   exit( 0 );
+} // version
+
+void error( char const * perr = 0 )
+{
+    g_consoleConfig.RestoreConsole( false );
+    if ( perr )
+        printf( "error: %s\n", perr );
+    usage();
+    exit( -1 );
+} //error
+
+static void load_input_file_text( const char * file_path )
 {
     FILE * fp = fopen( file_path, "rb" );
     if ( !fp )
-        usage( "-f file not found" );
+        error( "-f file not found" );
     CFile thefile( fp );
 
     size_t file_size = portable_filelen( fp );
@@ -2901,7 +2938,7 @@ static void  load_input_file_text( const char * file_path )
     if ( !ok )
     {
         printf( "can't read from text input file '%s', error %d = %s\n", file_path, errno, strerror( errno ) );
-        usage( "can't read from -f file" );
+        error( "can't read from -f file" );
     }
 
     // remove any line feeds. stop at ^z. pass through CR and TAB. fail on other non-alpha characters.
@@ -2916,7 +2953,7 @@ static void  load_input_file_text( const char * file_path )
         else if ( 10 != c ) // line feed
         {
             tracer.Trace( "input file has byte %02x at offset %zd\n", c, cur );
-            usage( "-f input file can't contain binary data" );
+            error( "-f input file can't contain binary data" );
         }
     }
 } //load_input_file_text
@@ -2955,7 +2992,7 @@ static bool load_file( char const * file_path, long & file_size, void * buffer )
         if ( ( file_size + 0x100 ) > BDOS_ENTRY ) // save room for initial 0x100 + bdos + bios. This doesn't account for BSS; app startup code should do that.
         {
             printf( "file size %#08lx, BDOS_ENTRY %#04x\n", file_size, BDOS_ENTRY );
-            usage( "the input file is too large to fit in memory" );
+            error( "the input file is too large to fit in memory" );
         }
 
         ok = ( 1 == fread( buffer, file_size, 1, fp ) );
@@ -3011,7 +3048,7 @@ int main( int argc, char * argv[] )
             {
                 size_t tailLen = strlen( pCommandTail ) + strlen( parg ) + 1 + 1; // +1 null termination +1 space
                 if ( tailLen > 127 )
-                    usage( "command length is too long for the 127 char limit in CP/M" );
+                    error( "command length is too long for the 127 char limit in CP/M" );
     
                 // CP/M puts a space at the start of non-zero-length command tails. Also, add a space between arguments.
     
@@ -3026,65 +3063,77 @@ int main( int argc, char * argv[] )
 #endif
                 ) )
             {
-                char ca = (char) tolower( parg[1] );
-    
-                if ( '8' == ca )
-                    reg.fZ80Mode = false;
-                else if ( 'b' == parg[1] )
-                    g_backspaceToDel = true;
-                else if ( 'c' == parg[1] )
-                    g_forceConsole = true;
-                else if ( 'C' == parg[1] )
-                    force80x24 = true;
-                else if ( 'd' == ca )
-                    clearDisplayOnExit = false;
-                else if ( 'f' == ca )
-                {
-                    if ( ( ':' != parg[2] ) || !strlen( parg + 3 ) )
-                        usage( ":<filename> expected with -f" );
+                char ca = (char)( parg[1] );
 
-                    pfileInputText = parg + 3;
-                }
-                else if ( 'i' == ca )
-                    traceInstructions = true;
-                else if ( 'k' == ca )
-                    g_kayproToCP437 = true;
-                else if ( 'l' == ca )
-                    g_forceLowercase = true;
-                else if ( 'n' == ca )
-                    g_sleepOnKbdLoop = false;
-                else if ( 'p' == ca )
-                    showPerformance = true;
-                else if ( 's' == ca )
+                if ( 'V' == ca )
+                    version();
+#if defined( _WIN32 )  // Windows only
+                else if ( 'C' == parg[1] ) // MT - moved other wise option would be converted to lower case before it was tested
+                    force80x24 = true;
+#endif
+                else // Try to match a lower case options
                 {
-                    if ( ':' == parg[2] )
-                        clockrate = strtoull( parg + 3 , 0, 10 );
+#if defined( _WIN32 )  // Command line options are case sensitive on Linux/NetBSD... 
+                    ca = tolower( ca );
+#endif
+                    if ( 'h' == ca || '?' == ca )
+                        help();
+                    else if ( '8' == ca )
+                        reg.fZ80Mode = false;
+                    else if ( 'b' == parg[1] )
+                        g_backspaceToDel = true;
+                    else if ( 'c' == parg[1] )
+                        g_forceConsole = true;
+                    else if ( 'd' == ca )
+                        clearDisplayOnExit = false;
+                    else if ( 'f' == ca )
+                    {
+                        if ( ( ':' != parg[2] ) || !strlen( parg + 3 ) )
+                            error( ":<filename> expected with -f" );
+
+                        pfileInputText = parg + 3;
+                    }
+                    else if ( 'i' == ca )
+                        traceInstructions = true;
+                    else if ( 'k' == ca )
+                        g_kayproToCP437 = true;
+                    else if ( 'l' == ca )
+                        g_forceLowercase = true;
+                    else if ( 'n' == ca )
+                        g_sleepOnKbdLoop = false;
+                    else if ( 'p' == ca )
+                        showPerformance = true;
+                    else if ( 's' == ca )
+                    {
+                        if ( ':' == parg[2] )
+                            clockrate = strtoull( parg + 3 , 0, 10 );
+                        else
+                            error( "colon required after s argument" );
+                    }
+                    else if ( 't' == ca )
+                        trace = true;
+                    else if ( 'v' == parg[1] )
+                    {
+                        if ( ':' != parg[2] )
+                            error( "colon required after v argument" );
+        
+                        if ( 'k' == tolower( parg[3] ) )
+                            g_termEscape = termKayproII;
+                        else if ( '5' == parg[3] )
+                            g_termEscape = termVT52;
+                        else
+                            error( "invalid terminal emulation identifier. Only 5 and k are supported" );
+                    }
+                    else if ( 'z' == ca )
+                    {
+                        if ( ':' == parg[2] )
+                            processAffinityMask = strtoull( parg + 3 , 0, 16 );
+                        else
+                            error( "colon required after z argument" );
+                    }
                     else
-                        usage( "colon required after s argument" );
+                        error( "invalid argument specified" );
                 }
-                else if ( 't' == ca )
-                    trace = true;
-                else if ( 'v' == parg[1] )
-                {
-                    if ( ':' != parg[2] )
-                        usage( "colon required after v argument" );
-    
-                    if ( 'k' == tolower( parg[3] ) )
-                        g_termEscape = termKayproII;
-                    else if ( '5' == parg[3] )
-                        g_termEscape = termVT52;
-                    else
-                        usage( "invalid terminal emulation identifier. Only 5 and k are supported" );
-                }
-                else if ( 'z' == ca )
-                {
-                    if ( ':' == parg[2] )
-                        processAffinityMask = strtoull( parg + 3 , 0, 16 );
-                    else
-                        usage( "colon required after z argument" );
-                }
-                else
-                    usage( "invalid argument specified" );
             }
             else
             {
@@ -3113,7 +3162,7 @@ int main( int argc, char * argv[] )
     
         if ( 0 == pcCOM )
         {
-            usage( "no CP/M command specified" );
+            error( "no CP/M command specified" );
             assume_false;
         }
     
@@ -3126,7 +3175,7 @@ int main( int argc, char * argv[] )
         if ( !file_exists( acCOM ) )
         {
             if ( ends_with( acCOM, ".com" ) )
-                usage( "can't find command file" );
+                error( "can't find command file" );
             else
             {
                 strcat( acCOM, ".com" );
@@ -3136,7 +3185,7 @@ int main( int argc, char * argv[] )
                     strcat( acCOM, ".COM" );       // for case-sensitive file systems
                     
                     if ( !file_exists( acCOM ) )
-                        usage( "can't find command file" );
+                        error( "can't find command file" );
                 }
             }
         }
