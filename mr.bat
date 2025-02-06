@@ -1,6 +1,6 @@
 
-
-FOR /F "tokens=*" %%g IN ('git log -1 HEAD --format=%h 2> /dev/null') do (SET COMMIT=%%g)
+@ECHO OFF
+FOR /F "tokens=*" %%s IN ('git log -1 HEAD --format^=%%h ') DO (SET COMMIT=%%s)
 rem ECHO %COMMIT%
 
 rem with RSS
