@@ -47,7 +47,9 @@
 
 #define  FILENAME   "ntvcm"
 #define  VERSION    "0.1"
-#define  BUILD      "0312"
+#if !defined(BUILD)
+#define  BUILD      ""
+#endif
 #if !defined(COMMIT_ID)
 #define  COMMIT_ID  ""
 #endif
@@ -2907,7 +2909,7 @@ void help()
 
 void version()  // Display version information
 {
-   printf("%s: Version %s.%s%s Compiled: ", FILENAME, VERSION, BUILD, COMMIT_ID);
+   printf("%s: Version %s%s%s Compiled: ", FILENAME, VERSION, BUILD, COMMIT_ID);
    if (__DATE__[4] == ' ') 
       printf( "0%c %c%c%c %s %s\n", __DATE__[5], __DATE__[0], __DATE__[1], __DATE__[2], &__DATE__[7], __TIME__ );
    else
