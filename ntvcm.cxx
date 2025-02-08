@@ -2866,7 +2866,7 @@ void help()
     printf ("A CP/M 2.2 emulator.\n\n");
     printf( "  -b        backspace/BS/0x08 key sends delete/DEL/0x7f.\n" );
     printf( "            (for use with Turbo Pascal).\n" );
-    printf( "  -c        never auto-detect ESC characters and always change\n" );
+    printf( "  -c        never auto-detect ESC characters and change\n" );
     printf( "            to to 80x24 mode.\n" );
 #if defined( _WIN32 )  // Windows only
     printf( "  -C        always switch to 80x24 mode.\n" );
