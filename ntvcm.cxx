@@ -3190,7 +3190,7 @@ int main( int argc, char * argv[] )
                         error( "can't find command file" );
                 }
             }
-        }
+        }                  
 
         // The Pascal/Z compiler's pasopt.com optimizer has a bug that depends on uninitialized RAM
         // being set to a non-zero value. The location is -30eH bytes from the BDOS address.

@@ -1719,6 +1719,9 @@ const char * x80_render_operation( uint16_t address )
 
 not_inlined void x80_trace_state()
 {
+    if ( !tracer.IsEnabled() ) // trace instructions may be on but global tracing turned off
+        return;
+
     uint8_t op = memory[ reg.pc ];
     uint8_t op2 = memory[ reg.pc + 1 ];
     uint8_t op3 = memory[ reg.pc + 2 ];
@@ -1732,6 +1735,8 @@ not_inlined void x80_trace_state()
         tracer.Trace( "pc %04x, op %02x, op2 %02x, op3 %02x, a %02x, B %04x, D %04x, H %04x, sp %04x, %s, %s\n",
                       reg.pc, op, op2, op3, reg.a, reg.B(), reg.D(), reg.H(), reg.sp,
                       reg.renderFlags(), x80_render_operation( reg.pc ) );
+
+//    tracer.Trace( "  carry flag: %u\n", memory[ 0xed4d ] );
 } //x80_trace_state
 
 bool check_conditional( uint8_t op ) // checks for conditional jump, call, and return
