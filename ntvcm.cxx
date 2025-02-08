@@ -2885,7 +2885,7 @@ void help()
     printf( "  -t        enable debug tracing to ntvcm.log.\n" );
     printf( "  -V        display version and exit.\n" );
     printf( "  -v:X      translate escape sequences to VT-100\n" );
-    printf( "  -v:X      where X can be one of:\n" );
+    printf( "            where X can be one of:\n" );
     printf( "     5:     for vt-52 escape sequences (use with CalcStar etc)\n" );
     printf( "     k:     for Kaypro II/Lear-Siegler ADM-3A escape sequences.\n" );
     printf( "            (use with strtrk).\n" );
