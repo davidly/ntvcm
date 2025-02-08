@@ -1,4 +1,0 @@
-as rext.asm
-ln -ro r.com r.o rext.o -lc
-pip r.lib=r.rsm[o],rbegin.o[o]
-
