@@ -2866,7 +2866,7 @@ void help()
     printf ("A CP/M 2.2 emulator.\n\n");
     printf( "  -b        backspace/BS/0x08 key sends delete/DEL/0x7f.\n" );
     printf( "            (for use with Turbo Pascal).\n" );
-    printf( "  -c        never auto-detect ESC characters and always change\n" );
+    printf( "  -c        never auto-detect ESC characters and change\n" );
     printf( "            to to 80x24 mode.\n" );
 #if defined( _WIN32 )  // Windows only
     printf( "  -C        always switch to 80x24 mode.\n" );
@@ -2885,7 +2885,7 @@ void help()
     printf( "  -t        enable debug tracing to ntvcm.log.\n" );
     printf( "  -V        display version and exit.\n" );
     printf( "  -v:X      translate escape sequences to VT-100\n" );
-    printf( "  -v:X      where X can be one of:\n" );
+    printf( "            where X can be one of:\n" );
     printf( "     5:     for vt-52 escape sequences (use with CalcStar etc)\n" );
     printf( "     k:     for Kaypro II/Lear-Siegler ADM-3A escape sequences.\n" );
     printf( "            (use with strtrk).\n" );
@@ -3076,7 +3076,7 @@ int main( int argc, char * argv[] )
                 else // Try to match a lower case options
                 {
 #if defined( _WIN32 )  // Command line options are case sensitive on Linux/NetBSD... 
-                    ca = tolower( ca );
+                    ca = (char) tolower( ca );
 #endif
                     if ( 'h' == ca || '?' == ca )
                         help();
@@ -3190,7 +3190,7 @@ int main( int argc, char * argv[] )
                         error( "can't find command file" );
                 }
             }
-        }
+        }                  
 
         // The Pascal/Z compiler's pasopt.com optimizer has a bug that depends on uninitialized RAM
         // being set to a non-zero value. The location is -30eH bytes from the BDOS address.

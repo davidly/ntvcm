@@ -76,36 +76,49 @@ NTVCM can be built to target real-mode DOS using the Watcom compiler. Details in
 
 The two versions of Turbo Pascal and the apps they generate use a tiny fraction of Z80 instructions. It took a day to implement the instructions for Turbo Pascal, and three more days to implement the full instruction set. Getting the undocumented features to work took an extra couple days. The invaluable resources required to do that are listed in x80.cxx. No single resource was 100% correct or complete. It takes a village :)
 
-    NT Virtual CP/M 2.2 Machine: emulates a CP/M 2.2 i8080/Z80 runtime environment
+    Usage: ntvcm [-?] [-c] [-p] [-s:X] [-t] <command> [arg1] [arg2]
+    A CP/M 2.2 emulator.
 
-    usage: ntvcm [-c] [-p] [-s:X] [-t] <cp/m 2.2 .com file> [filearg1] [filearg2]
+      -b        backspace/BS/0x08 key sends delete/DEL/0x7f.
+                (for use with Turbo Pascal).
+      -c        never auto-detect ESC characters and change
+                to to 80x24 mode.
+      -C        always switch to 80x24 mode.
+      -d        don't clear the display on exit when in 80x24 mode.
+      -f:<file> specify an input file containing keystrokes.
+      -i        trace 8080/Z80 instructions when tracing with -t.
+      -k        translate Kaypro II extended characters to ASCII
+                equivalents.
+      -l        force CP/M filenames to be lowercase.
+      -n        don't sleep for apps in tight bdos 6 loops. (Use
+                with apps like nvbasic).
+      -p        show performance information at app exit.
+      -s:X      specify clock speed in Hz.
+                defaults to 0 which is as fast as possible.
+      -t        enable debug tracing to ntvcm.log.
+      -V        display version and exit.
+      -v:X      translate escape sequences to VT-100
+                where X can be one of:
+         5:     for vt-52 escape sequences (use with CalcStar etc)
+         k:     for Kaypro II/Lear-Siegler ADM-3A escape sequences.
+                (use with strtrk).
+      -z:X      applies X as a hex mask to SetProcessAffinityMask.
+                  e.g.:
+                  /z:11    2 performance cores on an i7-1280P
+                  /z:3000  2 efficiency cores on an i7-1280P
+                  /z:11    2 random good cores on a 5950x
+      -8        use 8080 instruction set, not Z80
 
-    notes:    filearg1 and filearg2 optionally specify filename arguments for the command
-            -b     translate bios console input backspace (BS / 0x08) to delete (DEL / 0x7f).
-            -c     never auto-detect ESC characters and change to to 80x24 mode
-            -C     always switch to 80x24 mode
-            -d     don't clear the display on app exit when in 80x24 mode
-            -i     trace 8080/Z80 instructions when tracing with -t
-            -k     translate Kaypro II extended characters to Windows code page 437 or Linux ascii art
-            -l     force CP/M filenames to be lowercase (can be useful on Linux)
-            -p     show performance information at app exit
-            -s:X   speed in Hz. Default is 0, which is as fast as possible.
-                   for 4Mhz, use -s:4000000
-            -t     enable debug tracing to ntvcm.log
-            -v:X   translate escape sequences to VT-100 where X can be one of:
-                     5:  translate vt-52 escape sequences. for CalcStar and other apps
-                     k:  translate Kaypro II / Lear-Siegler ADM-3A escape sequences. for strtrk.com
-            -z:X   applies X as a hex mask to SetProcessAffinityMask, e.g.:
-                     /z:11    2 performance cores on an i7-1280P
-                     /z:3000  2 efficiency cores on an i7-1280P
-                     /z:11    2 random good cores on a 5950x
-            -8     emulate the i8080, not Z80
-            e.g. to assemble, load, and run test.asm:
-                 ntvcm asm.com test
-                 ntvcm load.com test
-                 ntvcm test.com
-            e.g. to run Star Trek in mbasic in 80x24 mode using i8080 emulation:
-                 ntvcm -8 -C mbasic startrek.bas
+      e.g. to assemble, load, and run test.asm:
+                ntvcm asm.com test
+                ntvcm load.com test
+                ntvcm test.com
+
+      e.g. to run test.com at 4MHz:
+                ntvcm -s:4000000 test
+
+      e.g. to run Star Trek in mbasic in 80x24 mode using i8080 emulation:
+                ntvcm -8 -C mbasic startrek.bas
 
 Example usage:
 
