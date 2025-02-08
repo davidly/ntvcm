@@ -3076,7 +3076,7 @@ int main( int argc, char * argv[] )
                 else // Try to match a lower case options
                 {
 #if defined( _WIN32 )  // Command line options are case sensitive on Linux/NetBSD... 
-                    ca = tolower( ca );
+                    ca = (char) tolower( ca );
 #endif
                     if ( 'h' == ca || '?' == ca )
                         help();
