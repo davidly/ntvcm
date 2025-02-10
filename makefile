@@ -24,6 +24,15 @@
 #                    - Added the ability to create debug code using target-
 #                      specific variable values - MT
 #
+#  Usage:
+#
+#  make 	     - Rebuild application using release flags.  
+#  make all		
+#  make debug	     - Rebuild application using debug flags.  
+#  make clean        - Deletes object files
+#  make VERBOSE=1    - Verbose output
+#  make backup       - Backup files
+#
 
 PROJECT	= gcc-ntvcm
 PROGRAM	= ntvcm
@@ -33,28 +42,32 @@ OBJECTS	= $(SOURCES:.cxx=.o)
 OUTPUT	= $(PROGRAM).out
 LANG	= LANG_$(shell (echo $$LANG | cut -f 1 -d '_'))
 COMMIT	!= git log -1 HEAD --format=%h 2> /dev/null
-#BUILD	!= git rev-list --count HEAD 2> /dev/null
 BUILD	!= printf "%04d" $(shell git rev-list --count HEAD 2> /dev/null)
-UNAME	=  $(shell uname)
+UNAME	!= uname
 CC	= g++
 
 LIBS	= 
 LFLAGS	= -static
-CFLAGS	= -ggdb -Ofast -fno-builtin -I .
-CFLAGS	+= -Wno-comment -Wno-deprecated-declarations -Wno-builtin-macro-redefined
+CFLAGS	= -ggdb -fno-builtin -I .
+
+ifndef VERBOSE
+VERBOSE	= 0
+endif
 
 ifneq ($(COMMIT),)
-CFLAGS	+= -DCOMMIT_ID='" [Commit Id : $(COMMIT)]"'
+CFLAGS	+= -DCOMMIT_ID='" [Commit Id: $(COMMIT)]"'
 endif
 
 ifneq ($(BUILD),)
 CFLAGS	+= -DBUILD='".$(BUILD)"'
 endif
 
-all: clean $(PROGRAM) $(OBJECTS)
+all: clean 
+all: CFLAGS	+= -flto -Ofast
+all: $(PROGRAM) $(OBJECTS)
 
 $(PROGRAM): $(OBJECTS)
-ifdef VERBOSE
+ifneq ($(VERBOSE),0)
 	@echo
 	@echo $(CC) $(LFLAGS) $(OBJECTS) -o $@ $(LIBS)
 	@echo
@@ -63,17 +76,18 @@ endif
 	@ls --color $@  
 
 $(OBJECTS) : $(SOURCES)
-ifdef VERBOSE
+ifneq ($(VERBOSE),0)
 	@echo 
 	@echo $(CC) $(CFLAGS) -c $(SOURCES)
 endif
 	@$(CC) $(CFLAGS) -c $(SOURCES)
 
-debug: CFLAGS	+= -g -DDEBUG
-debug: all
+debug: clean
+debug: CFLAGS	+= -Og  -D DEBUG
+debug: $(PROGRAM)
 
 clean:
-	@rm -f $(PROGRAM) # -v
+#	@rm -f $(PROGRAM) # -v
 	@rm -f $(OBJECTS) # -v
 
 backup: clean
