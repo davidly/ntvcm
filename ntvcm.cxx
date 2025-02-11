@@ -45,6 +45,7 @@
 #include <djl_con.hxx>
 #include <djl_cycle.hxx>
 
+#define  AUTHOR     "David Lee"
 #define  FILENAME   "ntvcm"
 #define  VERSION    "0.1"
 #if !defined(BUILD)
@@ -2914,7 +2915,6 @@ void version()  // Display version information
       printf( "0%c %c%c%c %s %s\n", __DATE__[5], __DATE__[0], __DATE__[1], __DATE__[2], &__DATE__[7], __TIME__ );
    else
       printf( "%c%c %c%c%c %s %s\n", __DATE__[4], __DATE__[5], __DATE__[0], __DATE__[1], __DATE__[2], &__DATE__[7], __TIME__ );
-   exit( 0 );
 } // version
 
 void error( char const * perr = 0 )
@@ -3068,7 +3068,11 @@ int main( int argc, char * argv[] )
                 char ca = (char)( parg[1] );
 
                 if ( 'V' == ca )
+                {
                     version();
+                    printf("License CC0 1.0 Universal: See <https://creativecommons.org/publicdomain/zero/1.0/>.\n");
+                    exit(0);
+                }
 #if defined( _WIN32 )  // Windows only
                 else if ( 'C' == parg[1] ) // MT - moved other wise option would be converted to lower case before it was tested
                     force80x24 = true;
