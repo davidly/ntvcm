@@ -200,10 +200,10 @@ inline const char * target_platform()
 
 inline const char * build_type()
 {
-    #ifdef DEBUG
-       return "debug";
+    #ifdef NDEBUG
+        return "release";
     #else
-       return "release";
+       return "debug";
     #endif
 } //build_type
 
