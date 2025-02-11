@@ -11,8 +11,9 @@
 #
 #  Usage:
 #
-#  make 	     - Rebuild application using release flags.  
+#  make              - Incremental make.
 #  make all		
+#  make release      - Rebuild application using release flags.  
 #  make debug	     - Rebuild application using debug flags.  
 #  make clean        - Deletes object files
 #  make VERBOSE=1    - Verbose output
@@ -47,8 +48,7 @@ ifneq ($(BUILD),)
 CFLAGS	+= -DBUILD='".$(BUILD)"'
 endif
 
-all: clean 
-all: CFLAGS	+= -flto -Ofast
+all: CFLAGS	+= -flto -Ofast -D NDEBUG
 all: $(PROGRAM) $(OBJECTS)
 
 $(PROGRAM): $(OBJECTS)
@@ -67,8 +67,11 @@ ifneq ($(VERBOSE),0)
 endif
 	@$(CC) $(CFLAGS) -c $(SOURCES)
 
+release: clean
+release: all
+
 debug: clean
-debug: CFLAGS	+= -Og  -D DEBUG
+debug: CFLAGS	+= -Og -D DEBUG
 debug: $(PROGRAM)
 
 clean:
