@@ -45,11 +45,10 @@
 #include <djl_con.hxx>
 #include <djl_cycle.hxx>
 
-#define  AUTHOR     "David Lee"
-#define  FILENAME   "ntvcm"
-#define  VERSION    "0.1"
+#define FILENAME   "ntvcm"
+#define VERSION    "0.1"
 #if !defined(BUILD)
-#define  BUILD      ""
+#define BUILD      ""
 #endif
 #if !defined(COMMIT_ID)
 #define  COMMIT_ID  ""
@@ -1604,7 +1603,13 @@ char get_next_kbd_char()
 
 bool is_kbd_char_available()
 {
-    return ( ( g_fileInputOffset < g_fileInputText.size() ) || g_consoleConfig.throttled_kbhit() );
+    if ( g_fileInputOffset < g_fileInputText.size() )
+        return true;
+
+    if ( g_sleepOnKbdLoop )
+        return g_consoleConfig.throttled_kbhit();
+
+    return g_consoleConfig.portable_kbhit();
 } //is_kbd_char_available    
 
 bool cpm_read_console( char * buf, size_t bufsize, uint8_t & out_len )

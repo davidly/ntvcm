@@ -260,6 +260,7 @@ extern void x80_invoke_out( uint8_t x ); // called for the out instruction
 extern void x80_invoke_in( uint8_t x );  // called for the in instruction
 extern void x80_invoke_halt( void );     // called when the 8080 hlt (on Z80 halt) instruction is executed
 extern uint8_t x80_invoke_hook( void );  // called with the OPCODE_HOOK instruction is executed
+extern void x80_hard_exit( const char * pcerror, uint8_t arg1, uint8_t arg2 ); // called on failures to exit the app
 
 // emulator API
 
@@ -268,4 +269,3 @@ extern void x80_trace_instructions( bool trace );              // enable/disable
 extern void x80_end_emulation();                               // stop the emulation
 extern void x80_trace_state( void );                           // trace the registers
 extern const char * x80_render_operation( uint16_t address );  // return a string with the disassembled instruction at address
-extern void x80_hard_exit( const char * pcerror, uint8_t arg1, uint8_t arg2 ); // called on failures to exit the app
