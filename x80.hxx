@@ -176,7 +176,7 @@ struct registers
 
         ac[ next++ ] = fCarry ? 'C' : 'c';
         ac[ next ] = 0;
-    
+
         return ac;
     } //renderFlags
 

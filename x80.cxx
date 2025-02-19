@@ -515,7 +515,7 @@ void z80_op_bit( uint8_t val, uint8_t bit, z80_value_source vs )
     assert( bit <= 7 );
     reg.fAuxCarry = true; // per doc
     reg.fWasSubtract = false;
-    
+
     reg.fSign = ( ( 7 == bit ) && ( 0 != ( 0x80 & val ) ) ); // Zilog doc says fSign is "unknown", but hardware does this
     uint8_t cmp = ( 1 << bit );
     reg.fZero = ( 0 == ( val & cmp ) );
@@ -796,7 +796,7 @@ uint16_t z80_emulate( uint8_t op )    // this is just for instructions that aren
         case 0xcb: // rotate / bits
         {
             pcbyte(); // get past op2
-    
+
             if ( 0x20 == ( op2 & 0xf8 ) ) // sla
             {
                 cycles = 8;
@@ -903,7 +903,7 @@ uint16_t z80_emulate( uint8_t op )    // this is just for instructions that aren
         {
             reg.r++;
             pcbyte(); // consume op2: the dd or fd
-    
+
             if ( 0x21 == op2 )  // ld ix/iy word
                 * reg.z80_indexAddress( op ) = pcword();
             else if ( 0x22 == op2 ) // ld (address), ix/iy
@@ -962,7 +962,7 @@ uint16_t z80_emulate( uint8_t op )    // this is just for instructions that aren
                 uint8_t fromval = op2 & 0xf;
                 if ( fromval >= 8 )
                     fromval -= 8;
-    
+
                 uint8_t tmp = ( 0 == fromval ) ? reg.b :
                               ( 1 == fromval ) ? reg.c :
                               ( 2 == fromval ) ? reg.d :
@@ -970,7 +970,7 @@ uint16_t z80_emulate( uint8_t op )    // this is just for instructions that aren
                               ( 4 == fromval ) ? reg.z80_getIndexByte( op, 0 ) :
                               ( 5 == fromval ) ? reg.z80_getIndexByte( op, 1 ) :
                               reg.a;
-    
+
                 if ( op2 <= 0x47 )
                     reg.b = tmp;
                 else if ( op2 <= 0x4f )
@@ -997,9 +997,9 @@ uint16_t z80_emulate( uint8_t op )    // this is just for instructions that aren
             {
                 cycles = 19;
                 pcbyte(); // consume op3
-    
+
                 // if 6, there is an op4 for the index (not hl-indexed memory); otherwise use a register value
-    
+
                 uint8_t src = op2 & 0x7;
                 uint8_t val = ( 6 == src ) ? pcbyte() : src_value_rm( src );
                 uint16_t i = reg.z80_getIndex( op );
@@ -1031,12 +1031,12 @@ uint16_t z80_emulate( uint8_t op )    // this is just for instructions that aren
                 // only sets H (carry from bit 11) and C (carry from bit 15) flags. ignores C flag on input. N is reset
                 // for add ix, rp is 0..3 bc, de, ix, sp.
                 // for add iy, rp is 0..3 bc, de, iy, sp.
-    
+
                 uint16_t rpval = * reg.rpAddressFromOp( op2 );
                 uint8_t rp = ( 0x3 & ( op2 >> 4 ) );
                 if ( 2 == rp )
                     rpval = ( 0xdd == op ) ? reg.ix : reg.iy;
-    
+
                 uint16_t oldval = reg.z80_getIndex( op );
                 uint16_t newval = z80_op_add_16( oldval, rpval );
                 reg.z80_setIndex( op, newval );
@@ -1064,7 +1064,7 @@ uint16_t z80_emulate( uint8_t op )    // this is just for instructions that aren
                     pcbyte();
                     uint16_t index = reg.z80_getIndex( op );
                     index += (int16_t) (int8_t) offset;
-        
+
                     if ( op4 <= 0x07 )
                         z80_op_rlc( & memory[ index ] );
                     else if ( op4 <= 0x0f )
@@ -1081,7 +1081,7 @@ uint16_t z80_emulate( uint8_t op )    // this is just for instructions that aren
                         z80_op_sll( & memory[ index ] );
                     else if ( op4 <= 0x3f )
                         z80_op_srl( & memory[ index ] );
-            
+
                     uint8_t rm = op4 & 0x7;
                     if ( 6 != rm )          // no write to memory variant
                         * dst_address_rm( rm ) = memory[ index ];
@@ -1096,7 +1096,7 @@ uint16_t z80_emulate( uint8_t op )    // this is just for instructions that aren
                     uint8_t top2bits = mod & 0xc0;
                     uint16_t offset = reg.z80_getIndex( op ) + (int16_t) (int8_t) index;
                     uint8_t val = memory[ offset ];
-        
+
                     if ( 0x40 == top2bits ) // bit
                     {
                         cycles++;
@@ -1167,7 +1167,7 @@ uint16_t z80_emulate( uint8_t op )    // this is just for instructions that aren
         {
             reg.r++;
             pcbyte();  // consume op2
-    
+
             if ( 0x3 == ( op2 & 0xf ) ) // ld (mw), rp AKA ld (nn), dd
             {
                 cycles = 20;
@@ -1218,11 +1218,11 @@ uint16_t z80_emulate( uint8_t op )    // this is just for instructions that aren
             {
                 uint8_t mem = memory[ reg.H() ];
                 uint8_t a = reg.a;
-    
+
                 reg.a = ( a & 0xf0 ) | ( mem & 0x0f );
                 uint8_t newmem = ( ( a << 4 ) & 0xf0 ) | ( ( mem >> 4 ) & 0x0f );
                 memory[ reg.H() ] = newmem;
-    
+
                 set_sign_zero_parity( reg.a );
                 reg.clearHN();
                 reg.z80_assignYX( reg.a );
@@ -1231,11 +1231,11 @@ uint16_t z80_emulate( uint8_t op )    // this is just for instructions that aren
             {
                 uint8_t mem = memory[ reg.H() ];
                 uint8_t a = reg.a;
-    
+
                 uint8_t newmem = ( ( mem << 4 ) & 0xf0 ) | ( a & 0x0f );
                 reg.a = ( ( mem >> 4 ) & 0xf ) | ( a & 0xf0 );
                 memory[ reg.H() ] = newmem;
-    
+
                 set_sign_zero_parity( reg.a );
                 reg.clearHN();
                 reg.z80_assignYX( reg.a );
@@ -1311,7 +1311,7 @@ uint16_t z80_emulate( uint8_t op )    // this is just for instructions that aren
                     reg.SetD( reg.D() + 1 );
                     reg.SetB( reg.B() - 1 );
                 } while ( 0 != reg.B() );
-    
+
                 cycles -= 5; // the last iteration is cheaper
                 reg.fParityEven_Overflow = false;
                 reg.fAuxCarry = 0;
@@ -1332,7 +1332,7 @@ uint16_t z80_emulate( uint8_t op )    // this is just for instructions that aren
                     reg.SetH( reg.H() + 1 );
                     reg.SetB( reg.B() - 1 );
                 } while ( !reg.fZero && ( 0 != reg.B() ) );
-    
+
                 cycles -= 5; // the last iteration is cheaper
                 reg.fParityEven_Overflow = ( 0 != reg.B() ); // not what the Zilog doc says, but it's what works
                 reg.fCarry = oldCarry; // carry is not affected
@@ -1350,7 +1350,7 @@ uint16_t z80_emulate( uint8_t op )    // this is just for instructions that aren
                     reg.SetD( reg.D() - 1 );
                     reg.SetB( reg.B() - 1 );
                 } while ( 0 != reg.B() );
-    
+
                 cycles -= 5; // the last iteration is cheaper
                 reg.fParityEven_Overflow = false; // unlike similar functions
                 reg.clearHN();
@@ -1370,7 +1370,7 @@ uint16_t z80_emulate( uint8_t op )    // this is just for instructions that aren
                     reg.SetH( reg.H() - 1 );
                     reg.SetB( reg.B() - 1 );
                 } while ( !reg.fZero && ( 0 != reg.B() ) );
-    
+
                 cycles -= 5; // the last iteration is cheaper
                 reg.fParityEven_Overflow = ( 0 != reg.B() );
                 reg.fCarry = oldCarry; // carry is not affected
@@ -1429,8 +1429,8 @@ void z80_render( char * ac, size_t bufferSize, uint8_t op, uint16_t address )
         {
             uint8_t src = ( ( op2 >> 3 ) & 0x7 );
             snprintf( ac, bufferSize, "ld %s, (%s%s%d)", reg_strings[ src ], i, op3int >= 0 ? "+" : "", op3int );
-        }                             
-        else if ( 0x70 == ( op2 & 0xf8 ) )  
+        }
+        else if ( 0x70 == ( op2 & 0xf8 ) )
         {
             uint8_t src = op2 & 0x7;
             if ( 6 == src )
@@ -1515,9 +1515,9 @@ void z80_render( char * ac, size_t bufferSize, uint8_t op, uint16_t address )
             uint8_t top2bits = mod & 0xc0;
 
             if ( 0x40 == top2bits ) // bit
-                snprintf( ac, bufferSize, "bit %u, (%s%s%d)", bit, i, index32 >= 0 ? "+" : "", index32 ); 
+                snprintf( ac, bufferSize, "bit %u, (%s%s%d)", bit, i, index32 >= 0 ? "+" : "", index32 );
             else if ( 0x80 == top2bits ) // reset
-                snprintf( ac, bufferSize, "res %u, (%s%s%d)", bit, i, index32 >= 0 ? "+" : "", index32 ); 
+                snprintf( ac, bufferSize, "res %u, (%s%s%d)", bit, i, index32 >= 0 ? "+" : "", index32 );
             else if ( 0xc0 == top2bits ) // set
                 snprintf( ac, bufferSize, "set %u, (%s%s%d)", bit, i, index32 >= 0 ? "+" : "", index32 );
             else if ( 0x26 == op4 ) // sla
@@ -1648,13 +1648,13 @@ void z80_render( char * ac, size_t bufferSize, uint8_t op, uint16_t address )
         {
             uint8_t rm = op2 & 0x7;
             uint8_t bit = ( op2 >> 3 ) & 0x7;
-            snprintf( ac, bufferSize, "res %u, %s", bit, reg_strings[ rm ] ); 
+            snprintf( ac, bufferSize, "res %u, %s", bit, reg_strings[ rm ] );
         }
         else if ( op2 >= 0xc0 && op2 <= 0xff ) // set bit #, rm
         {
             uint8_t rm = op2 & 0x7;
             uint8_t bit = ( op2 >> 3 ) & 0x7;
-            snprintf( ac, bufferSize, "set %u, %s", bit, reg_strings[ rm ] ); 
+            snprintf( ac, bufferSize, "set %u, %s", bit, reg_strings[ rm ] );
         }
     }
     else if ( 0x08 == op )
@@ -1662,7 +1662,7 @@ void z80_render( char * ac, size_t bufferSize, uint8_t op, uint16_t address )
     else if ( 0x10 == op )
         snprintf( ac, bufferSize, "djnz %d", op2int );
     else if ( 0x18 == op )
-        snprintf( ac, bufferSize, "jr %d", op2int );    
+        snprintf( ac, bufferSize, "jr %d", op2int );
     else if ( 0x20 == op )
         snprintf( ac, bufferSize, "jr nz, %d", op2int );
     else if ( 0x28 == op )
@@ -1736,7 +1736,7 @@ not_inlined void x80_trace_state()
                       reg.pc, op, op2, op3, reg.a, reg.B(), reg.D(), reg.H(), reg.sp,
                       reg.renderFlags(), x80_render_operation( reg.pc ) );
 
-//    tracer.Trace( "  carry flag: %u\n", memory[ 0xed4d ] );
+    //tracer.TraceBinaryData( & memory[ 0x1142 ], 16, 4 );
 } //x80_trace_state
 
 bool check_conditional( uint8_t op ) // checks for conditional jump, call, and return
@@ -1768,7 +1768,7 @@ uint16_t x80_emulate( uint16_t maxcycles )
 
     while ( cycles < maxcycles )        // 4% of runtime checking if we're done
     {
-        if ( 0 != g_State )     
+        if ( 0 != g_State )
             if ( handle_state() )
                 break;
 
@@ -1956,7 +1956,7 @@ uint16_t x80_emulate( uint16_t maxcycles )
             {
                 // bits 5..3 are exp, which form an address 0000000000exp000 that is called.
                 // rst is generally invoked by hardware interrupts, which supply the one instruction rst.
-            
+
                 pushword( reg.pc );
                 reg.pc = 0x38 & (uint16_t) op;
                 break;
