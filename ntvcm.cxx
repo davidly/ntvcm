@@ -199,6 +199,18 @@ struct CPMTime // non-standard time structure
 };
 
 #pragma pack( push, 1 )
+struct CPM3DateTime
+{
+    uint16_t day; // day 1 is 1 January 1978
+    uint8_t hour; // packed bcd (nibbles for each digit)
+    uint8_t minute; // packed bcd
+};
+
+uint8_t packBCD( uint8_t x )
+{
+    return (uint8_t) ( ( ( x / 10 ) << 4 ) | ( x % 10 ) );
+} //packBCD
+
 struct DiskParameterBlock // for BDOS 31. https://www.seasip.info/Cpm/format22.html
 {
     uint16_t spt;    // Number of 128-byte records per track
@@ -672,6 +684,8 @@ const char * get_bdos_function( uint8_t id )
         return "non - cp/m 2.2: set action on hardware error";
     if ( 48 == id )
         return "non - cp/m 2.2: empty disk buffers";
+    if ( 105 == id )
+        return "non - cp/m 2.2: get date and time";
 
     return "unknown";
 } //get_bdos_function
@@ -1666,6 +1680,28 @@ void set_bdos_status()
     reg.h = 0;
 } //set_bdos_status
 
+uint16_t days_since_jan1_1978()
+{
+    time_t current_time;
+    struct tm *time_info;
+
+    current_time = time(NULL);
+    time_info = localtime(&current_time);
+
+    struct tm target_date = {0};
+    target_date.tm_year = 1978 - 1900; // Years since 1900
+    target_date.tm_mon = 0;         // January (0-indexed)
+    target_date.tm_mday = 1;
+    target_date.tm_hour = 0;
+    target_date.tm_min = 0;
+    target_date.tm_sec = 0;
+
+    time_t target_time = mktime(&target_date);
+    time_t difference_seconds = current_time - target_time;
+    uint16_t days_since_1978 = (uint16_t) ( difference_seconds / ( 24 * 60 * 60 ) );
+    return days_since_1978;
+} //days_since_jan1_1978
+
 void WriteRandom()
 {
     FCB * pfcb = (FCB *) ( memory + reg.D() );
@@ -1731,6 +1767,28 @@ void WriteRandom()
 
     set_bdos_status();
 } //WriteRandom
+
+#ifdef WATCOM
+
+uint16_t daysSince1978( struct dosdate_t & date )
+{
+    uint16_t days = 0;
+    int i;
+
+    for ( i = 1978; i < date.year; i++ )
+        days += (i % 4 == 0 && i % 100 != 0 || i % 400 == 0) ? 366 : 365; // Account for leap years
+
+    uint16_t daysInMonths[] = {0, 31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31}; // Non-leap year days
+    if ( ( date.year % 4 == 0 && date.year % 100 != 0 || date.year % 400 == 0 ) && date.month > 2 )
+        daysInMonths[2] = 29; // Leap year
+    for ( i = 1; i < date.month; i++ )
+        days += daysInMonths[i];
+
+    days += date.day;
+    return days;
+} //daysSince1978
+
+#endif
 
 // must return one of OPCODE_NOP or OPCODE_RET
 
@@ -1849,7 +1907,6 @@ uint8_t x80_invoke_hook()
                 output_character( ch );
                 fflush( stdout );
             }
-
             break;
         }
         case 3:
@@ -2755,6 +2812,33 @@ uint8_t x80_invoke_hook()
         case 102:
         {
             // Get file date and time (not in cp/m 2.2)
+            break;
+        }
+        case 105: // get date time. cp/m 3.0 and later. Returns seconds in A as packed bcd
+        {
+            CPM3DateTime * ptime = (CPM3DateTime *) ( memory + reg.D() );
+#ifdef WATCOM
+            struct dostime_t time;
+            _dos_gettime( &time );
+
+            ptime->hour = packBCD( (uint8_t) time.hour );
+            ptime->minute = packBCD( (uint8_t) time.minute );
+            reg.a = packBCD( (uint8_t) time.second );
+
+            struct dosdate_t date;
+            _dos_getdate( &date );
+            ptime->day = daysSince1978( date );
+#else
+            system_clock::time_point now = system_clock::now();
+            time_t time_now = system_clock::to_time_t( now );
+            struct tm * plocal = localtime( & time_now );
+
+            ptime->day = 1 + days_since_jan1_1978();
+            ptime->hour = packBCD( (uint8_t) plocal->tm_hour );
+            ptime->minute = packBCD( (uint8_t) plocal->tm_min );
+            reg.a = packBCD( (uint8_t) plocal->tm_sec );
+#endif
+            set_bdos_status();
             break;
         }
         case BDOS_GET_TIME:

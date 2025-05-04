@@ -80,7 +80,7 @@ class ConsoleConfiguration
             static const size_t longestEscapeSequence = 10; // probably overkill
             char aReady[ 1 + longestEscapeSequence ];
         #else
-#ifndef OLDGCC      // the several-years-old Gnu C compiler for the RISC-V development boards
+#if !defined( OLDGCC ) && !defined( M68K )
             struct termios orig_termios;
 #endif
         #endif
@@ -403,7 +403,7 @@ class ConsoleConfiguration
                     SetConsoleCtrlHandler( handler, TRUE );
                 }
             #else
-                #ifndef OLDGCC // the several-years-old Gnu C compiler for the RISC-V development boards. that machine has no keyboard support
+                #if !defined( OLDGCC ) && !defined( M68K ) // these will never run on actual Linux and the emulators or platform already are configured for raw keystrokes
                     tcgetattr( 0, &orig_termios );
     
                     // make input raw so it's possible to peek to see if a keystroke is available
@@ -481,11 +481,13 @@ class ConsoleConfiguration
                 tracer.Trace( "old and new console output mode: %04x, %04x\n", oldOutputConsoleMode, dwMode );
                 SetConsoleMode( consoleOutputHandle, dwMode );
             #else
-                if ( isatty( fileno( stdout ) ) )
-                {
-                    printf( "%c[1 q", 27 ); // 1 == cursor blinking block. 
-                    fflush( stdout );
-                }
+                #ifndef M68K
+                    if ( isatty( fileno( stdout ) ) )
+                    {
+                        printf( "%c[1 q", 27 ); // 1 == cursor blinking block. 
+                        fflush( stdout );
+                    }
+                #endif
             #endif
 
                 outputEstablished = true;
@@ -501,7 +503,7 @@ class ConsoleConfiguration
                 #ifdef _WIN32
                     SetConsoleMode( consoleInputHandle, oldInputConsoleMode );
                 #else
-                    #ifndef OLDGCC      // the several-years-old Gnu C compiler for the RISC-V development boards
+                    #if !defined( OLDGCC ) && !defined( M68K )
                         tcsetattr( 0, TCSANOW, &orig_termios );
                     #endif
                 #endif
@@ -514,7 +516,7 @@ class ConsoleConfiguration
         {
             if ( outputEstablished )
             {
-                #ifndef _WIN32
+                #if !defined( _WIN32 ) && !defined( M68K )
                     if ( isatty( fileno( stdout ) ) )
                     {
                         printf( "%c[0m", 27 ); // turn off display attributes
@@ -552,10 +554,12 @@ class ConsoleConfiguration
         {
             if ( isatty( fileno( stdout ) ) )
             {
-                printf( "\x1b[2J" ); // clear the screen
-                printf( "\x1b[1G" ); // cursor to top line
-                printf( "\x1b[1d" ); // cursor to left side
-                fflush( stdout );
+                #if !defined( M68K )
+                    printf( "\x1b[2J" ); // clear the screen
+                    printf( "\x1b[1G" ); // cursor to top line
+                    printf( "\x1b[1d" ); // cursor to left side
+                    fflush( stdout );
+                #endif
             }
         } //SendClsSequence
 
