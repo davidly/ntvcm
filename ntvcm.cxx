@@ -32,6 +32,7 @@
 //
 
 #include <stdio.h>
+#include <fcntl.h>
 #include <stdlib.h>
 #include <string.h>
 #include <vector>
@@ -1068,6 +1069,27 @@ void match_vt100( char * pc, size_t len )
 
 #endif // WATCOM
 
+void send_character( uint8_t c )
+{
+    #if defined( _WIN32 ) || defined( WATCOM )
+        if ( 10 == c )
+        {
+            fflush( stdout );
+            _setmode( _fileno( stdout ), _O_BINARY ); // don't convert LF (10) to CR LF (13 10)
+        }
+    #endif
+
+    printf( "%c", c );
+
+    #if defined( _WIN32 ) || defined( WATCOM )
+        if ( 10 == c )
+        {
+            fflush( stdout );
+            _setmode( _fileno( stdout ), _O_TEXT ); // back in text mode
+        }
+    #endif
+} //send_character
+
 // https://en.wikipedia.org/wiki/ANSI_escape_code              vt-100 in 1978, it existed at the same time as CP/M
 // https://en.wikipedia.org/wiki/VT52                          VT52
 // https://mdfs.net/Archive/info-cpm/1985/01/19/053100.htm     Kaypro II / Lear-Siegler ADM-3A
@@ -1083,12 +1105,6 @@ void output_character( uint8_t c )
         g_consoleConfig.EstablishConsoleOutput( 80, 24 );
     }
 
-    // Swallow CR when in terminal mode. LF will translate to CR/LF by the C runtime.
-    // Shen the console is established, apps like Turbo Pascal use CR to update line count during compiles
-
-    if ( ( 0xd == c ) && !g_consoleConfig.IsOutputEstablished() )
-        return;
-
     if ( g_kayproToCP437 )
         c = kaypro_to_cp437( c );
 
@@ -1098,7 +1114,7 @@ void output_character( uint8_t c )
 #ifdef WATCOM
 
     if ( !g_consoleConfig.IsOutputEstablished() )
-        printf( "%c", c );
+        send_character( c );
     else if ( termVT100 == g_termEscape )
     {
         const size_t max_esc_seq = 10;
@@ -1369,7 +1385,7 @@ void output_character( uint8_t c )
     }
 #else // Windows and Linux
     if ( termVT100 == g_termEscape )
-        printf( "%c", c );
+        send_character( c );
     else if ( termVT52 == g_termEscape )
     {
         static bool s_escapedY = false;     // true if prior two chars were ESC Y
@@ -1422,7 +1438,7 @@ void output_character( uint8_t c )
             s_row = 0xff; // just in case
         }
         else
-            printf( "%c", c );
+            send_character( c );
     }
     else if ( termKayproII == g_termEscape )
     {
@@ -1515,7 +1531,7 @@ void output_character( uint8_t c )
                 tracer.Trace( "ignored character in kaypro escape range: %02x\n", c );
         }
         else
-            printf( "%c", c );
+            send_character( c );
     }
 #endif
 } //output_character
@@ -1546,8 +1562,8 @@ uint8_t map_input( uint8_t input )
             output = 1 + 'C' - 'A';
         else if ( 'I' == next )              // page up
             output = 1 + 'R' - 'A';
-        else if ( 'S' == next )              // del
-            output = 1 + 'G' - 'A';
+        else if ( 'S' == next )              // del maps to ^h
+            output = 1 + 'H' - 'A';
         else
             tracer.Trace( "  no map_input mapping for %02x, second character %02x\n", input, next );
 
@@ -1632,37 +1648,56 @@ bool cpm_read_console( char * buf, size_t bufsize, uint8_t & out_len )
 {
     char ch = 0;
     out_len = 0;
+
     while ( out_len < (uint8_t) bufsize )
     {
-        ch = get_next_kbd_char();
+        ch = map_input( get_next_kbd_char() );
         tracer.Trace( "  get_next_kbd_char read character %02x -- '%c'\n", ch, printable( ch ) );
 
-        // CP/M read console buffer treats these control characters as special: c, e, h, j, m, r, u, x
-        // per http://www.gaby.de/cpm/manuals/archive/cpm22htm/ch5.htm
-        // Only c, h, j, and m are currently handled correctly.
-        // ^c means exit the currently running app in CP/M if it's the first character in the buffer
+        // behavior per https://techtinkering.com/articles/cpm-standard-console-control-characters/
 
-        if ( ( 3 == ch ) && ( 0 == out_len ) )
+        if ( ( 3 == ch ) && ( 0 == out_len ) ) // ^c exit the currently running app in CP/M if it's the first character in the buffer
             return true;
 
-        if ( '\n' == ch || '\r' == ch )
+        if ( '\n' == ch || '\r' == ch ) // all done; send response
             break;
 
-        if ( 0x7f == ch || 8 == ch ) // backspace (it's not 8 for some reason)
+        if ( 5 == ch ) // ^e. move cursor to beginning of next line without sending line to be processed or adding a newline to the buffer
+            printf( "\n" );
+        else if ( 0x7f == ch || 8 == ch ) // ^h backspace / rubout / delete
         {
             if ( out_len > 0 )
             {
                 printf( "\x8 \x8" );
-                fflush( stdout );
                 out_len--;
             }
         }
+        else if ( 0x10 == ch ) // ^p. start echoing to the printer. ignore
+            continue;
+        else if ( 0x12 == ch ) // ^r. emits a '#' then retypes the current line after a new line
+        {
+            printf( "#\n" );
+            for ( char i = 0; i < out_len; i++ )
+                send_character( buf[ i ] );
+        }
+        else if ( 0x15 == ch ) // ^u. write '#', discard current line, and move to next line for input
+        {
+            printf( "#\n" );
+            out_len = 0;
+        }
+        else if ( 0x18 == ch ) // ^x. removes all characters typed so far and starts again
+        {
+            for ( char i = 0; i < out_len; i++ )
+                printf( "\x8 \x8" );
+            out_len = 0;
+        }
         else
         {
-            printf( "%c", ch );
-            fflush( stdout );
+            send_character( ch );
             buf[ out_len++ ] = ch;
         }
+
+        fflush( stdout );
     }
 
     return false;
@@ -1901,12 +1936,9 @@ uint8_t x80_invoke_hook()
             // a subsequent ^c terminates the application. ^q resumes output then ^c has no effect.
 
             uint8_t ch = reg.e;
-            if ( 0x0d != ch )             // skip carriage return because line feed turns into cr+lf
-            {
-                tracer.Trace( "  bdos console out: %02x == '%c'\n", ch, printable( ch ) );
-                output_character( ch );
-                fflush( stdout );
-            }
+            tracer.Trace( "  bdos console out: %02x == '%c'\n", ch, printable( ch ) );
+            output_character( ch );
+            fflush( stdout );
             break;
         }
         case 3:
@@ -2008,11 +2040,8 @@ uint8_t x80_invoke_hook()
                 }
 
                 uint8_t ch = memory[ i++ ];
-                if ( 0x0d != ch )              // skip carriage return because line feed turns into cr+lf
-                {
-                    output_character( ch );
-                    fflush( stdout );
-                }
+                output_character( ch );
+                fflush( stdout );
             }
 
             tracer.TraceBinaryData( memory + reg.D(), count, 4 );
