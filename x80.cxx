@@ -912,17 +912,25 @@ uint16_t z80_emulate( uint8_t op )    // this is just for instructions that aren
             pcbyte(); // consume op2: the dd or fd
 
             if ( 0x21 == op2 )  // ld ix/iy word
-                * reg.z80_indexAddress( op ) = pcword();
+            {
+                if ( 0xdd == op )
+                    reg.ix = pcword();
+                else
+                    reg.iy = pcword();
+            }
             else if ( 0x22 == op2 ) // ld (address), ix/iy
             {
                 cycles = 20;
                 uint16_t address = pcword();
                 setmword( address, reg.z80_getIndex( op ) );
             }
-            else if ( 0x23 == op2 ) // inc ix/iy
+            else if ( 0x23 == op2 ) // inc ix/iy     no flags are affected
             {
                 cycles = 10;
-                * reg.z80_indexAddress( op ) = reg.z80_getIndex( op ) + 1; // no flags are affected
+                if ( 0xdd == op )
+                    reg.ix++;
+                else
+                    reg.iy++;
             }
             else if ( 0x26 == op2 ) // ld ix/iy h. not documented
                 * reg.z80_getIndexByteAddress( op, 0 ) = pcbyte();
@@ -932,10 +940,13 @@ uint16_t z80_emulate( uint8_t op )    // this is just for instructions that aren
                 uint16_t address = pcword();
                 reg.z80_setIndex( op, mword( address ) );
             }
-            else if ( 0x2b == op2 ) // dec ix/iy
+            else if ( 0x2b == op2 ) // dec ix/iy   no flags are affected
             {
                 cycles = 10;
-                * reg.z80_indexAddress( op ) = reg.z80_getIndex( op ) - 1; // no flags are affected
+                if ( 0xdd == op )
+                    reg.ix--;
+                else
+                    reg.iy--;
             }
             else if ( 0x2e == op2 ) // ld ix/iy l. not documented
             {

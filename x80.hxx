@@ -210,18 +210,12 @@ struct registers
         return ac;
     } //renderFlags
 
-    uint16_t * z80_indexAddress( uint8_t op )
-    {
-        assert( 0xdd == op || 0xfd == op );
-
-        if ( 0xdd == op )
-            return & ix;
-        return & iy;
-    } //z80_indexAddress
-
     void z80_setIndex( uint8_t op, uint16_t val )
     {
-        * z80_indexAddress( op ) = val;
+        if ( 0xdd == op )
+            ix = val;
+        else
+            iy = val;
     } //z80_setIndex
 
     uint16_t z80_getIndex( uint8_t op )
@@ -256,7 +250,11 @@ struct registers
         else
             pval = (uint8_t *) & iy;
 
+#ifdef TARGET_BIG_ENDIAN
+        if ( 1 == hl )
+#else
         if ( 0 == hl )
+#endif
             pval++;
 
         return pval;
