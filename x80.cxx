@@ -161,9 +161,16 @@ static const acycles_t z80_cycles =
     /*f0*/ 11, 10, 10,  4, 17, 11,  7, 11,   11,  5, 10,  4, 17,  0,  7, 11,
 };
 
+static uint8_t pcbyte() { return memory[ reg.pc++ ]; }
+
+#ifdef TARGET_BIG_ENDIAN
+static uint16_t mword( uint16_t offset ) { return flip_endian16( * ( (uint16_t *) & memory[ offset ] ) ); }
+static void setmword( uint16_t offset, uint16_t value ) { * (uint16_t *) & memory[ offset ] = flip_endian16( value ); }
+#else
 static uint16_t mword( uint16_t offset ) { return * ( (uint16_t *) & memory[ offset ] ); }
 static void setmword( uint16_t offset, uint16_t value ) { * (uint16_t *) & memory[ offset ] = value; }
-static uint8_t pcbyte() { return memory[ reg.pc++ ]; }
+#endif
+
 static uint16_t pcword() { uint16_t r = mword( reg.pc ); reg.pc += 2; return r; }
 static void pushword( uint16_t val ) { reg.sp -= 2; setmword( reg.sp, val ); }
 static uint16_t popword() {  uint16_t val = mword( reg.sp ); reg.sp += 2; return val; }

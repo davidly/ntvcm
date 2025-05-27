@@ -8,17 +8,29 @@
 #define OPCODE_JMP  0xC3  // jmp nn
 #define OPCODE_RET  0xC9
 
+#ifdef TARGET_BIG_ENDIAN
+const size_t reg_offsets[8] = { 0, 1, 2, 3, 4, 5, 9, 8 }; //bcdehlfa
+#else
 const size_t reg_offsets[8] = { 1, 0, 3, 2, 5, 4, 8, 9 }; //bcdehlfa
+#endif
 
 struct registers
 {
     // the memory layout of these registers is assumed by the code below
 
+#ifdef TARGET_BIG_ENDIAN
+    uint8_t b, c;
+    uint8_t d, e;
+    uint8_t h, l;
+    uint16_t sp;
+    uint8_t a, f;
+#else
     uint8_t c, b;
     uint8_t e, d;
     uint8_t l, h;
     uint16_t sp;
     uint8_t f, a;
+#endif
     uint16_t pc;
 
     // Z80-specific. p == prime registers swapped via exchange instructions
@@ -71,12 +83,40 @@ struct registers
     uint16_t PSW()
     {
         materializeFlags();
+#ifdef TARGET_BIG_ENDIAN
+        return * ( (uint16_t *) & a );
+#else
         return * ( (uint16_t *) & f );
+#endif
     } //PSW
 
+    void SetPSW( uint16_t x )
+    {
+#ifdef TARGET_BIG_ENDIAN
+        * ( (uint16_t *) & a ) = x;
+#else
+        * ( (uint16_t *) & f ) = x;
+#endif
+        unmaterializeFlags();
+    } //SetPSW
+
+#ifdef TARGET_BIG_ENDIAN
+    uint16_t B() const { return * ( (uint16_t *) & b ); }
+    uint16_t D() const { return * ( (uint16_t *) & d ); }
+    uint16_t H() const { return * ( (uint16_t *) & h ); }
+
+    void SetB( uint16_t x ) { * ( (uint16_t *) & b ) = x; }
+    void SetD( uint16_t x ) { * ( (uint16_t *) & d ) = x; }
+    void SetH( uint16_t x ) { * ( (uint16_t *) & h ) = x; }
+#else
     uint16_t B() const { return * ( (uint16_t *) & c ); }
     uint16_t D() const { return * ( (uint16_t *) & e ); }
     uint16_t H() const { return * ( (uint16_t *) & l ); }
+
+    void SetB( uint16_t x ) { * ( (uint16_t *) & c ) = x; }
+    void SetD( uint16_t x ) { * ( (uint16_t *) & e ) = x; }
+    void SetH( uint16_t x ) { * ( (uint16_t *) & l ) = x; }
+#endif
 
     void z80_increment_r() { /* reg.r++; */ } // 4.6% of runtime when the increment is enabled
 
@@ -102,16 +142,6 @@ struct registers
             fX = ( 0 != ( f & 8 ) );
         }
     } //unmaterializeFlags
-
-    void SetPSW( uint16_t x )
-    {
-        * ( (uint16_t *) & f ) = x;
-        unmaterializeFlags();
-    } //SetPSW
-
-    void SetB( uint16_t x ) { * ( (uint16_t *) & c ) = x; }
-    void SetD( uint16_t x ) { * ( (uint16_t *) & e ) = x; }
-    void SetH( uint16_t x ) { * ( (uint16_t *) & l ) = x; }
 
     uint16_t * rpAddress( uint8_t rp )
     {

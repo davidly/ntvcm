@@ -3133,7 +3133,11 @@ static bool load_file( char const * file_path, long & file_size, void * buffer )
     return ok;
 } //load_file
 
+#ifdef TARGET_BIG_ENDIAN
+static void setmword( uint16_t offset, uint16_t value ) { * (uint16_t *) & memory[ offset ] = flip_endian16( value ); }
+#else
 static void setmword( uint16_t offset, uint16_t value ) { * (uint16_t *) & memory[ offset ] = value; }
+#endif
 
 int main( int argc, char * argv[] )
 {
@@ -3526,7 +3530,7 @@ int main( int argc, char * argv[] )
     }
     catch ( bad_alloc & e )
     {
-        printf( "caught exception bad_alloc -- out of RAM. If in RVOS use -h or -m to add RAM. %s\n", e.what() );
+        printf( "caught exception bad_alloc -- out of RAM. If in RVOS or ARMOS use -h or -m to add RAM. %s\n", e.what() );
     }
     catch ( exception & e )
     {
