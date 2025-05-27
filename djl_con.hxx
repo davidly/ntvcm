@@ -1,5 +1,9 @@
 #pragma once
 
+#ifdef M68K
+extern "C" int clock_gettime( clockid_t id, struct timespec * res );
+#endif
+
 #ifdef WATCOM
 
 #include <conio.h>
@@ -709,9 +713,18 @@ class ConsoleConfiguration
             // compute-bound mbasic.com apps run 10x slower than they should because mbasic polls for keyboard input.
             // Workaround: only call _kbhit() if 50 milliseconds has gone by since the last call.
 
+#ifdef M68K // newlib for embedded only has second-level granularity for high_resolution_clock, so use a different codepath for that
+            static struct timespec last_call;
+            static int static_result = clock_gettime( CLOCK_REALTIME, &last_call );
+            struct timespec tNow;
+            int result = clock_gettime( CLOCK_REALTIME, &tNow );
+            uint32_t difference = (uint32_t) ( ( ( tNow.tv_sec - last_call.tv_sec ) * 1000 ) + ( ( tNow.tv_nsec - last_call.tv_nsec ) / 1000000 ) );
+
+#else
             static high_resolution_clock::time_point last_call = high_resolution_clock::now();
             high_resolution_clock::time_point tNow = high_resolution_clock::now();
             long long difference = duration_cast<std::chrono::milliseconds>( tNow - last_call ).count();
+#endif
 
             if ( difference > 50 )
             {
