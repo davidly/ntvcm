@@ -71,6 +71,10 @@
         #include <termios.h>
     #endif
 
+#ifdef M68K
+extern "C" int nanosleep( const struct timespec * duration, struct timespec * rem );
+#endif
+
     #include <thread>
     #include <sched.h>
     #include <unistd.h>
@@ -130,7 +134,7 @@
         long sec = (long) ( total_ns / 1000000000 );
         struct timespec ts = { sec, ns };
 
-        #if !defined( OLDGCC ) && !defined( M68K )
+        #if !defined( OLDGCC )
             nanosleep( &ts, 0 );
         #endif
     } //sleep_ms
