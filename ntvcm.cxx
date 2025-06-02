@@ -3037,12 +3037,17 @@ void help()
 
 void version()  // Display version information
 {
-   printf("%s: Version %s%s%s Compiled: ", FILENAME, VERSION, BUILD, COMMIT_ID);
-   if (__DATE__[4] == ' ')
-      printf( "0%c %c%c%c %s %s\n", __DATE__[5], __DATE__[0], __DATE__[1], __DATE__[2], &__DATE__[7], __TIME__ );
-   else
-      printf( "%c%c %c%c%c %s %s\n", __DATE__[4], __DATE__[5], __DATE__[0], __DATE__[1], __DATE__[2], &__DATE__[7], __TIME__ );
-} // version
+#ifdef NDEBUG
+    const char * flavor = "Release";
+#else
+    const char * flavor = "Debug";
+#endif
+    printf("%s: Version %s%s%s %s Compiled: ", FILENAME, VERSION, BUILD, COMMIT_ID, flavor);
+    if (__DATE__[4] == ' ')
+        printf( "0%c %c%c%c %s %s\n", __DATE__[5], __DATE__[0], __DATE__[1], __DATE__[2], &__DATE__[7], __TIME__ );
+    else
+        printf( "%c%c %c%c%c %s %s\n", __DATE__[4], __DATE__[5], __DATE__[0], __DATE__[1], __DATE__[2], &__DATE__[7], __TIME__ );
+} //version
 
 void error( char const * perr = 0 )
 {
@@ -3201,8 +3206,8 @@ int main( int argc, char * argv[] )
                 if ( 'V' == ca )
                 {
                     version();
-                    printf("License CC0 1.0 Universal: See <https://creativecommons.org/publicdomain/zero/1.0/>.\n");
-                    exit(0);
+                    printf( "License CC0 1.0 Universal: See <https://creativecommons.org/publicdomain/zero/1.0/>.\n" );
+                    exit( 0 );
                 }
 #if defined( _WIN32 )  // Windows only
                 else if ( 'C' == parg[1] ) // MT - moved other wise option would be converted to lower case before it was tested
