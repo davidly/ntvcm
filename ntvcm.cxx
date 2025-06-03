@@ -1652,15 +1652,7 @@ char get_next_kbd_char()
     if ( g_fileInputOffset < g_fileInputText.size() )
         return g_fileInputText[ g_fileInputOffset++ ];
 
-    char c = (char) ConsoleConfiguration::portable_getch();
-    //tracer.Trace( "get_next_kbd_char got %d from portable_getch\n", c );
-    if ( 10 == c ) // linux and windows will return LF, not CR, which is what CP/M apps require
-    {
-        // many cp/m apps require CR, not LF to terminate a line
-        tracer.Trace( "  get_next_kbd_char translated LF 10 to CR 13\n" );
-        c = 13;
-    }
-    return c;
+    return (char) ConsoleConfiguration::portable_getch();
 } //get_next_kbd_char
 
 bool is_kbd_char_available()
