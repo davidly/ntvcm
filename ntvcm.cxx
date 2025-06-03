@@ -197,6 +197,14 @@ struct CPMTime // non-standard time structure
     uint16_t minute;
     uint16_t second;
     uint16_t millisecond;
+
+    void swap_endian()
+    {
+        hour = flip_endian16( hour );
+        minute = flip_endian16( minute );
+        second = flip_endian16( second );
+        millisecond = flip_endian16( millisecond );
+    }
 };
 
 #pragma pack( push, 1 )
@@ -205,6 +213,11 @@ struct CPM3DateTime
     uint16_t day; // day 1 is 1 January 1978
     uint8_t hour; // packed bcd (nibbles for each digit)
     uint8_t minute; // packed bcd
+
+    void swap_endian()
+    {
+        day = flip_endian16( day );
+    }
 };
 
 uint8_t packBCD( uint8_t x )
@@ -224,6 +237,15 @@ struct DiskParameterBlock // for BDOS 31. https://www.seasip.info/Cpm/format22.h
     uint8_t  al1;    // Directory allocation bitmap, second byte
     uint16_t cks;    // Checksum vector size, 0 for a fixed disc
     uint16_t off;    // Offset, number of reserved tracks
+
+    void swap_endian()
+    {
+        spt = flip_endian16( spt );
+        dsm = flip_endian16( dsm );
+        drm = flip_endian16( drm );
+        cks = flip_endian16( cks );
+        off = flip_endian16( off );
+    }
 };
 #pragma pack(pop)
 
@@ -1630,7 +1652,15 @@ char get_next_kbd_char()
     if ( g_fileInputOffset < g_fileInputText.size() )
         return g_fileInputText[ g_fileInputOffset++ ];
 
-    return (char) ConsoleConfiguration::portable_getch();
+    char c = (char) ConsoleConfiguration::portable_getch();
+    //tracer.Trace( "get_next_kbd_char got %d from portable_getch\n", c );
+    if ( 10 == c ) // linux and windows will return LF, not CR, which is what CP/M apps require
+    {
+        // many cp/m apps require CR, not LF to terminate a line
+        tracer.Trace( "  get_next_kbd_char translated LF 10 to CR 13\n" );
+        c = 13;
+    }
+    return c;
 } //get_next_kbd_char
 
 bool is_kbd_char_available()
@@ -2867,6 +2897,11 @@ uint8_t x80_invoke_hook()
             ptime->minute = packBCD( (uint8_t) plocal->tm_min );
             reg.a = packBCD( (uint8_t) plocal->tm_sec );
 #endif
+
+#ifdef TARGET_BIG_ENDIAN
+            ptime->swap_endian();
+#endif
+
             set_bdos_status();
             break;
         }
@@ -2893,6 +2928,10 @@ uint8_t x80_invoke_hook()
             ptime->minute = (uint16_t) plocal->tm_min;
             ptime->second = (uint16_t) plocal->tm_sec;
             ptime->millisecond = (uint16_t) ( ms / 10 ); // hundredths of a second;
+#endif
+
+#ifdef TARGET_BIG_ENDIAN
+            ptime->swap_endian();
 #endif
             set_bdos_status();
             break;
@@ -3034,16 +3073,15 @@ void help()
     exit( 0 );
 } //help
 
-
-void version()  // Display version information
+void version()
 {
 #ifdef NDEBUG
     const char * flavor = "Release";
 #else
     const char * flavor = "Debug";
 #endif
-    printf("%s: Version %s%s%s %s Compiled: ", FILENAME, VERSION, BUILD, COMMIT_ID, flavor);
-    if (__DATE__[4] == ' ')
+    printf("%s: Version %s%s%s %s Compiled: ", FILENAME, VERSION, BUILD, COMMIT_ID, flavor );
+    if ( ' ' == __DATE__[4] )
         printf( "0%c %c%c%c %s %s\n", __DATE__[5], __DATE__[0], __DATE__[1], __DATE__[2], &__DATE__[7], __TIME__ );
     else
         printf( "%c%c %c%c%c %s %s\n", __DATE__[4], __DATE__[5], __DATE__[0], __DATE__[1], __DATE__[2], &__DATE__[7], __TIME__ );
@@ -3206,8 +3244,8 @@ int main( int argc, char * argv[] )
                 if ( 'V' == ca )
                 {
                     version();
-                    printf( "License CC0 1.0 Universal: See <https://creativecommons.org/publicdomain/zero/1.0/>.\n" );
-                    exit( 0 );
+                    printf("License CC0 1.0 Universal: See <https://creativecommons.org/publicdomain/zero/1.0/>.\n");
+                    exit(0);
                 }
 #if defined( _WIN32 )  // Windows only
                 else if ( 'C' == parg[1] ) // MT - moved other wise option would be converted to lower case before it was tested
@@ -3449,6 +3487,10 @@ int main( int argc, char * argv[] )
         pdpb->al1 = 0;
         pdpb->cks = 64;
         pdpb->off = 0;
+
+#ifdef TARGET_BIG_ENDIAN
+        pdpb->swap_endian();
+#endif
 
         reg.powerOn();               // set default values of registers
         reg.pc = 0x100;
