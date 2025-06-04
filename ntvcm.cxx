@@ -3501,6 +3501,7 @@ int main( int argc, char * argv[] )
         if ( force80x24 )
             g_consoleConfig.EstablishConsoleOutput( 80, 24 );
 
+        ConsoleConfiguration::ConvertRedirectedLFToCR( true );
         CPUCycleDelay delay( clockrate );
 
 #ifdef WATCOM
