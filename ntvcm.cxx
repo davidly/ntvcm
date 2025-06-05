@@ -1640,6 +1640,8 @@ uint8_t map_input( uint8_t input )
                 tracer.Trace( "unhandled linux keyboard escape sequence\n" );
         }
     }
+    else if ( 0x7f == input && !g_backspaceToDel ) // linux gives 0x7f DEL when a user presses backspace BS 0x08 on the keyboard. Most CP/M apps like Wordstar don't want this
+        output = 0x08; // BS
 #endif
     else if ( g_backspaceToDel && 0x08 == input )
         output = 0x7f;
