@@ -213,6 +213,7 @@ struct CPM3DateTime
     uint16_t day; // day 1 is 1 January 1978
     uint8_t hour; // packed bcd (nibbles for each digit)
     uint8_t minute; // packed bcd
+    uint8_t second; // packed bcd. for BDOS 155, not BDOS 105
 
     void swap_endian()
     {
@@ -2870,6 +2871,7 @@ uint8_t x80_invoke_hook()
             break;
         }
         case 105: // get date time. cp/m 3.0 and later. Returns seconds in A as packed bcd
+        case 155: // Get date and time. MP/M, Concurrent CP/M. called by rmcobol v1.5
         {
             CPM3DateTime * ptime = (CPM3DateTime *) ( memory + reg.D() );
 #ifdef WATCOM
@@ -2893,6 +2895,9 @@ uint8_t x80_invoke_hook()
             ptime->minute = packBCD( (uint8_t) plocal->tm_min );
             reg.a = packBCD( (uint8_t) plocal->tm_sec );
 #endif
+
+            if ( 155 == reg.c )
+                ptime->second = reg.a;
 
 #ifdef TARGET_BIG_ENDIAN
             ptime->swap_endian();
