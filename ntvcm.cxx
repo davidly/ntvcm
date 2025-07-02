@@ -542,9 +542,12 @@ bool parse_FCB_Filename( FCB * pfcb, char * pcFilename )
 
     for ( int i = 0; i < 8; i++ )
     {
-        if ( ' ' == ( 0x7f & pfcb->f[ i ] ) )
+        char c = ( 0x7f & pfcb->f[ i ] );
+        if ( ' ' == c )
             break;
-        *pcFilename++ = ( 0x7f & pfcb->f[ i ] );
+        if ( '/' == c ) // slash is legal in CP/M and MT Pascal v3.0b uses it for P2/FLT.OVL. hack it to use #
+            c = '#';
+        *pcFilename++ = c;
     }
 
     if ( ' ' != pfcb->t[0] )
@@ -553,9 +556,10 @@ bool parse_FCB_Filename( FCB * pfcb, char * pcFilename )
 
         for ( int i = 0; i < 3; i++ )
         {
-            if ( ' ' == ( 0x7f & pfcb->t[ i ] ) )
+            char c = ( 0x7f & pfcb->t[ i ] );
+            if ( ' ' == c )
                 break;
-            *pcFilename++ = ( 0x7f & pfcb->t[ i ] );
+            *pcFilename++ = c;
         }
     }
 
@@ -2232,7 +2236,6 @@ uint8_t x80_invoke_hook()
                 }
                 else
                 {
-
                     // return error 255 if the file doesn't exist.
                     // Pro Pascal Compiler v2.1 requires a 0 return code for a file that's not open but exists.
 
