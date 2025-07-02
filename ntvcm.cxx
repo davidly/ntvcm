@@ -710,6 +710,8 @@ const char * get_bdos_function( uint8_t id )
         return "non - cp/m 2.2: empty disk buffers";
     if ( 105 == id )
         return "non - cp/m 2.2: get date and time";
+    if ( 155 == id )
+        return "non - cp/m 2.2: get date and time with seconds";
 
     return "unknown";
 } //get_bdos_function
@@ -2229,7 +2231,19 @@ uint8_t x80_invoke_hook()
                         tracer.Trace( "ERROR: file close failed, error %d = %s\n", errno, strerror( errno ) );
                 }
                 else
-                    tracer.Trace( "ERROR: file close on file that's not open\n" );
+                {
+
+                    // return error 255 if the file doesn't exist.
+                    // Pro Pascal Compiler v2.1 requires a 0 return code for a file that's not open but exists.
+
+                    if ( file_exists( acFilename ) )
+                    {
+                        tracer.Trace( "    WARNING: file close on file that's not open but exists\n" );
+                        reg.a = 0;
+                    }
+                    else
+                        tracer.Trace( "ERROR: file close on file that's not open and doesn't exist\n" );
+                }
             }
             else
                 tracer.Trace( "ERROR: can't parse filename in close call\n" );
