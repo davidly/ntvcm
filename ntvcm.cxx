@@ -266,6 +266,7 @@ static bool g_kayproToCP437 = false;
 static size_t g_fileInputOffset = 0;
 static vector<char> g_fileInputText;
 static bool g_sleepOnKbdLoop = true;
+static bool g_clearHOnBDOSReturn = true;
 
 enum terminal_escape { termVT100, termVT52, termKayproII };
 static terminal_escape g_termEscape = termVT100;
@@ -1739,11 +1740,13 @@ void set_bdos_status()
     // Calls to bdos in CP/M 2.2 can trash any register, so this is generally safe.
     // CP/M 2.2 generally mandates L = A on return.
     // HiSoft C v3.09 and the apps it generates only look at HL for bdos results, not A or L.
-    // So H must be cleared so 16-bit HL checks just get the result in L.
+    // So for HiSoft, H must be cleared so 16-bit HL checks just get the result in L.
+    // But Andre Adrian's Sargon chess fails if h is modified.
 
     reg.l = reg.a;
     reg.b = 0;
-    reg.h = 0;
+    if ( g_clearHOnBDOSReturn )
+        reg.h = 0;
 } //set_bdos_status
 
 uint16_t days_since_jan1_1978()
@@ -3058,6 +3061,10 @@ void help()
 #endif
     printf( "  -d        don't clear the display on exit when in 80x24 mode.\n" );
     printf( "  -f:<file> specify an input file containing keystrokes.\n" );
+    printf( "  -h        don't clear the h register after bdos calls.\n" );
+    printf( "              (Andre Adrian's Sargon chess app requies -h)\n" );
+    printf( "              (HiSoft C v3.09 fails with -h)\n" );
+    printf( "              (most apps work either way)\n" );
     printf( "  -i        trace 8080/Z80 instructions when tracing with -t.\n" );
     printf( "  -k        translate Kaypro II extended characters to ASCII\n" );
     printf( "            equivalents.\n" );
@@ -3291,6 +3298,8 @@ int main( int argc, char * argv[] )
 
                         pfileInputText = parg + 3;
                     }
+                    else if ( 'h' == ca )
+                        g_clearHOnBDOSReturn = false;
                     else if ( 'i' == ca )
                         traceInstructions = true;
                     else if ( 'k' == ca )
@@ -3491,6 +3500,11 @@ int main( int argc, char * argv[] )
             printf( "unable to load command %s\n", acCOM );
             exit( 1 );
         }
+
+        // this old Chess app fails if H is set to 0 during BDOS calls.
+
+        if ( ends_with( acCOM, "sargon.com" ) )
+            g_clearHOnBDOSReturn = false;
 
         // Use made-up numbers that look believable enough to a CP/M app checking for free disk space. 107k.
 
