@@ -29,7 +29,6 @@
 #endif
 
 #if !defined(_WIN32) && !defined(WATCOM)
-
     #include <sys/unistd.h>
     #ifdef __APPLE__
         #include <unistd.h>

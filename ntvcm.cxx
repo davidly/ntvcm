@@ -1741,7 +1741,7 @@ void set_bdos_status()
     // CP/M 2.2 generally mandates L = A on return.
     // HiSoft C v3.09 and the apps it generates only look at HL for bdos results, not A or L.
     // So for HiSoft, H must be cleared so 16-bit HL checks just get the result in L.
-    // But Andre Adrian's Sargon chess fails if h is modified.
+    // But Andre Adrian's Sargon chess fails if h is modified. (the fix is to push and pop H in the character input macro)
 
     reg.l = reg.a;
     reg.b = 0;
@@ -3501,7 +3501,7 @@ int main( int argc, char * argv[] )
             exit( 1 );
         }
 
-        // this old Chess app fails if H is set to 0 during BDOS calls.
+        // this old Chess app fails if H is set to 0 during BDOS calls. Apparently it only ever ran on eumulators.
 
         if ( ends_with( acCOM, "sargon.com" ) )
             g_clearHOnBDOSReturn = false;

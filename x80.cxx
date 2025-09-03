@@ -1754,7 +1754,7 @@ not_inlined void x80_trace_state()
                       reg.pc, op, op2, op3, reg.a, reg.B(), reg.D(), reg.H(), reg.sp,
                       reg.renderFlags(), x80_render_operation( reg.pc ) );
 
-    //tracer.TraceBinaryData( & memory[ 0x1142 ], 16, 4 );
+//    tracer.TraceBinaryData( & memory[ 0x42c5 + 0x16 ], 2, 4 );
 } //x80_trace_state
 
 bool check_conditional( uint8_t op ) // checks for conditional jump, call, and return
@@ -1973,7 +1973,7 @@ uint16_t x80_emulate( uint16_t maxcycles )
             case 0xc7: case 0xd7: case 0xe7: case 0xf7: case 0xcf: case 0xdf: case 0xef: case 0xff: // rst
             {
                 // bits 5..3 are exp, which form an address 0000000000exp000 that is called.
-                // rst is generally invoked by hardware interrupts, which supply the one instruction rst.
+                // rst is generally invoked by DDT and hardware interrupts, which supply the one instruction rst.
 
                 pushword( reg.pc );
                 reg.pc = 0x38 & (uint16_t) op;
