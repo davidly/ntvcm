@@ -484,13 +484,14 @@ bool ValidCPMFilename( char * pc )
     DIR * FindFirstFileLinux( const char * pattern, LINUX_FIND_DATA & fd )
     {
         DIR * pdir = opendir( "." );
-        tracer.Trace( "  opendir returned %p, errno %d = %s\n", pdir, errno, strerror( errno ) );
-
+        tracer.Trace( "  opendir returned %p\n", pdir );
         if ( 0 == pdir )
+        {
+            tracer.Trace( "  opendir errno %d = %s\n", errno, strerror( errno ) );
             return 0;
+        }
 
         bool found = FindNextFileLinux( pattern, pdir, fd );
-
         if ( !found )
         {
             closedir( pdir );
@@ -1741,7 +1742,7 @@ void set_bdos_status()
     // CP/M 2.2 generally mandates L = A on return.
     // HiSoft C v3.09 and the apps it generates only look at HL for bdos results, not A or L.
     // So for HiSoft, H must be cleared so 16-bit HL checks just get the result in L.
-    // But Andre Adrian's Sargon chess fails if h is modified. (the fix is to push and pop H in the character input macro)
+    // But Andre Adrian's Sargon chess fails if h is modified. (the tested fix in that app is to push and pop H in the character input macro)
 
     reg.l = reg.a;
     reg.b = 0;
@@ -1754,12 +1755,12 @@ uint16_t days_since_jan1_1978()
     time_t current_time;
     struct tm *time_info;
 
-    current_time = time(NULL);
-    time_info = localtime(&current_time);
+    current_time = time( NULL );
+    time_info = localtime( & current_time );
 
     struct tm target_date = {0};
     target_date.tm_year = 1978 - 1900; // Years since 1900
-    target_date.tm_mon = 0;         // January (0-indexed)
+    target_date.tm_mon = 0;            // January (0-indexed)
     target_date.tm_mday = 1;
     target_date.tm_hour = 0;
     target_date.tm_min = 0;
@@ -2442,8 +2443,8 @@ uint8_t x80_invoke_hook()
                         fclose( fp );
                 }
 
-                int removeok = ( 0 == remove( acFilename ) );
-                tracer.Trace( "  attempt to remove file '%s' result ok: %d\n", acFilename, removeok );
+                int removeok = ( 0 == unlink( acFilename ) );
+                tracer.Trace( "  attempt to remove/delete/unlink file '%s' result ok: %d\n", acFilename, removeok );
                 if ( removeok )
                     reg.a = 0;
                 else
