@@ -3282,7 +3282,7 @@ int main( int argc, char * argv[] )
 #if defined( _WIN32 )  // Command line options are case sensitive on Linux/NetBSD...
                     ca = (char) tolower( ca );
 #endif
-                    if ( 'h' == ca || '?' == ca )
+                    if ( '?' == ca )
                         help();
                     else if ( '8' == ca )
                         reg.fZ80Mode = false;
