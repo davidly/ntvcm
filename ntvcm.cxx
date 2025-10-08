@@ -2724,6 +2724,21 @@ uint8_t x80_invoke_hook()
             if ( ok )
             {
                 FILE * fp = FindFileEntry( acFilename );
+                if ( !fp )
+                {
+                    tracer.Trace( "  in random read but the file isn't opened. trying to open it now\n" );
+                    fp = fopen( acFilename, "r+b" );
+                    if ( fp )
+                    {
+                        FileEntry fe;
+                        strcpy( fe.acName, acFilename );
+                        fe.fp = fp;
+                        g_fileEntries.push_back( fe );
+                        tracer.Trace( "  file opened successfully for random read\n" );
+                    }
+                    else
+                        tracer.Trace( "  file open failed for random read\n" );
+                }
                 if ( fp )
                 {
                     uint32_t record = pfcb->GetRandomIOOffset();
