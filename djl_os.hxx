@@ -72,6 +72,7 @@
     #endif
 
 #ifdef __mc68000__
+#define truncl trunc
 extern "C" int nanosleep( const struct timespec * duration, struct timespec * rem );
 #endif
 
@@ -183,8 +184,10 @@ inline const char * target_platform()
 {
     #if defined( __riscv )        // g++ on linux
         return "riscv";
-    #elif defined( __amd64 )      // g++ on linux
+    #elif defined( __amd64__ )    // g++ on linux
         return "amd64";
+    #elif defined( __i386__ )     // g++ on linux
+        return "i386";
     #elif defined( __aarch64__ )  // g++ on linux
         return "arm64";
     #elif defined( _M_AMD64 )     // msft on Windows

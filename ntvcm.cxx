@@ -2726,6 +2726,7 @@ uint8_t x80_invoke_hook()
                 FILE * fp = FindFileEntry( acFilename );
                 if ( !fp )
                 {
+                    // dxforth 4.56 relies on this cp/m 2.2 behavior: open / close / read should work.
                     tracer.Trace( "  in random read but the file isn't opened. trying to open it now\n" );
                     fp = fopen( acFilename, "r+b" );
                     if ( fp )
