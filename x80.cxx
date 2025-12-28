@@ -175,16 +175,7 @@ static uint16_t pcword() { uint16_t r = mword( reg.pc ); reg.pc += 2; return r; 
 static void pushword( uint16_t val ) { reg.sp -= 2; setmword( reg.sp, val ); }
 static uint16_t popword() {  uint16_t val = mword( reg.sp ); reg.sp += 2; return val; }
 
-bool is_parity_even( uint8_t x )
-{
-#if defined(_M_AMD64) && !defined(__GNUC__)
-    return ( ! ( __popcnt16( x ) & 1 ) ); // less portable, but faster
-#else
-    return ( ! ( std::bitset<8>( x ).count() & 1 ) );
-#endif
-} //is_parity_even
-
-void set_parity( uint8_t x ) { reg.fParityEven_Overflow = is_parity_even( x ); }
+void set_parity( uint8_t x ) { reg.fParityEven_Overflow = is_parity_even8( x ); }
 
 void set_sign_zero( uint8_t x )
 {
