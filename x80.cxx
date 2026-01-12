@@ -247,7 +247,7 @@ force_inlined void op_add( uint8_t x, bool carry = false )
     reg.fAuxCarry = ( 0 != ( ( ( 0xf & reg.a ) + ( 0xf & x ) + carry_int ) & 0x10 ) );
     set_sign_zero( r8 );
 
-    // if not ( ( one of lhs and rhs are negative ) and ( one of lhs and result are negative ) )
+    // if ( not ( one of lhs and rhs are negative ) ) and ( one of lhs and result are negative )
 
     if ( reg.fZ80Mode )
     {

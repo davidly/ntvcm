@@ -2699,7 +2699,7 @@ uint8_t x80_invoke_hook()
         }
         case 31:
         {
-            // get PDB address. Get Disk Parameter Block. Return the address in HL
+            // get DPB address. Get Disk Parameter Block. Return the address in HL
 
             reg.h = DPB_OFFSET_HI;
             reg.l = DPB_OFFSET_LO;
