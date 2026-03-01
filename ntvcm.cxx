@@ -26,7 +26,7 @@
 // To build on Windows targeting DOS:
 //    I used Open Watcom C/C++ x86 16-bit Compile and Link Utility Version 2.0 beta Oct  9 2023 02:19:55 (64-bit)
 //    https://github.com/open-watcom/open-watcom-v2/releases/tag/Current-build
-//    wcl -q -zp=1 -ml -obmr -oh -ei -oi -s -0 -xs -j -oe=128 -ol+ -ot ntvcm.cxx x80.cxx -bcl=DOS -k8192 /I. /DWATCOM /DNDEBUG
+//    wcl -q -zp=1 -ml -obmr -oh -ei -oi -s -0 -xs -j -oe=128 -ol+ -ot ntvcm.cxx x80.cxx -bcl=DOS -k8192 /I. /DWATCOMDOS /DNDEBUG
 //    helpful: https://open-watcom.github.io/open-watcom-v2-wikidocs/clib.html
 // Note: openmp, wininet, ssl, crypto, and djl_rssrdr.hxx are only required for RSS support.
 //
@@ -146,7 +146,7 @@ struct FCB
         cr = (uint8_t) ( ( offset % ( (uint32_t) 16 * 1024 ) ) / (uint32_t) 128 );
         ex = (uint8_t) ( ( offset % ( (uint32_t) 512 * 1024 ) ) / ( (uint32_t) 16 * 1024 ) );
         s2 = (uint8_t) ( offset / ( (uint32_t) 512 * 1024 ) );
-        #ifdef WATCOM
+        #ifdef WATCOMDOS
         tracer.Trace( "  new offset: %u, s2 %u, ex %u, cr %u\n", (uint16_t) offset, (uint16_t) s2, (uint16_t) ex, (uint16_t) cr );
         #else
         tracer.Trace( "  new offset: %u, s2 %u, ex %u, cr %u\n", offset, s2, ex, cr );
@@ -286,7 +286,7 @@ void dump_memory( const char * pname = "ntvcm.dmp" )
     fclose( fp );
 } //dump_memory
 
-#ifdef WATCOM
+#ifdef WATCOMDOS
     #include <dos.h>
     uint32_t DosTimeInMS()
     {
@@ -298,7 +298,17 @@ void dump_memory( const char * pname = "ntvcm.dmp" )
         t += (uint32_t) tNow.hsecond;
         return t * 10;
     } //DosTimeInMS
-#endif //WATCOM
+#endif //WATCOMDOS
+
+#ifdef WATCOMLINUX
+    const uint64_t ms_per_ns = 1000000;
+    uint64_t LinuxTimeInMS()
+    {
+        struct timespec spec;
+        clock_gettime( CLOCK_REALTIME, &spec );
+        return spec.tv_sec * 1000LL + ( ( spec.tv_nsec + ( ms_per_ns / 2 ) ) / ms_per_ns );
+    } //LinuxTimeInMS
+#endif //WATCOMLINUX
 
 int ends_with( const char * str, const char * end )
 {
@@ -358,7 +368,7 @@ bool ValidCPMFilename( char * pc )
             g_hFindFirst = INVALID_HANDLE_VALUE;
         }
     } //CloseFindFirst
-#elif defined( WATCOM )
+#elif defined( WATCOMDOS )
     static bool g_FindActive = false;
     static struct find_t g_FindFirst;
 
@@ -768,7 +778,7 @@ const char * get_bios_function( uint16_t id )
 
 char kaypro_to_cp437( uint8_t c )
 {
-#if defined( _MSC_VER ) || defined( WATCOM )
+#if defined( _MSC_VER ) || defined( WATCOMDOS )
 
     #pragma warning(disable: 4310)
 
@@ -812,7 +822,7 @@ char kaypro_to_cp437( uint8_t c )
     return c;
  } //kaypro_to_cp437
 
-#ifdef WATCOM
+#ifdef WATCOMDOS
 
 void append( char * pc, size_t len, char c )
 {
@@ -831,7 +841,7 @@ void match_vt100( char * pc, size_t len )
         {
             if ( ( 'H' == last ) && ( strchr( pc, ';' ) ) ) // set cursor position
             {
-                // rows and columns: vt-100 is 1-based, WATCOM library functions are 1-based. DOS is 0-based.
+                // rows and columns: vt-100 is 1-based, WATCOMDOS library functions are 1-based. DOS is 0-based.
 
                 uint8_t row = atoi( pc + 2 );
                 char * pcol = strchr( pc, ';' ) + 1;
@@ -1098,11 +1108,11 @@ void match_vt100( char * pc, size_t len )
     }
 } //match_vt100
 
-#endif // WATCOM
+#endif // WATCOMDOS
 
 void send_character( uint8_t c )
 {
-    #if defined( _WIN32 ) || defined( WATCOM )
+    #if defined( _WIN32 ) || defined( WATCOMDOS )
         if ( 10 == c )
         {
             fflush( stdout );
@@ -1112,7 +1122,7 @@ void send_character( uint8_t c )
 
     printf( "%c", c );
 
-    #if defined( _WIN32 ) || defined( WATCOM )
+    #if defined( _WIN32 ) || defined( WATCOMDOS )
         if ( 10 == c )
         {
             fflush( stdout );
@@ -1142,7 +1152,7 @@ void output_character( uint8_t c )
     static bool s_escaped = false;      // true if prior char was ESC
     static uint8_t s_row = 0xff;        // not 0xff if prior 3 chars were ESC Y row
 
-#ifdef WATCOM
+#ifdef WATCOMDOS
 
     if ( !g_consoleConfig.IsOutputEstablished() )
         send_character( c );
@@ -1571,7 +1581,7 @@ uint8_t map_input( uint8_t input )
 {
     uint8_t output = input;
 
-#if defined(_MSC_VER) || defined(WATCOM)
+#if defined(_MSC_VER) || defined(WATCOMDOS)
     // On Windows, input is  0xe0 for standard arrow keys and 0 for keypad equivalents
     // On DOS/WATCOM, input is 0 for both cases
 
@@ -1838,7 +1848,7 @@ void WriteRandom()
     set_bdos_status();
 } //WriteRandom
 
-#ifdef WATCOM
+#ifdef WATCOMDOS
 
 uint16_t daysSince1978( struct dosdate_t & date )
 {
@@ -1955,7 +1965,6 @@ uint8_t x80_invoke_hook()
         case 1:
         {
             // console input. echo input to console
-
             uint8_t ch = (uint8_t) get_next_kbd_char();
             reg.a = map_input( ch );
             set_bdos_status();
@@ -1969,9 +1978,8 @@ uint8_t x80_invoke_hook()
             // console output
             // CP/M 2.2 checks for ^s and ^q to pause and resume output. If output is paused due to ^s,
             // a subsequent ^c terminates the application. ^q resumes output then ^c has no effect.
-
             uint8_t ch = reg.e;
-            tracer.Trace( "  bdos console out: %02x == '%c'\n", ch, printable( ch ) );
+            tracer.Trace( "  bdos console output: %02x == '%c'\n", ch, printable( ch ) );
             output_character( ch );
             fflush( stdout );
             break;
@@ -1979,7 +1987,6 @@ uint8_t x80_invoke_hook()
         case 3:
         {
             // reader input. aka raw console input. I haven't found an app that uses this yet.
-
             uint8_t ch = (uint8_t) get_next_kbd_char();
             reg.a = map_input( ch );
             set_bdos_status();
@@ -1988,12 +1995,20 @@ uint8_t x80_invoke_hook()
         }
         case 4:
         {
-            // punch output
+            // punch output. paper tape punch. aux or non-standard peripheral. redirect to the console
+            uint8_t ch = reg.e;
+            tracer.Trace( "  bdos punch output: %02x == '%c'\n", ch, printable( ch ) );
+            output_character( ch );
+            fflush( stdout );
             break;
         }
         case 5:
         {
-            // list output
+            // list output. this generally means printer output. redirect to the console. the plmx compiler sends error info here by default
+            uint8_t ch = reg.e;
+            tracer.Trace( "  bdos list output: %02x == '%c'\n", ch, printable( ch ) );
+            output_character( ch );
+            fflush( stdout );
             break;
         }
         case 6:
@@ -2306,7 +2321,7 @@ uint8_t x80_invoke_hook()
                     CloseFindFirst();
                     tracer.Trace( "WARNING: find first file couldn't find a single match\n" );
                 }
-#elif defined(WATCOM)
+#elif defined(WATCOMDOS)
                 CloseFindFirst();
                 g_FindFirst.name[ 0 ] = 0;
                 unsigned result = _dos_findfirst( acFilename, _A_NORMAL, &g_FindFirst );
@@ -2379,7 +2394,7 @@ uint8_t x80_invoke_hook()
                 }
                 else
                     tracer.Trace( "ERROR: search for next without a prior successful search for first\n" );
-#elif defined(WATCOM)
+#elif defined(WATCOMDOS)
                 if ( g_FindActive )
                 {
                     g_FindFirst.name[ 0 ] = 0;
@@ -2478,7 +2493,7 @@ uint8_t x80_invoke_hook()
                     uint32_t file_size = portable_filelen( fp );
                     uint32_t curr = pfcb->GetSequentialOffset();
                     uint16_t dmaOffset = (uint16_t) ( g_DMA - memory );
-#ifdef WATCOM
+#ifdef WATCOMDOS
                     tracer.Trace( "  file size: %#lx = %lu, current %#lx = %lu, dma %#x = %u\n",
                                   file_size, file_size, curr, curr, dmaOffset, dmaOffset );
 #else
@@ -2911,7 +2926,7 @@ uint8_t x80_invoke_hook()
         case 155: // Get date and time. MP/M, Concurrent CP/M. called by rmcobol v1.5
         {
             CPM3DateTime * ptime = (CPM3DateTime *) ( memory + reg.D() );
-#ifdef WATCOM
+#ifdef WATCOMDOS
             struct dostime_t time;
             _dos_gettime( &time );
 
@@ -2923,8 +2938,8 @@ uint8_t x80_invoke_hook()
             _dos_getdate( &date );
             ptime->day = daysSince1978( date );
 #else
-            system_clock::time_point now = system_clock::now();
-            time_t time_now = system_clock::to_time_t( now );
+            time_t time_now;
+            time( & time_now );
             struct tm * plocal = localtime( & time_now );
 
             ptime->day = 1 + days_since_jan1_1978();
@@ -2948,7 +2963,7 @@ uint8_t x80_invoke_hook()
             // non-standard BDOS call GetTime. DE points to a CPMTime structure
 
             CPMTime * ptime = (CPMTime *) ( memory + reg.D() );
-#ifdef WATCOM
+#ifdef WATCOMDOS
             struct dostime_t time;
             _dos_gettime( &time );
 
@@ -2956,7 +2971,17 @@ uint8_t x80_invoke_hook()
             ptime->minute = time.minute;
             ptime->second = time.second;
             ptime->millisecond = time.hsecond;
-#else
+#elif defined( WATCOMLINUX ) // old-school Linux
+            struct timespec ts;
+            clock_gettime( CLOCK_REALTIME, & ts );
+            long ms =  ( ts.tv_nsec + ( ms_per_ns / 2 ) ) / ms_per_ns;
+            struct tm * plocal = localtime( & ts.tv_sec );
+
+            ptime->hour = (uint16_t) plocal->tm_hour;
+            ptime->minute = (uint16_t) plocal->tm_min;
+            ptime->second = (uint16_t) plocal->tm_sec;
+            ptime->millisecond = (uint16_t) ( ms / 10 ); // hundredths of a second;
+#else // modern Linux and Windows
             system_clock::time_point now = system_clock::now();
             uint64_t ms = duration_cast<milliseconds>( now.time_since_epoch() ).count() % 1000;
             time_t time_now = system_clock::to_time_t( now );
@@ -3276,7 +3301,7 @@ int main( int argc, char * argv[] )
             }
 
             if ( 0 == pcCOM && ( '-' == c
-#if defined( WATCOM ) || defined( _WIN32 )
+#if defined( WATCOMDOS ) || defined( _WIN32 )
                 || '/' == c
 #endif
                 ) )
@@ -3561,8 +3586,10 @@ int main( int argc, char * argv[] )
         ConsoleConfiguration::ConvertRedirectedLFToCR( true );
         CPUCycleDelay delay( clockrate );
 
-#ifdef WATCOM
+#ifdef WATCOMDOS
         uint32_t tStart = DosTimeInMS();
+#elif defined( WATCOMLINUX )
+        uint64_t tStart = LinuxTimeInMS();
 #else
         high_resolution_clock::time_point tStart = high_resolution_clock::now();
 #endif
@@ -3578,8 +3605,10 @@ int main( int argc, char * argv[] )
             delay.Delay( total_cycles );
         } while ( true );
 
-#ifdef WATCOM
+#ifdef WATCOMDOS
         uint32_t tDone = DosTimeInMS();
+#elif defined( WATCOMLINUX )
+        uint64_t tDone = LinuxTimeInMS();
 #else
         high_resolution_clock::time_point tDone = high_resolution_clock::now();
 #endif
@@ -3592,8 +3621,10 @@ int main( int argc, char * argv[] )
         {
             char ac[ 100 ];
             printf( "\n" );
-#ifdef WATCOM
+#ifdef WATCOMDOS
             uint32_t elapsedMS = tDone - tStart;
+#elif defined( WATCOMLINUX )
+            uint32_t elapsedMS = (uint32_t) ( tDone - tStart );
 #else
             uint32_t elapsedMS = (uint32_t) duration_cast<std::chrono::milliseconds>( tDone - tStart ).count();
 #endif
@@ -3646,4 +3677,5 @@ int main( int argc, char * argv[] )
     tracer.Shutdown();
     return g_haltExecuted ? -1 : g_exitCodeSet ? (int) g_exitCode : 0;
 } //main
+
 
