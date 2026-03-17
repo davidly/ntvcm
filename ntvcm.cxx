@@ -268,6 +268,15 @@ static vector<char> g_fileInputText;
 static bool g_sleepOnKbdLoop = true;
 static bool g_clearHOnBDOSReturn = true;
 
+// ^z. CP/M writes 128 bytes at a time. When a file is read by the emulator and isn't 128-byte aligned in size
+// we can only guess what the app that created such a file on CP/M would have had in the bytes above the
+// remainder of the file above the last byte of valid data. Most apps work with various fill values, but:
+//  -  Hisoft C v3.09, Eco C, and other apps fail if zero is assumed as the fill value and works with ^z
+//  -  Cowgil fails if ^z is assumed and works with 0.
+// Note that the correct fix is for apps to always write 128-byte aligned files so there is no guesswork.
+
+static uint8_t g_readFileFillValue = 0x1a; // assume ^z, the EOF marker for CP/M. Works with all tested apps except Cowgil
+
 enum terminal_escape { termVT100, termVT52, termKayproII };
 static terminal_escape g_termEscape = termVT100;
 
@@ -2506,7 +2515,7 @@ uint8_t x80_invoke_hook()
                         fseek( fp, curr, SEEK_SET );
 
                         uint32_t to_read = get_min( file_size - curr, (uint32_t) 128 );
-                        memset( g_DMA, 0x1a, 128 ); // fill with ^z, the EOF marker in CP/M
+                        memset( g_DMA, g_readFileFillValue, 128 );
 
                         size_t numread = fread( g_DMA, 1, to_read, fp );
                         if ( numread > 0 )
@@ -2760,7 +2769,7 @@ uint8_t x80_invoke_hook()
                     uint32_t record = pfcb->GetRandomIOOffset();
                     tracer.Trace( "  read random record %u == %#x\n", record, record );
                     uint32_t file_offset = (uint32_t) record * (uint32_t) 128;
-                    memset( g_DMA, 0x1a, 128 ); // fill with ^z, the EOF marker in CP/M
+                    memset( g_DMA, g_readFileFillValue, 128 );
 
                     uint32_t file_size = portable_filelen( fp );
 
@@ -3114,6 +3123,7 @@ void help()
     printf( "  -n        don't sleep for apps in tight bdos 6 loops. (Use\n" );
     printf( "            with apps like nvbasic).\n" );
     printf( "  -p        show performance information at app exit.\n" );
+    printf( "  -r:X      fill for file reads past EOF 0..255. default 26 ^z.\n" );
     printf( "  -s:X      specify clock speed in Hz.\n" );
     printf( "            defaults to 0 which is as fast as possible.\n" );
     printf( "  -t        enable debug tracing to ntvcm.log.\n" );
@@ -3352,6 +3362,13 @@ int main( int argc, char * argv[] )
                         g_sleepOnKbdLoop = false;
                     else if ( 'p' == ca )
                         showPerformance = true;
+                    else if ( 'r' == ca )
+                    {
+                        if ( ':' == parg[2] )
+                            g_readFileFillValue = (uint8_t) strtoul( parg + 3 , 0, 10 );
+                        else
+                            error( "colon required after r argument" );
+                    }
                     else if ( 's' == ca )
                     {
                         if ( ':' == parg[2] )
@@ -3438,6 +3455,11 @@ int main( int argc, char * argv[] )
                 }
             }
         }
+
+        // Cowgil's tokenise.com requires 0-fill after soft EOF.
+
+        if ( ( ends_with( acCOM, "tokenise.com" ) ) && ( 0x1a == g_readFileFillValue ) )
+            g_readFileFillValue = 0;
 
         // The Pascal/Z compiler's pasopt.com optimizer has a bug that depends on uninitialized RAM
         // being set to a non-zero value. The location is -30eH bytes from the BDOS address.
