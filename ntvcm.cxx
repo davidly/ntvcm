@@ -272,10 +272,10 @@ static bool g_clearHOnBDOSReturn = true;
 // we can only guess what the app that created such a file on CP/M would have had in the bytes above the
 // remainder of the file above the last byte of valid data. Most apps work with various fill values, but:
 //  -  Hisoft C v3.09, Eco C, and other apps fail if zero is assumed as the fill value and works with ^z
-//  -  Cowgil fails if ^z is assumed and works with 0.
+//  -  Cowgol fails if ^z is assumed and works with 0.
 // Note that the correct fix is for apps to always write 128-byte aligned files so there is no guesswork.
 
-static uint8_t g_readFileFillValue = 0x1a; // assume ^z, the EOF marker for CP/M. Works with all tested apps except Cowgil
+static uint8_t g_readFileFillValue = 0x1a; // assume ^z, the EOF marker for CP/M. Works with all tested apps except Cowgol
 
 enum terminal_escape { termVT100, termVT52, termKayproII };
 static terminal_escape g_termEscape = termVT100;
@@ -3456,7 +3456,7 @@ int main( int argc, char * argv[] )
             }
         }
 
-        // Cowgil's tokenise.com requires 0-fill after soft EOF.
+        // Cowgol's tokenise.com requires 0-fill after soft EOF.
 
         if ( ( ends_with( acCOM, "tokenise.com" ) ) && ( 0x1a == g_readFileFillValue ) )
             g_readFileFillValue = 0;
