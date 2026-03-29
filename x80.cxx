@@ -1762,10 +1762,15 @@ not_inlined bool handle_state() // this code exists to reduce what would be mult
     return false;
 } //handle_state
 
+#define RETURN_INSTRUCTION_COUNT 0
+
 uint16_t x80_emulate( uint16_t maxcycles )
 {
     uint16_t cycles = 0;
     const acycles_t & acycles = reg.fZ80Mode ? z80_cycles : i8080_cycles; // ms C++ will opportunistically read *both* in the loop below otherwise
+#if RETURN_INSTRUCTION_COUNT
+    uint16_t instructions = 0;
+#endif
 
     // with the Watcom compiler for real-mode DOS, the cycle check, cycle addition, and trace check consume 17% of runtime
 
@@ -1778,6 +1783,9 @@ uint16_t x80_emulate( uint16_t maxcycles )
         uint8_t op = memory[ reg.pc ];  // 1% of runtime
         reg.pc++;                       // 7% of runtime
         cycles += acycles[ op ];
+#if RETURN_INSTRUCTION_COUNT
+        instructions++;
+#endif
 
         switch ( op )                   // 50% of runtime is completing cycle addition & setting up for the jump table jump
         {
@@ -1888,7 +1896,7 @@ uint16_t x80_emulate( uint16_t maxcycles )
             }
             case 0x3a: { reg.a = memory[ pcword() ]; break; } // lda a16
             case 0x3f: { op_cmc(); break; } // cmc
-            case 0x40: case 0x41: case 0x42: case 0x43: case 0x44: case 0x45: case 0x46: case 0x47:
+            case 0x40: case 0x41: case 0x42: case 0x43: case 0x44: case 0x45: case 0x46: case 0x47: // mov
             case 0x48: case 0x49: case 0x4a: case 0x4b: case 0x4c: case 0x4d: case 0x4e: case 0x4f:
             case 0x50: case 0x51: case 0x52: case 0x53: case 0x54: case 0x55: case 0x56: case 0x57:
             case 0x58: case 0x59: case 0x5a: case 0x5b: case 0x5c: case 0x5d: case 0x5e: case 0x5f:
@@ -1997,5 +2005,9 @@ uint16_t x80_emulate( uint16_t maxcycles )
         reg.z80_increment_r(); // do this for 8080 too to avoid the 'if' statement
     } //while
 _all_done:
+#if RETURN_INSTRUCTION_COUNT
+    return instructions;
+#else
     return cycles;
+#endif
 } //x80_emulate

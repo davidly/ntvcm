@@ -1975,6 +1975,7 @@ uint8_t x80_invoke_hook()
         {
             // console input. echo input to console
             uint8_t ch = (uint8_t) get_next_kbd_char();
+            tracer.Trace( "  bdos console in got next kbd char: %02x == '%c'\n", ch, printable( ch ) );
             reg.a = map_input( ch );
             set_bdos_status();
             tracer.Trace( "  bdos console in: %02x == '%c'\n", ch, printable( ch ) );
@@ -3606,6 +3607,8 @@ int main( int argc, char * argv[] )
             g_consoleConfig.EstablishConsoleOutput( 80, 24 );
 
         ConsoleConfiguration::ConvertRedirectedLFToCR( true );
+        g_consoleConfig.MakeKeyboardInputRaw(); // needed for non-Windows
+
         CPUCycleDelay delay( clockrate );
 
 #ifdef WATCOMDOS

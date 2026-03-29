@@ -67,14 +67,12 @@
 
 #else // Linux, MacOS, etc.
 
-    #if !defined( OLDGCC ) && !defined( __mc68000__ )
-        #include <termios.h>
-    #endif
+    #include <termios.h>
 
-#ifdef __mc68000__
-#define truncl trunc
-extern "C" int nanosleep( const struct timespec * duration, struct timespec * rem );
-#endif
+    #ifdef __mc68000__
+        #define truncl trunc
+        extern "C" int nanosleep( const struct timespec * duration, struct timespec * rem );
+    #endif
 
     #include <thread>
     #include <sched.h>
@@ -88,7 +86,7 @@ extern "C" int nanosleep( const struct timespec * duration, struct timespec * re
 
     inline void set_process_affinity( uint64_t processAffinityMask )
     {
-#if !defined(__APPLE__) && !defined( OLDGCC ) && !defined( __mc68000__ )
+#if !defined(__APPLE__) && !defined( __mc68000__ )
         cpu_set_t mask;
         CPU_ZERO( &mask );
 
@@ -134,10 +132,7 @@ extern "C" int nanosleep( const struct timespec * duration, struct timespec * re
         long ns = (long) ( total_ns % 1000000000 );
         long sec = (long) ( total_ns / 1000000000 );
         struct timespec ts = { sec, ns };
-
-        #if !defined( OLDGCC )
-            nanosleep( &ts, 0 );
-        #endif
+        nanosleep( &ts, 0 );
     } //sleep_ms
 
     inline bool file_exists( char const * pfile )
@@ -341,7 +336,7 @@ inline char printable( uint8_t x )
     return x;
 } //printable
 
-#if ( ( defined( __clang__ ) || defined( __GNUC__ ) ) && !defined( OLDGCC ) )
+#if ( ( defined( __clang__ ) || defined( __GNUC__ ) ) )
 
     inline uint64_t flip_endian64( uint64_t x ) { return __builtin_bswap64( x ); }
     inline uint32_t flip_endian32( uint32_t x ) { return __builtin_bswap32( x ); }

@@ -41,7 +41,7 @@ class CDJLTrace
 {
     private:
         FILE * fp;
-#if !defined( WATCOMDOS ) && !defined( WATCOMLINUX ) && !defined( OLDGCC ) && !defined( __mc68000__ )
+#if !defined( WATCOMDOS ) && !defined( WATCOMLINUX ) && !defined( __mc68000__ )
         std::mutex mtx;
 #endif
         bool quiet; // no pid
@@ -215,7 +215,7 @@ class CDJLTrace
         {
             if ( NULL != fp )
             {
-#if !defined( WATCOMDOS ) && !defined( WATCOMLINUX ) && !defined( OLDGCC ) && !defined( __mc68000__ )
+#if !defined( WATCOMDOS ) && !defined( WATCOMLINUX ) && !defined( __mc68000__ )
                 lock_guard<mutex> lock( mtx );
 #endif
 
@@ -251,7 +251,7 @@ class CDJLTrace
         {
             if ( NULL != fp )
             {
-#if !defined( WATCOMDOS ) && !defined( WATCOMLINUX ) && !defined( OLDGCC ) && !defined( __mc68000__ )
+#if !defined( WATCOMDOS ) && !defined( WATCOMLINUX ) && !defined( __mc68000__ )
                 lock_guard<mutex> lock( mtx );
 #endif
                 va_list args;
@@ -265,7 +265,7 @@ class CDJLTrace
 
         void TraceIt( const char * format, ... )
         {
-#if !defined( WATCOMDOS ) && !defined( WATCOMLINUX ) && !defined( OLDGCC ) && !defined( __mc68000__ )
+#if !defined( WATCOMDOS ) && !defined( WATCOMLINUX ) && !defined( __mc68000__ )
             lock_guard<mutex> lock( mtx );
 #endif
             va_list args;
@@ -281,7 +281,7 @@ class CDJLTrace
             #ifdef DEBUG
             if ( NULL != fp && condition )
             {
-#if !defined( WATCOMDOS ) && !defined( WATCOMLINUX ) && !defined( OLDGCC ) && !defined( __mc68000__ )
+#if !defined( WATCOMDOS ) && !defined( WATCOMLINUX ) && !defined( __mc68000__ )
                 lock_guard<mutex> lock( mtx );
 #endif
 
@@ -300,7 +300,7 @@ class CDJLTrace
                     fflush( fp );
             }
             #else
-#if !defined( WATCOMDOS ) && !defined( WATCOMLINUX ) && !defined( __APPLE__ ) && !defined( __clang__ ) && !defined (OLDGCC)
+#if !defined( WATCOMDOS ) && !defined( WATCOMLINUX ) && !defined( __APPLE__ ) && !defined( __clang__ )
             condition; // unused
             format; // unused
 #endif
