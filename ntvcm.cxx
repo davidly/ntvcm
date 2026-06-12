@@ -363,6 +363,18 @@ bool ValidCPMFilename( char * pc )
     if ( pcdot && ( ( pcdot - pc ) > 8 ) )
         return false;
 
+    // CP/M extensions are at most 3 characters. Reject host names whose part
+    // after the dot is longer (e.g. ".gitignore"), or that contain a second
+    // dot, since CP/M can't represent them. Without this, such a file reaches
+    // ExtractFilename and trips its (extlen <= 3) assert during enumeration.
+    if ( pcdot )
+    {
+        if ( strchr( pcdot + 1, '.' ) )
+            return false;
+        if ( strlen( pcdot + 1 ) > 3 )
+            return false;
+    }
+
     return true;
 } //ValidCPMFilename
 
