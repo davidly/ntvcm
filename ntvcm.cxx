@@ -3208,6 +3208,94 @@ static void load_input_file_text( const char * file_path )
     }
 } //load_input_file_text
 
+bool valid_cpm_8_3_token( const char * tok )
+{
+    // Validate a single filename token against CP/M's 8.3 naming rules:
+    // an optional drive prefix "X:" (X = A..P), a base name of at most 8
+    // characters, and an optional type of at most 3 characters after a
+    // single dot.
+
+    // optional drive prefix "X:"
+
+    if ( 0 != tok[ 0 ] && ':' == tok[ 1 ] )
+    {
+        char drive = (char) toupper( (unsigned char) tok[ 0 ] );
+        if ( drive < 'A' || drive > 'P' )
+            return false;
+        tok += 2;
+    }
+
+    if ( 0 == *tok ) // a bare drive such as "B:" with no filename
+        return false;
+
+    const char * dot = strchr( tok, '.' );
+    size_t name_len = dot ? (size_t) ( dot - tok ) : strlen( tok );
+    if ( name_len > 8 )
+        return false;
+
+    if ( dot )
+    {
+        const char * ext = dot + 1;
+        if ( strchr( ext, '.' ) ) // only a single dot is allowed
+            return false;
+        if ( strlen( ext ) > 3 )
+            return false;
+    }
+
+    return true;
+} //valid_cpm_8_3_token
+
+bool validate_assembler_command_tail( const char * tail, char * offending, size_t offending_size )
+{
+    // M80/L80 (and similar CP/M assemblers/linkers) parse the command tail
+    // themselves and silently corrupt memory or crash when handed a filename
+    // whose base is longer than 8 characters or whose type is longer than 3.
+    // Validate each filename token before launching the app. Tokens are
+    // separated by spaces, commas, and '=' (e.g. "OBJ,LIST=SOURCE"). An L80
+    // switch group like "/E" or "/P:100" is skipped, and switches appended to
+    // a filename ("PROG/N/E") are ignored when validating the name.
+
+    static const char * separators = " \t,=";
+
+    while ( *tail )
+    {
+        while ( 0 != *tail && strchr( separators, *tail ) )
+            tail++;
+        if ( 0 == *tail )
+            break;
+
+        const char * start = tail;
+        while ( 0 != *tail && !strchr( separators, *tail ) )
+            tail++;
+
+        char token[ 130 ];
+        size_t len = (size_t) ( tail - start );
+        if ( len >= sizeof( token ) )
+            len = sizeof( token ) - 1;
+        memcpy( token, start, len );
+        token[ len ] = 0;
+
+        if ( '/' == token[ 0 ] ) // an L80 switch group, not a filename
+            continue;
+
+        char * slash = strchr( token, '/' ); // strip any trailing L80 switches
+        if ( slash )
+            *slash = 0;
+
+        if ( 0 == token[ 0 ] )
+            continue;
+
+        if ( !valid_cpm_8_3_token( token ) )
+        {
+            strncpy( offending, token, offending_size - 1 );
+            offending[ offending_size - 1 ] = 0;
+            return false;
+        }
+    }
+
+    return true;
+} //validate_assembler_command_tail
+
 bool write_fcb_arg( FCB * arg, char * pc )
 {
     if ( ':' == pc[ 1 ] )
@@ -3474,6 +3562,22 @@ int main( int argc, char * argv[] )
 
         if ( ends_with( acCOM, "pasopt.com" ) )
             memory[ BDOS_ENTRY - 0x30e ] = 0xff; // address 0xfbee for NTVCM's BDOS address. the value is arbitrary non-zero.
+
+        // M80/L80 parse the command tail themselves and silently crash on filenames
+        // that aren't CP/M 8.3 compliant. Validate before launching so the user gets
+        // a clear message instead of a hang or crash.
+
+        if ( ends_with( acCOM, "m80.com" ) || ends_with( acCOM, "l80.com" ) )
+        {
+            char offending[ 130 ];
+            if ( !validate_assembler_command_tail( pCommandTail, offending, sizeof( offending ) ) )
+            {
+                char msg[ 200 ];
+                snprintf( msg, sizeof( msg ),
+                          "'%s' is not a valid CP/M 8.3 filename (max 8-character name, 3-character type)", offending );
+                error( msg );
+            }
+        }
 
         // setup command-line arguments
 
