@@ -3584,7 +3584,7 @@ int main( int argc, char * argv[] )
             char offending[ 130 ];
             if ( !validate_assembler_command_tail( pCommandTail, offending, sizeof( offending ) ) )
             {
-                char msg[ 200 ];
+                char msg[ 256 ];
                 snprintf( msg, sizeof( msg ),
                           "'%s' is not a valid CP/M 8.3 filename (max 8-character name, 3-character type)", offending );
                 error( msg );
