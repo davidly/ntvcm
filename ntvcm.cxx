@@ -2958,13 +2958,13 @@ uint8_t x80_invoke_hook()
 
             struct dosdate_t date;
             _dos_getdate( &date );
-            ptime->day = daysSince1978( date );
+            ptime->day = 1 + daysSince1978( date ); // on cp/m 3.0, jan 1 1978 is day 1.
 #else
             time_t time_now;
             time( & time_now );
             struct tm * plocal = localtime( & time_now );
 
-            ptime->day = 1 + days_since_jan1_1978();
+            ptime->day = 1 + days_since_jan1_1978(); // on cp/m 3.0, jan 1 1978 is day 1.
             ptime->hour = packBCD( (uint8_t) plocal->tm_hour );
             ptime->minute = packBCD( (uint8_t) plocal->tm_min );
             reg.a = packBCD( (uint8_t) plocal->tm_sec );
@@ -2975,7 +2975,7 @@ uint8_t x80_invoke_hook()
 
 #ifdef TARGET_BIG_ENDIAN
             ptime->swap_endian();
-#endif
+eendif
 
             set_bdos_status();
             break;
