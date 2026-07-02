@@ -2975,7 +2975,7 @@ uint8_t x80_invoke_hook()
 
 #ifdef TARGET_BIG_ENDIAN
             ptime->swap_endian();
-eendif
+#endif
 
             set_bdos_status();
             break;
