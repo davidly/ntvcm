@@ -195,13 +195,13 @@ void z80_set_sign_zero_16( uint16_t x )
     reg.fZero = ( 0 == x );
 } //z80_set_sign_zero_16
 
-uint8_t op_inc( uint8_t x )
+template <bool Z80Mode> force_inlined uint8_t op_inc( uint8_t x )
 {
     x++;
     reg.fAuxCarry = ( 0 == ( x & 0xf ) );
     set_sign_zero( x );
 
-    if ( reg.fZ80Mode )
+    if ( Z80Mode )
     {
         reg.fParityEven_Overflow = ( x == 0x80 );
         reg.fWasSubtract = false;
@@ -212,12 +212,12 @@ uint8_t op_inc( uint8_t x )
     return x;
 } //op_inc
 
-uint8_t op_dec( uint8_t x )
+template <bool Z80Mode> force_inlined uint8_t op_dec( uint8_t x )
 {
     uint8_t result = x - 1;
     set_sign_zero( result );
 
-    if ( reg.fZ80Mode )
+    if ( Z80Mode )
     {
         reg.fParityEven_Overflow = ( x == 0x80 );
         reg.fWasSubtract = true;
@@ -235,7 +235,7 @@ uint8_t op_dec( uint8_t x )
     return result;
 } //op_dec
 
-force_inlined void op_add( uint8_t x, bool carry = false )
+template <bool Z80Mode> force_inlined void op_add( uint8_t x, bool carry = false )
 {
     uint16_t carry_int = carry ? 1 : 0;
     uint16_t r16 = (uint16_t) reg.a + (uint16_t) x + carry_int;
@@ -249,7 +249,7 @@ force_inlined void op_add( uint8_t x, bool carry = false )
 
     // if ( not ( one of lhs and rhs are negative ) ) and ( one of lhs and result are negative )
 
-    if ( reg.fZ80Mode )
+    if ( Z80Mode )
     {
         reg.fParityEven_Overflow = ( ! ( ( reg.a ^ x ) & 0x80 ) ) && ( ( reg.a ^ r8 ) & 0x80 );
         reg.fWasSubtract = false;
@@ -261,27 +261,25 @@ force_inlined void op_add( uint8_t x, bool carry = false )
     reg.a = r8;
 } //op_add
 
-void op_adc( uint8_t x )
+template <bool Z80Mode> void op_adc( uint8_t x )
 {
-    op_add( x, reg.fCarry );
+    op_add<Z80Mode>( x, reg.fCarry );
 } //op_adc
 
-force_inlined uint8_t op_sub( uint8_t x, bool borrow = false )
+template <bool Z80Mode> force_inlined uint8_t op_sub( uint8_t x, bool borrow = false )
 {
-    // com == ones-complement
-    uint8_t com_x = ~x;
-    uint8_t borrow_int = borrow ? 0 : 1;
-    uint16_t res16 =  (uint16_t) reg.a + (uint16_t) com_x + (uint16_t) borrow_int;
+    uint8_t borrow_in = borrow ? 1 : 0;
+    uint16_t res16 = (uint16_t) reg.a - (uint16_t) x - (uint16_t) borrow_in;
     uint8_t res8 = res16 & 0xff;
-    reg.fCarry = ( 0 == ( res16 & 0x100 ) );
+    reg.fCarry = ( 0 != ( res16 & 0x100 ) ); // set means a borrow was needed
     set_sign_zero( res8 );
-    reg.fAuxCarry = ( 0 != ( ( ( reg.a & 0xf ) + ( com_x & 0xf ) + borrow_int ) & 0x10 ) );
+    reg.fAuxCarry = ( ( reg.a & 0xf ) >= ( ( x & 0xf ) + borrow_in ) ); // set means no borrow from the low nibble
 
-    if ( reg.fZ80Mode )
+    if ( Z80Mode )
     {
-        // if not ( ( one of lhs and com_x are negative ) and ( one of lhs and result are negative ) )
+        // if ( one of lhs and rhs are negative ) and ( one of lhs and result are negative )
 
-        reg.fParityEven_Overflow = ! ( ( reg.a ^ com_x ) & 0x80 ) && ( ( reg.a ^ res8 ) & 0x80 );
+        reg.fParityEven_Overflow = ( ( reg.a ^ x ) & 0x80 ) && ( ( reg.a ^ res8 ) & 0x80 );
         reg.fWasSubtract = true;
         reg.fAuxCarry = !reg.fAuxCarry; // opposite meaning on z80 for subtract
         reg.z80_assignYX( res8 );
@@ -293,26 +291,26 @@ force_inlined uint8_t op_sub( uint8_t x, bool borrow = false )
     return res8;
 } //op_sub
 
-force_inlined void op_sbb( uint8_t x )
+template <bool Z80Mode> force_inlined void op_sbb( uint8_t x )
 {
-    reg.a = op_sub( x, reg.fCarry );
+    reg.a = op_sub<Z80Mode>( x, reg.fCarry );
 } //op_sbb
 
-force_inlined void op_cmp( uint8_t x )
+template <bool Z80Mode> force_inlined void op_cmp( uint8_t x )
 {
-    op_sub( x, false );
-    if ( reg.fZ80Mode )
+    op_sub<Z80Mode>( x, false );
+    if ( Z80Mode )
         reg.z80_assignYX( x ); // done on operand, not the result or reg.a
 } //op_cmp
 
-void op_ana( uint8_t x )
+template <bool Z80Mode> force_inlined void op_ana( uint8_t x )
 {
     reg.fAuxCarry = ( 0 != ( 0x8 & ( reg.a | x ) ) ); // documented for 8080, not true for 8085
     reg.fCarry = false;
     reg.a &= x;
     set_sign_zero_parity( reg.a );
 
-    if ( reg.fZ80Mode )
+    if ( Z80Mode )
     {
         reg.fWasSubtract = false;
         reg.fAuxCarry = true;
@@ -320,56 +318,56 @@ void op_ana( uint8_t x )
     }
 } //op_ana
 
-void op_ora( uint8_t x )
+template <bool Z80Mode> force_inlined void op_ora( uint8_t x )
 {
     reg.a |= x;
     reg.fAuxCarry = false;
     reg.fCarry = false;
     set_sign_zero_parity( reg.a );
 
-    if ( reg.fZ80Mode )
+    if ( Z80Mode )
     {
         reg.fWasSubtract = false;
         reg.z80_assignYX( reg.a );
     }
 } //op_ora
 
-void op_xra( uint8_t x )
+template <bool Z80Mode> force_inlined void op_xra( uint8_t x )
 {
     reg.a ^= x;
     reg.fAuxCarry = false;
     reg.fCarry = false;
     set_sign_zero_parity( reg.a );
 
-    if ( reg.fZ80Mode )
+    if ( Z80Mode )
     {
         reg.fWasSubtract = false;
         reg.z80_assignYX( reg.a );
     }
 } //op_xra
 
-void op_math( uint8_t opcode, uint8_t src )
+template <bool Z80Mode> void op_math( uint8_t opcode, uint8_t src )
 {
     uint8_t math = ( opcode >> 3 ) & 7;
     assert( math <= 7 );
-    if ( 7 == math ) op_cmp( src );         // in order of usage for performance
-    else if ( 6 == math ) op_ora( src );
-    else if ( 4 == math ) op_ana( src );
-    else if ( 5 == math ) op_xra( src );
-    else if ( 0 == math ) op_add( src );
-    else if ( 2 == math ) reg.a = op_sub( src ); // sub doesn't update reg.a
-    else if ( 1 == math ) op_adc( src );
-    else op_sbb( src ); // 3
+    if ( 7 == math ) op_cmp<Z80Mode>( src );         // in order of usage for performance
+    else if ( 6 == math ) op_ora<Z80Mode>( src );
+    else if ( 4 == math ) op_ana<Z80Mode>( src );
+    else if ( 5 == math ) op_xra<Z80Mode>( src );
+    else if ( 0 == math ) op_add<Z80Mode>( src );
+    else if ( 2 == math ) reg.a = op_sub<Z80Mode>( src ); // sub doesn't update reg.a
+    else if ( 1 == math ) op_adc<Z80Mode>( src );
+    else op_sbb<Z80Mode>( src ); // 3
 } //op_math
 
-void op_dad( uint16_t x )
+template <bool Z80Mode> force_inlined void op_dad( uint16_t x )
 {
     // add x to H and set Carry if warranted
 
     uint32_t result = (uint32_t) reg.H() + (uint32_t) x;
     reg.fCarry = ( 0 != ( 0x10000 & result ) );
 
-    if ( reg.fZ80Mode )
+    if ( Z80Mode )
     {
         uint32_t auxResult = ( reg.H() & 0xfff ) + ( x & 0xfff );
         reg.fAuxCarry = ( 0 != ( auxResult & 0xf000 ) );
@@ -380,10 +378,10 @@ void op_dad( uint16_t x )
     reg.SetH( (uint16_t) ( result & 0xffff ) );
 } //op_dad
 
-void op_cma()
+template <bool Z80Mode> force_inlined void op_cma()
 {
     reg.a = ~reg.a;
-    if ( reg.fZ80Mode )
+    if ( Z80Mode )
     {
         reg.fAuxCarry = true;
         reg.fWasSubtract = true;
@@ -391,10 +389,10 @@ void op_cma()
     }
 } //op_cma
 
-void op_cmc()
+template <bool Z80Mode> force_inlined void op_cmc()
 {
     reg.fCarry = !reg.fCarry;
-    if ( reg.fZ80Mode )
+    if ( Z80Mode )
     {
         reg.fWasSubtract = false;
         reg.fAuxCarry = !reg.fCarry; // some docs say !reg.fAuxCarry
@@ -402,9 +400,9 @@ void op_cmc()
     }
 } //op_cmc
 
-not_inlined void op_daa()
+template <bool Z80Mode> not_inlined void op_daa()
 {
-    if ( reg.fZ80Mode ) // this BCD add logic pulled from Sean Young's doc
+    if ( Z80Mode ) // this BCD add logic pulled from Sean Young's doc
     {
         uint8_t diff = 0x66;
         uint8_t hn = ( ( reg.a >> 4 ) & 0xf );
@@ -470,7 +468,7 @@ not_inlined void op_daa()
             carry = true;
         }
 
-        op_add( toadd );
+        op_add<Z80Mode>( toadd );
         reg.fCarry = carry; // this doesn't change regardless of the result
     }
 } //op_daa
@@ -883,7 +881,7 @@ uint16_t z80_emulate( uint8_t op )    // this is just for instructions that aren
         case 0xdd: case 0xfd: // ix & iy operations
         {
             reg.r++;
-            uint8_t op2 = pcbyte(); // consume op2: the dd or fd
+            uint8_t op2 = pcbyte();
 
             // "ld r, (i+#)" and "ld (i+#), r/#" are checked first because they are by far the most common
             // ix/iy sub-opcodes in practice -- compilers use ix/iy as a stack frame pointer for local variable
@@ -979,14 +977,14 @@ uint16_t z80_emulate( uint8_t op )    // this is just for instructions that aren
                 cycles = 6;
                 uint16_t i = reg.z80_getIndex( op ) + (int16_t) (int8_t) pcbyte();
                 uint8_t x = memory[ i ];
-                memory[i] = op_inc( x );
+                memory[i] = op_inc<true>( x );
             }
             else if ( 0x35 == op2 ) // dec (i + index)
             {
                 cycles = 6;
                 uint16_t i = reg.z80_getIndex( op ) + (int16_t) (int8_t) pcbyte();
                 uint8_t x = memory[ i ];
-                memory[ i ] = op_dec( x );
+                memory[ i ] = op_dec<true>( x );
             }
             else if ( 0x36 == op2 )  // ld (ix/iy + index), immediate byte
             {
@@ -1028,22 +1026,22 @@ uint16_t z80_emulate( uint8_t op )    // this is just for instructions that aren
             else if ( 0x80 == ( op2 & 0xc2 ) ) // math on il and ih with a. 84/85/8c/8d/94/95/a4/a5/b4/b5/bc/bd
             {
                 uint8_t value = reg.z80_getIndexByte( op, op2 & 1 );
-                op_math( op2, value );
+                op_math<true>( op2, value );
             }
             else if ( 0x86 == ( op2 & 0xc7 ) ) // math on [ ix/iy + index ]
             {
                 cycles = 5;
                 uint16_t x = reg.z80_getIndex( op );
                 x += (int16_t) (int8_t) pcbyte();
-                op_math( op2, memory[ x ] );
+                op_math<true>( op2, memory[ x ] );
             }
             else if ( 0x24 == ( op2 & 0xf6 ) ) // inc/dec ixh, ixl, iyh, iyl
             {
                 uint8_t *pval = reg.z80_getIndexByteAddress( op, ( op2 >> 3 ) & 1 );
                 if ( op2 & 1 )
-                    *pval = op_dec( *pval );
+                    *pval = op_dec<true>( *pval );
                 else
-                    *pval = op_inc( *pval );
+                    *pval = op_inc<true>( *pval );
             }
             else if ( 0xcb == op2 ) // bit operations
             {
@@ -1256,7 +1254,7 @@ uint16_t z80_emulate( uint8_t op )    // this is just for instructions that aren
                 bool oldCarry = reg.fCarry;
                 cycles = 4;
                 uint8_t memval = memory[ reg.H() ];
-                op_cmp( memval );
+                op_cmp<true>( memval );
                 reg.SetH( reg.H() + 1 );
                 reg.SetB( reg.B() - 1 );
                 reg.fParityEven_Overflow = ( 0 != reg.B() );
@@ -1282,7 +1280,7 @@ uint16_t z80_emulate( uint8_t op )    // this is just for instructions that aren
                 bool oldCarry = reg.fCarry;
                 cycles = 4;
                 uint8_t memval = memory[ reg.H() ];
-                op_cmp( memval );
+                op_cmp<true>( memval );
                 reg.SetH( reg.H() - 1 );
                 reg.SetB( reg.B() - 1 );
                 reg.fParityEven_Overflow = ( 0 != reg.B() );
@@ -1318,7 +1316,7 @@ uint16_t z80_emulate( uint8_t op )    // this is just for instructions that aren
                 {
                     cycles += 5;
                     uint8_t memval = memory[ reg.H() ];
-                    op_cmp( memval );
+                    op_cmp<true>( memval );
                     uint8_t n = reg.a - memval - ( reg.fAuxCarry ? 1 : 0 ); // n = A - (HL) - HF
                     reg.fY = ( 0 != ( n & 0x02 ) );
                     reg.fX = ( 0 != ( n & 0x08 ) );
@@ -1356,7 +1354,7 @@ uint16_t z80_emulate( uint8_t op )    // this is just for instructions that aren
                 {
                     cycles += 5;
                     uint8_t memval = memory[ reg.H() ];
-                    op_cmp( memval );
+                    op_cmp<true>( memval );
                     uint8_t n = reg.a - memval - ( reg.fAuxCarry ? 1 : 0 ); // n = A - (HL) - HF
                     reg.fY = ( 0 != ( n & 0x02 ) );
                     reg.fX = ( 0 != ( n & 0x08 ) );
@@ -1378,7 +1376,7 @@ uint16_t z80_emulate( uint8_t op )    // this is just for instructions that aren
             {
                 cycles = 15;
                 uint16_t val = * reg.rpAddressFromOp( op2 );
-                reg.SetH(  z80_op_adc_16( reg.H(), val ) );
+                reg.SetH( z80_op_adc_16( reg.H(), val ) );
             }
             else
                 z80_ni( op, op2 );
@@ -1754,10 +1752,10 @@ not_inlined bool handle_state() // this code exists to reduce what would be mult
 
 #define RETURN_INSTRUCTION_COUNT 0
 
-uint16_t x80_emulate( uint16_t maxcycles )
+template <bool Z80Mode> static uint16_t x80_emulate_impl( uint16_t maxcycles )
 {
     uint16_t cycles = 0;
-    const acycles_t & acycles = reg.fZ80Mode ? z80_cycles : i8080_cycles; // ms C++ will opportunistically read *both* in the loop below otherwise
+    const acycles_t & acycles = Z80Mode ? z80_cycles : i8080_cycles; // ms C++ will opportunistically read *both* in the loop below otherwise
 #if RETURN_INSTRUCTION_COUNT
     uint16_t instructions = 0;
 #endif
@@ -1791,13 +1789,13 @@ uint16_t x80_emulate( uint16_t maxcycles )
             case 0x04: case 0x14: case 0x24: case 0x34: case 0x0c: case 0x1c: case 0x2c: case 0x3c: // inr rm. does not set carry
             {
                 uint8_t * pdst = dst_address( op );
-                *pdst = op_inc( *pdst );
+                *pdst = op_inc<Z80Mode>( *pdst );
                 break;
             }
             case 0x05: case 0x15: case 0x25: case 0x35: case 0x0d: case 0x1d: case 0x2d: case 0x3d: // dcr rm. does not set carry
             {
                 uint8_t * pdst = dst_address( op );
-                *pdst = op_dec( * pdst );          // 5% of runtime
+                *pdst = op_dec<Z80Mode>( * pdst );          // 5% of runtime
                 break;
             }
             case 0x06: case 0x16: case 0x26: case 0x36: case 0x0e: case 0x1e: case 0x2e: case 0x3e: // mvi rm, d8
@@ -1811,14 +1809,14 @@ uint16_t x80_emulate( uint16_t maxcycles )
                 reg.a <<= 1;
                 if ( reg.fCarry )
                     reg.a |= 1;
-                if ( reg.fZ80Mode )
+                if ( Z80Mode )
                 {
                     reg.clearHN();
                     reg.z80_assignYX( reg.a );
                 }
                 break;
             }
-            case 0x09: case 0x19: case 0x29: case 0x39: { op_dad( * reg.rpAddressFromOp( op ) ); break; } // dad
+            case 0x09: case 0x19: case 0x29: case 0x39: { op_dad<Z80Mode>( * reg.rpAddressFromOp( op ) ); break; } // dad
             case 0x0a: { reg.a = memory[ reg.B() ]; break; } // ldax b
             case 0x0b: case 0x1b: case 0x2b: case 0x3b: // dcx. no status flag updates
             {
@@ -1832,7 +1830,7 @@ uint16_t x80_emulate( uint16_t maxcycles )
                 reg.a >>= 1;
                 if ( reg.fCarry )
                     reg.a |= 0x80;
-                if ( reg.fZ80Mode )
+                if ( Z80Mode )
                 {
                     reg.clearHN();
                     reg.z80_assignYX( reg.a );
@@ -1847,7 +1845,7 @@ uint16_t x80_emulate( uint16_t maxcycles )
                 reg.a <<= 1;
                 if ( c )
                     reg.a |= 1;
-                if ( reg.fZ80Mode )
+                if ( Z80Mode )
                 {
                     reg.clearHN();
                     reg.z80_assignYX( reg.a );
@@ -1862,7 +1860,7 @@ uint16_t x80_emulate( uint16_t maxcycles )
                 reg.a >>= 1;
                 if ( c )
                     reg.a |= 0x80;
-                if ( reg.fZ80Mode )
+                if ( Z80Mode )
                 {
                     reg.clearHN();
                     reg.z80_assignYX( reg.a );
@@ -1870,14 +1868,14 @@ uint16_t x80_emulate( uint16_t maxcycles )
                 break;
             }
             case 0x22: { setmword( pcword(), reg.H() ); break; } // shld
-            case 0x27: { op_daa(); break; } // daa
+            case 0x27: { op_daa<Z80Mode>(); break; } // daa
             case 0x2a: { reg.SetH( mword( pcword() ) ); break; } // lhld
-            case 0x2f: { op_cma(); break; } // cma
+            case 0x2f: { op_cma<Z80Mode>(); break; } // cma
             case 0x32: { memory[ pcword() ] = reg.a; break; } // sta a16
             case 0x37: // stc
             {
                 reg.fCarry = 1;
-                if ( reg.fZ80Mode )
+                if ( Z80Mode )
                 {
                     reg.clearHN();
                     reg.z80_assignYX( reg.a );
@@ -1885,7 +1883,7 @@ uint16_t x80_emulate( uint16_t maxcycles )
                 break;
             }
             case 0x3a: { reg.a = memory[ pcword() ]; break; } // lda a16
-            case 0x3f: { op_cmc(); break; } // cmc
+            case 0x3f: { op_cmc<Z80Mode>(); break; } // cmc
             case 0x40: case 0x41: case 0x42: case 0x43: case 0x44: case 0x45: case 0x46: case 0x47: // mov
             case 0x48: case 0x49: case 0x4a: case 0x4b: case 0x4c: case 0x4d: case 0x4e: case 0x4f:
             case 0x50: case 0x51: case 0x52: case 0x53: case 0x54: case 0x55: case 0x56: case 0x57:
@@ -1912,14 +1910,14 @@ uint16_t x80_emulate( uint16_t maxcycles )
                     assert( false );
             }
             case 0x76: { _op_hlt: x80_invoke_halt(); goto _all_done; } // hlt
-            case 0x80: case 0x81: case 0x82: case 0x83: case 0x84: case 0x85: case 0x86: case 0x87: { op_add( src_value( op ) ); break; }
-            case 0x88: case 0x89: case 0x8a: case 0x8b: case 0x8c: case 0x8d: case 0x8e: case 0x8f: { op_adc( src_value( op ) ); break; }
-            case 0x90: case 0x91: case 0x92: case 0x93: case 0x94: case 0x95: case 0x96: case 0x97: { reg.a = op_sub( src_value( op ) ); break; }
-            case 0x98: case 0x99: case 0x9a: case 0x9b: case 0x9c: case 0x9d: case 0x9e: case 0x9f: { op_sbb( src_value( op ) ); break; }
-            case 0xa0: case 0xa1: case 0xa2: case 0xa3: case 0xa4: case 0xa5: case 0xa6: case 0xa7: { op_ana( src_value( op ) ); break; }
-            case 0xa8: case 0xa9: case 0xaa: case 0xab: case 0xac: case 0xad: case 0xae: case 0xaf: { op_xra( src_value( op ) ); break; }
-            case 0xb0: case 0xb1: case 0xb2: case 0xb3: case 0xb4: case 0xb5: case 0xb6: case 0xb7: { op_ora( src_value( op ) ); break; }
-            case 0xb8: case 0xb9: case 0xba: case 0xbb: case 0xbc: case 0xbd: case 0xbe: case 0xbf: { op_cmp( src_value( op ) ); break; }
+            case 0x80: case 0x81: case 0x82: case 0x83: case 0x84: case 0x85: case 0x86: case 0x87: { op_add<Z80Mode>( src_value( op ) ); break; }
+            case 0x88: case 0x89: case 0x8a: case 0x8b: case 0x8c: case 0x8d: case 0x8e: case 0x8f: { op_adc<Z80Mode>( src_value( op ) ); break; }
+            case 0x90: case 0x91: case 0x92: case 0x93: case 0x94: case 0x95: case 0x96: case 0x97: { reg.a = op_sub<Z80Mode>( src_value( op ) ); break; }
+            case 0x98: case 0x99: case 0x9a: case 0x9b: case 0x9c: case 0x9d: case 0x9e: case 0x9f: { op_sbb<Z80Mode>( src_value( op ) ); break; }
+            case 0xa0: case 0xa1: case 0xa2: case 0xa3: case 0xa4: case 0xa5: case 0xa6: case 0xa7: { op_ana<Z80Mode>( src_value( op ) ); break; }
+            case 0xa8: case 0xa9: case 0xaa: case 0xab: case 0xac: case 0xad: case 0xae: case 0xaf: { op_xra<Z80Mode>( src_value( op ) ); break; }
+            case 0xb0: case 0xb1: case 0xb2: case 0xb3: case 0xb4: case 0xb5: case 0xb6: case 0xb7: { op_ora<Z80Mode>( src_value( op ) ); break; }
+            case 0xb8: case 0xb9: case 0xba: case 0xbb: case 0xbc: case 0xbd: case 0xbe: case 0xbf: { op_cmp<Z80Mode>( src_value( op ) ); break; }
             case 0xc0: case 0xd0: case 0xe0: case 0xf0: case 0xc8: case 0xd8: case 0xe8: case 0xf8: // conditional return
             {
                 if ( check_conditional( op ) )
@@ -1952,7 +1950,7 @@ uint16_t x80_emulate( uint16_t maxcycles )
                 break;
             }
             case 0xc5: case 0xd5: case 0xe5: { pushword( * reg.rpAddressFromOp( op ) ); break; } // push rp
-            case 0xc6: { op_add( pcbyte() ); break; } // adi
+            case 0xc6: { op_add<Z80Mode>( pcbyte() ); break; } // adi
             case 0xc7: case 0xd7: case 0xe7: case 0xf7: case 0xcf: case 0xdf: case 0xef: case 0xff: // rst
             {
                 // bits 5..3 are exp, which form an address 0000000000exp000 that is called.
@@ -1964,26 +1962,26 @@ uint16_t x80_emulate( uint16_t maxcycles )
             }
             case 0xc9: { _op_ret: reg.pc = popword(); break; } // ret
             case 0xcd: { uint16_t t = pcword(); pushword( reg.pc ); reg.pc = t; break; } // call a16
-            case 0xce: { op_adc( pcbyte() ); break; } // aci
+            case 0xce: { op_adc<Z80Mode>( pcbyte() ); break; } // aci
             case 0xd3: { x80_invoke_out( pcbyte() ); break; } // out d8
-            case 0xd6: { reg.a = op_sub( pcbyte() ); break; } // sui
+            case 0xd6: { reg.a = op_sub<Z80Mode>( pcbyte() ); break; } // sui
             case 0xdb: { x80_invoke_in( pcbyte() ); break; } // in d8
-            case 0xde: { op_sbb( pcbyte() ); break; } // sbi
+            case 0xde: { op_sbb<Z80Mode>( pcbyte() ); break; } // sbi
             case 0xe3: { uint16_t t = reg.H(); reg.SetH( mword( reg.sp ) ); setmword( reg.sp, t ); break; } // xthl
-            case 0xe6: { op_ana( pcbyte() ); break; } // ani
+            case 0xe6: { op_ana<Z80Mode>( pcbyte() ); break; } // ani
             case 0xe9: { reg.pc = reg.H(); break; } // pchl
             case 0xeb: { uint16_t t = reg.H(); reg.SetH( reg.D() ); reg.SetD( t ); break; } // xchg
-            case 0xee: { op_xra( pcbyte() ); break; } // xri
+            case 0xee: { op_xra<Z80Mode>( pcbyte() ); break; } // xri
             case 0xf1: { reg.SetPSW( popword() ); break; } // pop psw
             case 0xf3: { reg.fINTE = false; break; } // di
             case 0xf5: { pushword( reg.PSW() ); break; } // push psw
-            case 0xf6: { op_ora( pcbyte() ); break; } // ori
+            case 0xf6: { op_ora<Z80Mode>( pcbyte() ); break; } // ori
             case 0xf9: { reg.sp = reg.H(); break; } // sphl
             case 0xfb: { reg.fINTE = true; break; } // ei
-            case 0xfe: { op_cmp( pcbyte() ); break; } // cpi
+            case 0xfe: { op_cmp<Z80Mode>( pcbyte() ); break; } // cpi
             default:
             {
-                if ( reg.fZ80Mode )
+                if ( Z80Mode )
                     cycles += z80_emulate( op );
                 else if ( 0x08 == op ) // Pascal MT++ generates 8080 apps that use 0x08. Treat it as a NOP just like an 8080.
                     break;
@@ -2000,4 +1998,11 @@ _all_done:
 #else
     return cycles;
 #endif
+} //x80_emulate_impl
+
+uint16_t x80_emulate( uint16_t maxcycles )
+{
+    if ( reg.fZ80Mode )
+        return x80_emulate_impl<true>( maxcycles );
+    return x80_emulate_impl<false>( maxcycles );
 } //x80_emulate
