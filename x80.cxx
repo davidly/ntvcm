@@ -790,77 +790,7 @@ uint16_t z80_emulate( uint8_t op )    // this is just for instructions that aren
         {
             uint8_t op2 = pcbyte(); // get past op2
 
-            if ( 0x20 == ( op2 & 0xf8 ) ) // sla
-            {
-                cycles = 3;
-                uint8_t rm = op2 & 0x7;
-                if ( 6 == rm )
-                    cycles += 2;
-                uint8_t * pdst = dst_address_rm( rm );
-                z80_op_sla( pdst );
-            }
-            else if ( 0x28 == ( op2 & 0xf8 ) ) // sra
-            {
-                cycles = 3;
-                uint8_t rm = op2 & 0x7;
-                if ( 6 == rm )
-                    cycles += 2;
-                uint8_t * pdst = dst_address_rm( rm );
-                z80_op_sra( pdst );
-            }
-            else if ( op2 >= 0x30 && op2 <= 0x3f )
-            {
-                uint8_t rm = op2 & 0x7;
-                uint8_t * pdst = dst_address_rm( rm );
-                if ( op2 <= 0x37 )
-                    z80_op_sll( pdst );
-                else
-                    z80_op_srl( pdst );
-            }
-            else if ( 0x38 == ( op2 & 0xf8 ) ) // srl r = shift right logical
-            {
-                cycles = 3;
-                uint8_t rm = op2 >> 4;
-                if ( 6 == rm )
-                    cycles += 2;
-                uint8_t * pdst = dst_address_rm( rm );
-                z80_op_srl( pdst );
-            }
-            else if ( op2 >= 0x40 && op2 <= 0x7f ) // bit #, rm
-            {
-                cycles = 3;
-                uint8_t rm = op2 & 0x7;
-                if ( 6 == rm )
-                    cycles += 4;
-                uint8_t bit = ( op2 >> 3 ) & 0x7;
-                uint8_t val = src_value_rm( rm );
-                z80_op_bit( val, bit, ( 6 == rm ) ? vs_memory : vs_register );
-            }
-            else if ( op2 >= 0x80 && op2 <= 0xbf ) // res bit #, rm  AKA reset
-            {
-                cycles = 3;
-                uint8_t rm = op2 & 0x7;
-                if ( 6 == rm )
-                    cycles += 7;
-                uint8_t bit = ( op2 >> 3 ) & 0x7;
-                uint8_t val = src_value_rm( rm );
-                uint8_t mask = ~ ( 1 << bit );
-                val &= mask;
-                * dst_address_rm( rm ) = val;
-            }
-            else if ( op2 >= 0xc0 && op2 <= 0xff ) // set bit #, rm
-            {
-                cycles = 8;
-                uint8_t rm = op2 & 0x7;
-                if ( 6 == rm )
-                    cycles += 7;
-                uint8_t bit = ( op2 >> 3 ) & 0x7;
-                uint8_t val = src_value_rm( rm );
-                uint8_t mask = 1 << bit;
-                val |= mask;
-                * dst_address_rm( rm ) = val;
-            }
-            else if ( op2 <= 0x1f ) // rlc, rrc, rl, rr on rm
+            if ( op2 <= 0x1f ) // rlc, rrc, rl, rr on rm
             {
                 cycles = 8;
                 uint8_t mod = op2;
@@ -877,6 +807,64 @@ uint16_t z80_emulate( uint8_t op )    // this is just for instructions that aren
                     z80_op_rl( pval );
                 else // if ( 3 == rot )
                     z80_op_rr( pval );
+            }
+            else if ( op2 <= 0x2f ) // sla and sra
+            {
+                cycles = 3;
+                uint8_t rm = op2 & 0x7;
+                if ( 6 == rm )
+                    cycles += 2;
+                uint8_t * pdst = dst_address_rm( rm );
+                if ( op2 <= 0x27 )
+                    z80_op_sla( pdst );
+                else
+                z80_op_sra( pdst );
+            }
+            else if ( op2 <= 0x3f ) // sll and srl
+            {
+                cycles = 3;
+                uint8_t rm = op2 & 0x7;
+                if ( 6 == rm )
+                    cycles += 2;
+                uint8_t * pdst = dst_address_rm( rm );
+                if ( op2 <= 0x37 )
+                    z80_op_sll( pdst );
+                else
+                    z80_op_srl( pdst );
+            }
+            else if ( op2 <= 0x7f ) // bit #, rm
+            {
+                cycles = 3;
+                uint8_t rm = op2 & 0x7;
+                if ( 6 == rm )
+                    cycles += 4;
+                uint8_t bit = ( op2 >> 3 ) & 0x7;
+                uint8_t val = src_value_rm( rm );
+                z80_op_bit( val, bit, ( 6 == rm ) ? vs_memory : vs_register );
+            }
+            else if ( op2 <= 0xbf ) // res bit #, rm  AKA reset
+            {
+                cycles = 3;
+                uint8_t rm = op2 & 0x7;
+                if ( 6 == rm )
+                    cycles += 7;
+                uint8_t bit = ( op2 >> 3 ) & 0x7;
+                uint8_t val = src_value_rm( rm );
+                uint8_t mask = ~ ( 1 << bit );
+                val &= mask;
+                * dst_address_rm( rm ) = val;
+            }
+            else if ( op2 <= 0xff ) // set bit #, rm
+            {
+                cycles = 8;
+                uint8_t rm = op2 & 0x7;
+                if ( 6 == rm )
+                    cycles += 7;
+                uint8_t bit = ( op2 >> 3 ) & 0x7;
+                uint8_t val = src_value_rm( rm );
+                uint8_t mask = 1 << bit;
+                val |= mask;
+                * dst_address_rm( rm ) = val;
             }
             else
                 z80_ni( op, op2 );
@@ -942,6 +930,33 @@ uint16_t z80_emulate( uint8_t op )    // this is just for instructions that aren
                     reg.ix++;
                 else
                     reg.iy++;
+            }
+            else if ( 0xe5 == op2 )  // push ix/iy
+            {
+                cycles = 15;
+                uint16_t val = reg.z80_getIndex( op );
+                pushword( val );
+            }
+            else if ( 0xe1 == op2 ) // pop ix/iy
+            {
+                cycles = 14;
+                uint16_t val = popword();
+                reg.z80_setIndex( op, val );
+            }
+            else if ( 0x09 == ( op2 & 0xcf ) ) // add ix/iy, rp
+            {
+                // only sets H (carry from bit 11) and C (carry from bit 15) flags. ignores C flag on input. N is reset
+                // for add ix, rp is 0..3 bc, de, ix, sp.
+                // for add iy, rp is 0..3 bc, de, iy, sp.
+
+                uint16_t rpval = * reg.rpAddressFromOp( op2 );
+                uint8_t rp = ( 0x3 & ( op2 >> 4 ) );
+                if ( 2 == rp )
+                    rpval = ( 0xdd == op ) ? reg.ix : reg.iy;
+
+                uint16_t oldval = reg.z80_getIndex( op );
+                uint16_t newval = z80_op_add_16( oldval, rpval );
+                reg.z80_setIndex( op, newval );
             }
             else if ( 0x26 == op2 ) // ld ix/iy h. not documented
                 * reg.z80_getIndexByteAddress( op, 0 ) = pcbyte();
@@ -1030,21 +1045,6 @@ uint16_t z80_emulate( uint8_t op )    // this is just for instructions that aren
                 else
                     *pval = op_inc( *pval );
             }
-            else if ( 0x09 == ( op2 & 0xcf ) ) // add ix/iy, rp
-            {
-                // only sets H (carry from bit 11) and C (carry from bit 15) flags. ignores C flag on input. N is reset
-                // for add ix, rp is 0..3 bc, de, ix, sp.
-                // for add iy, rp is 0..3 bc, de, iy, sp.
-
-                uint16_t rpval = * reg.rpAddressFromOp( op2 );
-                uint8_t rp = ( 0x3 & ( op2 >> 4 ) );
-                if ( 2 == rp )
-                    rpval = ( 0xdd == op ) ? reg.ix : reg.iy;
-
-                uint16_t oldval = reg.z80_getIndex( op );
-                uint16_t newval = z80_op_add_16( oldval, rpval );
-                reg.z80_setIndex( op, newval );
-            }
             else if ( 0xcb == op2 ) // bit operations
             {
                 uint8_t op4 = memory[ reg.pc + 1 ];
@@ -1091,7 +1091,7 @@ uint16_t z80_emulate( uint8_t op )    // this is just for instructions that aren
                     if ( 6 != rm )          // no write to memory variant
                         * dst_address_rm( rm ) = memory[ index ];
                 }
-                else if ( ( ( op4 & 0xf ) == 0xe ) || ( ( op4 & 0xf ) == 0x6 ) ) // bit/res/set b, (ix/iy + d)
+                else if ( ( op4 & 7 ) == 6 ) // bit/res/set b, (ix/iy + d)
                 {
                     cycles = 8;
                     uint8_t index = pcbyte();
@@ -1135,24 +1135,12 @@ uint16_t z80_emulate( uint8_t op )    // this is just for instructions that aren
                         z80_ni( op, op2 );
                 }
             }
-            else if ( 0xe1 == op2 ) // pop ix/iy
-            {
-                cycles = 14;
-                uint16_t val = popword();
-                reg.z80_setIndex( op, val );
-            }
             else if ( 0xe3 == op2 ) // ex (sp), ix/iy
             {
                 cycles = 23;
                 uint16_t val = reg.z80_getIndex( op );
                 reg.z80_setIndex( op, mword( reg.sp ) );
                 setmword( reg.sp, val );
-            }
-            else if ( 0xe5 == op2 )  // push ix/iy
-            {
-                cycles = 15;
-                uint16_t val = reg.z80_getIndex( op );
-                pushword( val );
             }
             else if ( 0xe9 == op2 ) // jp (ix/iy) // the Z80 name makes it look indirect. It's not.
             {

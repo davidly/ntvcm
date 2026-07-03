@@ -143,37 +143,37 @@ struct registers
         }
     } //unmaterializeFlags
 
-    uint16_t * rpAddress( uint8_t rp )
+    inline uint16_t * rpAddress( uint8_t rp )
     {
         // rp == register pair: 0 B, 1 D, 2 H, 3 SP
         assert( rp <= 3 );
         return ( ( (uint16_t *) this ) + rp );
     } //rpAddress
 
-    uint16_t * rpAddressFromOp( uint8_t op )
+    inline uint16_t * rpAddressFromOp( uint8_t op )
     {
         return (uint16_t *) ( ( (uint8_t *) this ) + ( ( op >> 3 ) & 6 ) );
     } //rpAddressFromOp
 
-    uint16_t * rpAddressFromLowOp( uint8_t op )
+    inline uint16_t * rpAddressFromLowOp( uint8_t op )
     {
         assert( ! ( op & 0x88 ) ); // save masking with &6 if the high bits on each nibble are 0
         return (uint16_t *) ( ( (uint8_t *) this ) + ( op >> 3 ) );
     } //rpAddressFromLowOp
 
-    uint8_t * regOffset( uint8_t rm )
+    inline uint8_t * regOffset( uint8_t rm )
     {
         assert( 6 != rm ); // that's a memory access, not a register. f can't be used directly.
         return ( ( ( uint8_t *) this ) + reg_offsets[ rm ] );
     } //regOffset
 
-    void clearHN()
+    inline void clearHN()
     {
         fAuxCarry = false;
         fWasSubtract = false;
     } //clearHN
 
-    bool getFlag( uint8_t x )
+    inline bool getFlag( uint8_t x )
     {
         assert( x <= 3 );
         return * ( ( & fZero ) + x );
@@ -210,7 +210,7 @@ struct registers
         return ac;
     } //renderFlags
 
-    void z80_setIndex( uint8_t op, uint16_t val )
+    inline void z80_setIndex( uint8_t op, uint16_t val )
     {
         if ( 0xdd == op )
             ix = val;
@@ -218,7 +218,7 @@ struct registers
             iy = val;
     } //z80_setIndex
 
-    uint16_t z80_getIndex( uint8_t op )
+    inline uint16_t z80_getIndex( uint8_t op )
     {
         assert( 0xdd == op || 0xfd == op );
 
@@ -227,7 +227,7 @@ struct registers
         return iy;
     } //z80_getIndex
 
-    uint8_t z80_getIndexByte( uint8_t op, uint8_t hl )
+    inline uint8_t z80_getIndexByte( uint8_t op, uint8_t hl )
     {
         assert( 0xdd == op || 0xfd == op );
         assert( 0 == hl || 1 == hl );
@@ -260,7 +260,7 @@ struct registers
         return pval;
     } //z80_getIndexByteAddress
 
-    void z80_assignYX( uint8_t val )
+    inline void z80_assignYX( uint8_t val )
     {
         fY = ( 0 != ( val & 0x20 ) );
         fX = ( 0 != ( val & 8 ) );
