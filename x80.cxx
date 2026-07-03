@@ -706,11 +706,6 @@ void z80_op_srl( uint8_t * pval )
 
 uint16_t z80_emulate( uint8_t op )    // this is just for instructions that aren't shared with 8080
 {
-    uint16_t opaddress = reg.pc - 1;
-    uint8_t op2 = memory[ reg.pc ];
-    uint8_t op3 = memory[ reg.pc + 1 ];
-    uint8_t op4 = memory[ reg.pc + 2 ];
-    int op3int = (int) (int8_t) op3;
     uint16_t cycles = 4; // general-purpose default
 
     switch ( op )
@@ -729,7 +724,7 @@ uint16_t z80_emulate( uint8_t op )    // this is just for instructions that aren
             reg.b = reg.b - 1;
             if ( 0 != reg.b )
             {
-                reg.pc = opaddress + 2 + (int16_t) (int8_t) offset;
+                reg.pc = reg.pc + (int16_t) (int8_t) offset;
                 cycles = 3;
             }
             else
@@ -739,7 +734,7 @@ uint16_t z80_emulate( uint8_t op )    // this is just for instructions that aren
         case 0x18: // jr n
         {
             uint8_t offset = pcbyte();
-            reg.pc = opaddress + 2 + (int16_t) (int8_t) offset;
+            reg.pc = reg.pc + (int16_t) (int8_t) offset;
             cycles = 3;
             break;
         }
@@ -748,7 +743,7 @@ uint16_t z80_emulate( uint8_t op )    // this is just for instructions that aren
             uint8_t offset = pcbyte();
             if ( !reg.fZero )
             {
-                reg.pc = opaddress + 2 + (int16_t) (int8_t) offset;
+                reg.pc = reg.pc + (int16_t) (int8_t) offset;
                 cycles = 3;
             }
             else
@@ -760,7 +755,7 @@ uint16_t z80_emulate( uint8_t op )    // this is just for instructions that aren
             uint8_t offset = pcbyte();
             if ( reg.fZero )
             {
-                reg.pc = opaddress + 2 + (int16_t) (int8_t) offset;
+                reg.pc = reg.pc + (int16_t) (int8_t) offset;
                 cycles = 3;
             }
             else
@@ -772,7 +767,7 @@ uint16_t z80_emulate( uint8_t op )    // this is just for instructions that aren
             uint8_t offset = pcbyte();
             if ( !reg.fCarry )
             {
-                reg.pc = opaddress + 2 + (int16_t) (int8_t) offset;
+                reg.pc = reg.pc + (int16_t) (int8_t) offset;
                 cycles = 3;
             }
             else
@@ -784,7 +779,7 @@ uint16_t z80_emulate( uint8_t op )    // this is just for instructions that aren
             uint8_t offset = pcbyte();
             if ( reg.fCarry )
             {
-                reg.pc = opaddress + 2 + (int16_t) (int8_t) offset;
+                reg.pc = reg.pc + (int16_t) (int8_t) offset;
                 cycles = 3;
             }
             else
@@ -793,7 +788,7 @@ uint16_t z80_emulate( uint8_t op )    // this is just for instructions that aren
         }
         case 0xcb: // rotate / bits
         {
-            pcbyte(); // get past op2
+            uint8_t op2 = pcbyte(); // get past op2
 
             if ( 0x20 == ( op2 & 0xf8 ) ) // sla
             {
@@ -900,9 +895,35 @@ uint16_t z80_emulate( uint8_t op )    // this is just for instructions that aren
         case 0xdd: case 0xfd: // ix & iy operations
         {
             reg.r++;
-            pcbyte(); // consume op2: the dd or fd
+            uint8_t op2 = pcbyte(); // consume op2: the dd or fd
 
-            if ( 0x21 == op2 )  // ld ix/iy word
+            // "ld r, (i+#)" and "ld (i+#), r/#" are checked first because they are by far the most common
+            // ix/iy sub-opcodes in practice -- compilers use ix/iy as a stack frame pointer for local variable
+            // access, so these two patterns dominate real-world instruction mixes. The two checks are mutually
+            // exclusive with every other case below (0x46's bits0-2==6 & bit6 set; 0x70's top 5 bits==0x70;
+            // neither pattern is matched by any of the other exact/ranged op2 checks in this chain).
+
+            if ( 0x46 == ( op2 & 0x47 ) ) // ld r, (i + #)
+            {
+                cycles = 5;
+                uint8_t op3 = pcbyte(); // consume op3
+                uint16_t address = reg.z80_getIndex( op ) + (uint16_t) (int16_t) (int8_t) op3;
+                * dst_address( op2 ) = memory[ address ];
+            }
+            else if ( 0x70 == ( op2 & 0xf8 ) )  // ld (i+#), r/#
+            {
+                cycles = 5;
+                uint8_t op3 = pcbyte(); // consume op3
+
+                // if 6, there is an op4 for the index (not hl-indexed memory); otherwise use a register value
+
+                uint8_t src = op2 & 0x7;
+                uint8_t val = ( 6 == src ) ? pcbyte() : src_value_rm( src );
+                uint16_t i = reg.z80_getIndex( op );
+                i += (uint16_t) (int16_t) (int8_t) op3;
+                memory[ i ] = val;
+            }
+            else if ( 0x21 == op2 )  // ld ix/iy word
             {
                 if ( 0xdd == op )
                     reg.ix = pcword();
@@ -989,26 +1010,6 @@ uint16_t z80_emulate( uint8_t op )    // this is just for instructions that aren
                 else
                     reg.a = tmp;
             }
-            else if ( 0x46 == ( op2 & 0x47 ) ) // ld r, (i + #)
-            {
-                cycles = 5;
-                pcbyte(); // consume op3
-                uint16_t address = reg.z80_getIndex( op ) + (uint16_t) op3int;
-                * dst_address( op2 ) = memory[ address ];
-            }
-            else if ( 0x70 == ( op2 & 0xf8 ) )  // ld (i+#), r/#
-            {
-                cycles = 5;
-                pcbyte(); // consume op3
-
-                // if 6, there is an op4 for the index (not hl-indexed memory); otherwise use a register value
-
-                uint8_t src = op2 & 0x7;
-                uint8_t val = ( 6 == src ) ? pcbyte() : src_value_rm( src );
-                uint16_t i = reg.z80_getIndex( op );
-                i += (uint16_t) op3int;
-                memory[ i ] = val;
-            }
             else if ( 0x80 == ( op2 & 0xc2 ) ) // math on il and ih with a. 84/85/8c/8d/94/95/a4/a5/b4/b5/bc/bd
             {
                 uint8_t value = reg.z80_getIndexByte( op, op2 & 1 );
@@ -1046,6 +1047,7 @@ uint16_t z80_emulate( uint8_t op )    // this is just for instructions that aren
             }
             else if ( 0xcb == op2 ) // bit operations
             {
+                uint8_t op4 = memory[ reg.pc + 1 ];
                 reg.r++;
                 if ( 0x26 == op4 || 0x2e == op4 || 0x3e == op4 ) // sla, sra, srl [ix/iy + offset]
                 {
@@ -1169,7 +1171,7 @@ uint16_t z80_emulate( uint8_t op )    // this is just for instructions that aren
         case 0xed: // 16-bit load/store and i/o operations
         {
             reg.r++;
-            pcbyte();  // consume op2
+            uint8_t op2 = pcbyte();  // consume op2
 
             if ( 0x3 == ( op2 & 0xf ) ) // ld (mw), rp AKA ld (nn), dd
             {
@@ -1395,7 +1397,7 @@ uint16_t z80_emulate( uint8_t op )    // this is just for instructions that aren
             break;
         }
         default:
-            z80_ni( op, op2 );
+            z80_ni( op, memory[ reg.pc ] );
     }
 
     return cycles;
