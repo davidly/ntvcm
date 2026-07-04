@@ -3125,6 +3125,7 @@ void help()
 #endif
     printf( "  -d        don't clear the display on exit when in 80x24 mode.\n" );
     printf( "  -f:<file> specify an input file containing keystrokes.\n" );
+    printf( "  -g:<file> write a per-PC execution-count profile (CSV) at exit.\n" );
     printf( "  -h        don't clear the h register after bdos calls.\n" );
     printf( "              (Andre Adrian's Sargon chess app requies -h)\n" );
     printf( "              (HiSoft C v3.09 fails with -h)\n" );
@@ -3379,6 +3380,7 @@ int main( int argc, char * argv[] )
         char * pfileInputText = 0;
         bool trace = false;
         bool traceInstructions = false;
+        const char * pfileProfile = 0;
         uint64_t clockrate = 0;
         bool showPerformance = false;
         bool force80x24 = false;
@@ -3451,6 +3453,13 @@ int main( int argc, char * argv[] )
 
                         pfileInputText = parg + 3;
                     }
+                    else if ( 'g' == ca )
+                    {
+                        if ( ( ':' != parg[2] ) || !strlen( parg + 3 ) )
+                            error( ":<filename> expected with -g" );
+
+                        pfileProfile = parg + 3;
+                    }
                     else if ( 'h' == ca )
                         g_clearHOnBDOSReturn = false;
                     else if ( 'i' == ca )
@@ -3517,6 +3526,9 @@ int main( int argc, char * argv[] )
         tracer.SetQuiet( true );
         tracer.SetFlushEachTrace( true );
         x80_trace_instructions( traceInstructions );
+
+        if ( pfileProfile )
+            x80_profile_enable( true );
 
         if ( pfileInputText )
         {
@@ -3757,6 +3769,25 @@ int main( int argc, char * argv[] )
         g_consoleConfig.RestoreConsole( clearDisplayOnExit );
 
         CloseFindFirst();
+
+        if ( pfileProfile )
+        {
+            const uint64_t * counts = x80_profile_counts();
+            if ( 0 != counts )
+            {
+                FILE * fp = fopen( pfileProfile, "w" );
+                if ( 0 != fp )
+                {
+                    uint32_t addr;
+                    fprintf( fp, "pc,count,asm\n" );
+                    for ( addr = 0; addr < 65536; ++addr )
+                        if ( 0 != counts[ addr ] )
+                            fprintf( fp, "%u,%llu,%s\n", addr, (unsigned long long) counts[ addr ],
+                                     x80_render_operation( (uint16_t) addr ) );
+                    fclose( fp );
+                }
+            }
+        }
 
         if ( showPerformance )
         {
