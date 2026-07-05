@@ -60,7 +60,7 @@ void x80_profile_enable( bool enable )
 const uint64_t * x80_profile_counts( void ) { return ( g_State & stateProfile ) ? g_pcHits : 0; }
 
 enum z80_value_source { vs_register, vs_memory, vs_indexed }; // this impacts how Z80 undocumented Y and X flags are updated
-const uint8_t cyclesnt = 6;  // cycles not taken when a conditional call, jump, or return isn't taken
+const uint8_t cyclesnt = 6;  // cycles subtracted when a conditional return isn't taken (both modes), or a conditional call isn't taken on 8080 (Z80 call subtracts 7 instead). Conditional jp/jmp costs the same either way -- no subtraction.
 
 // instructions starting with '*' are undocumented for 8080, and not implemented here. They also signal likely Z80 instructions
 static const char i8080_instructions[ 256 ][ 16 ] =
@@ -741,17 +741,17 @@ uint16_t z80_emulate( uint8_t op )    // this is just for instructions that aren
             if ( 0 != reg.b )
             {
                 reg.pc = reg.pc + (int16_t) (int8_t) offset;
-                cycles = 3;
+                cycles = 13;
             }
             else
-                cycles = 2;
+                cycles = 8;
             break;
         }
         case 0x18: // jr n
         {
             uint8_t offset = pcbyte();
             reg.pc = reg.pc + (int16_t) (int8_t) offset;
-            cycles = 3;
+            cycles = 12;
             break;
         }
         case 0x20: // jr nz, n
@@ -760,10 +760,10 @@ uint16_t z80_emulate( uint8_t op )    // this is just for instructions that aren
             if ( !reg.fZero )
             {
                 reg.pc = reg.pc + (int16_t) (int8_t) offset;
-                cycles = 3;
+                cycles = 12;
             }
             else
-                cycles = 2;
+                cycles = 7;
             break;
         }
         case 0x28: // jr z, n
@@ -772,10 +772,10 @@ uint16_t z80_emulate( uint8_t op )    // this is just for instructions that aren
             if ( reg.fZero )
             {
                 reg.pc = reg.pc + (int16_t) (int8_t) offset;
-                cycles = 3;
+                cycles = 12;
             }
             else
-                cycles = 2;
+                cycles = 7;
             break;
         }
         case 0x30: // jr nc, n
@@ -784,10 +784,10 @@ uint16_t z80_emulate( uint8_t op )    // this is just for instructions that aren
             if ( !reg.fCarry )
             {
                 reg.pc = reg.pc + (int16_t) (int8_t) offset;
-                cycles = 3;
+                cycles = 12;
             }
             else
-                cycles = 2;
+                cycles = 7;
             break;
         }
         case 0x38: // jr c, n
@@ -796,10 +796,10 @@ uint16_t z80_emulate( uint8_t op )    // this is just for instructions that aren
             if ( reg.fCarry )
             {
                 reg.pc = reg.pc + (int16_t) (int8_t) offset;
-                cycles = 3;
+                cycles = 12;
             }
             else
-                cycles = 2;
+                cycles = 7;
             break;
         }
         case 0xcb: // rotate / bits
@@ -909,14 +909,14 @@ uint16_t z80_emulate( uint8_t op )    // this is just for instructions that aren
 
             if ( 0x46 == ( op2 & 0x47 ) ) // ld r, (i + #)
             {
-                cycles = 5;
+                cycles = 19;
                 uint8_t op3 = pcbyte(); // consume op3
                 uint16_t address = reg.z80_getIndex( op ) + (uint16_t) (int16_t) (int8_t) op3;
                 * dst_address( op2 ) = memory[ address ];
             }
             else if ( 0x70 == ( op2 & 0xf8 ) )  // ld (i+#), r/#
             {
-                cycles = 5;
+                cycles = 19;
                 uint8_t op3 = pcbyte(); // consume op3
 
                 // if 6, there is an op4 for the index (not hl-indexed memory); otherwise use a register value
@@ -992,21 +992,21 @@ uint16_t z80_emulate( uint8_t op )    // this is just for instructions that aren
                 * reg.z80_getIndexByteAddress( op, 1 ) = pcbyte();
             else if ( 0x34 == op2 ) // inc (i + index)
             {
-                cycles = 6;
+                cycles = 23;
                 uint16_t i = reg.z80_getIndex( op ) + (int16_t) (int8_t) pcbyte();
                 uint8_t x = memory[ i ];
                 memory[i] = op_inc<true>( x );
             }
             else if ( 0x35 == op2 ) // dec (i + index)
             {
-                cycles = 6;
+                cycles = 23;
                 uint16_t i = reg.z80_getIndex( op ) + (int16_t) (int8_t) pcbyte();
                 uint8_t x = memory[ i ];
                 memory[ i ] = op_dec<true>( x );
             }
             else if ( 0x36 == op2 )  // ld (ix/iy + index), immediate byte
             {
-                cycles = 5;
+                cycles = 19;
                 uint16_t i = reg.z80_getIndex( op ) + (int16_t) (int8_t) pcbyte();
                 uint8_t val = pcbyte();
                 memory[ i ] = val;
@@ -1048,7 +1048,7 @@ uint16_t z80_emulate( uint8_t op )    // this is just for instructions that aren
             }
             else if ( 0x86 == ( op2 & 0xc7 ) ) // math on [ ix/iy + index ]
             {
-                cycles = 5;
+                cycles = 19;
                 uint16_t x = reg.z80_getIndex( op );
                 x += (int16_t) (int8_t) pcbyte();
                 op_math<true>( op2, memory[ x ] );
@@ -1953,8 +1953,7 @@ template <bool Z80Mode> static uint16_t x80_emulate_impl( uint16_t maxcycles )
                 uint16_t address = pcword(); // must be consumed regardless of whether jump is taken
                 if ( check_conditional( op ) )
                     reg.pc = address;
-                else
-                    cycles -= cyclesnt;
+                // JP cc costs 10T whether or not the jump is taken -- no subtraction here
                 break;
             }
             case 0xc3: { reg.pc = pcword(); break; } // jmp a16
@@ -1967,7 +1966,7 @@ template <bool Z80Mode> static uint16_t x80_emulate_impl( uint16_t maxcycles )
                     reg.pc = address;
                 }
                 else
-                    cycles -= cyclesnt;
+                    cycles -= ( Z80Mode ? 7 : cyclesnt ); // not-taken CALL cc is 10T on Z80 (17-7), 11T on 8080 (17-6)
                 break;
             }
             case 0xc5: case 0xd5: case 0xe5: { pushword( * reg.rpAddressFromOp( op ) ); break; } // push rp
