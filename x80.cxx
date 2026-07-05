@@ -1755,7 +1755,7 @@ bool check_conditional( uint8_t op ) // checks for conditional jump, call, and r
     return condition;
 } //check_conditional
 
-not_inlined bool handle_state( uint16_t pc ) // this code exists to reduce what would be multiple checks per instruction loop to just one check
+not_inlined bool handle_state() // this code exists to reduce what would be multiple checks per instruction loop to just one check
 {
     if ( g_State & stateEndEmulation )
         return true;
@@ -1764,7 +1764,7 @@ not_inlined bool handle_state( uint16_t pc ) // this code exists to reduce what 
         x80_trace_state();
 
     if ( g_State & stateProfile )
-        g_pcHits[ pc ]++;
+        g_pcHits[ reg.pc ]++;
 
     return false;
 } //handle_state
@@ -1784,7 +1784,7 @@ template <bool Z80Mode> static uint16_t x80_emulate_impl( uint16_t maxcycles )
     while ( cycles < maxcycles )        // 4% of runtime checking if we're done
     {
         if ( 0 != g_State )
-            if ( handle_state( reg.pc ) )
+            if ( handle_state() )
                 break;
 
         uint8_t op = memory[ reg.pc ];  // 1% of runtime
