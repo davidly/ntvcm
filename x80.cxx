@@ -39,21 +39,23 @@ static const char * z80_rotate_strings[ 8 ] = { "rlc", "rrc", "rl", "rr", "sla",
 static uint8_t g_State = 0;
 const uint8_t stateTraceInstructions = 1;
 const uint8_t stateEndEmulation = 2;
+const uint8_t stateProfile = 4;
 void x80_trace_instructions( bool t ) { if ( t ) g_State |= stateTraceInstructions; else g_State &= ~stateTraceInstructions; }
 void x80_end_emulation() { g_State |= stateEndEmulation; }
 
-// Optional per-PC execution profiler. Kept off the g_State fast path (a plain
-// bool + heap histogram) so a normal run pays nothing beyond one predictable
-// branch, and an enabled run just bumps a 64-bit counter per instruction.
-static bool g_profile = false;
+// Optional per-PC execution profiler. Kept behind the existing g_State gate so
+// the instruction loop still has one check for all optional per-instruction work.
 static uint64_t * g_pcHits = 0;
 void x80_profile_enable( bool enable )
 {
     if ( enable && 0 == g_pcHits )
         g_pcHits = (uint64_t *) calloc( 65536, sizeof( uint64_t ) );
-    g_profile = enable && ( 0 != g_pcHits );
+    if ( enable && ( 0 != g_pcHits ) )
+        g_State |= stateProfile;
+    else
+        g_State &= ~stateProfile;
 }
-const uint64_t * x80_profile_counts( void ) { return g_profile ? g_pcHits : 0; }
+const uint64_t * x80_profile_counts( void ) { return ( g_State & stateProfile ) ? g_pcHits : 0; }
 
 enum z80_value_source { vs_register, vs_memory, vs_indexed }; // this impacts how Z80 undocumented Y and X flags are updated
 const uint8_t cyclesnt = 6;  // cycles not taken when a conditional call, jump, or return isn't taken
@@ -1753,13 +1755,16 @@ bool check_conditional( uint8_t op ) // checks for conditional jump, call, and r
     return condition;
 } //check_conditional
 
-not_inlined bool handle_state() // this code exists to reduce what would be multiple checks per instruction loop to just one check
+not_inlined bool handle_state( uint16_t pc ) // this code exists to reduce what would be multiple checks per instruction loop to just one check
 {
     if ( g_State & stateEndEmulation )
         return true;
 
     if ( g_State & stateTraceInstructions )
         x80_trace_state();
+
+    if ( g_State & stateProfile )
+        g_pcHits[ pc ]++;
 
     return false;
 } //handle_state
@@ -1779,13 +1784,12 @@ template <bool Z80Mode> static uint16_t x80_emulate_impl( uint16_t maxcycles )
     while ( cycles < maxcycles )        // 4% of runtime checking if we're done
     {
         if ( 0 != g_State )
-            if ( handle_state() )
+            if ( handle_state( reg.pc ) )
                 break;
 
         uint8_t op = memory[ reg.pc ];  // 1% of runtime
         reg.pc++;                       // 7% of runtime
         cycles += acycles[ op ];
-        if ( g_profile ) g_pcHits[ (uint16_t) ( reg.pc - 1 ) ]++;
 #if RETURN_INSTRUCTION_COUNT
         instructions++;
 #endif

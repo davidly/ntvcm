@@ -256,6 +256,7 @@ ConsoleConfiguration g_consoleConfig;
 static bool g_haltExecuted = false;
 static bool g_emulationEnded = false;
 static bool g_exitCodeSet = false;
+static bool g_profileWriteFailed = false;
 static uint16_t g_exitCode = 0;
 static uint8_t * g_DMA = memory + DEFAULT_DMA_OFFSET;
 static vector<FileEntry> g_fileEntries;
@@ -3109,7 +3110,7 @@ uint8_t x80_invoke_hook()
 
 void usage()
 {
-    printf( "Usage: ntvcm [-?] [-c] [-p] [-s:X] [-t] <command> [arg1] [arg2]\n" );
+    printf( "Usage: ntvcm [-?] [-c] [-g:<file>] [-p] [-s:X] [-t] <command> [arg1] [arg2]\n" );
 } //usage
 
 void help()
@@ -3455,10 +3456,22 @@ int main( int argc, char * argv[] )
                     }
                     else if ( 'g' == ca )
                     {
-                        if ( ( ':' != parg[2] ) || !strlen( parg + 3 ) )
-                            error( ":<filename> expected with -g" );
+                        if ( ':' == parg[2] )
+                        {
+                            if ( !strlen( parg + 3 ) )
+                                error( ":<filename> expected with -g" );
 
-                        pfileProfile = parg + 3;
+                            pfileProfile = parg + 3;
+                        }
+                        else if ( 0 == parg[2] )
+                        {
+                            if ( ++i >= argc )
+                                error( ":<filename> expected with -g" );
+
+                            pfileProfile = argv[i];
+                        }
+                        else
+                            error( ":<filename> expected with -g" );
                     }
                     else if ( 'h' == ca )
                         g_clearHOnBDOSReturn = false;
@@ -3786,6 +3799,11 @@ int main( int argc, char * argv[] )
                                      x80_render_operation( (uint16_t) addr ) );
                     fclose( fp );
                 }
+                else
+                {
+                    g_profileWriteFailed = true;
+                    printf( "unable to create profile file '%s': %s\n", pfileProfile, strerror( errno ) );
+                }
             }
         }
 
@@ -3847,7 +3865,7 @@ int main( int argc, char * argv[] )
 
     fflush( stdout );
     tracer.Shutdown();
-    return g_haltExecuted ? -1 : g_exitCodeSet ? (int) g_exitCode : 0;
+    return g_haltExecuted ? -1 : g_profileWriteFailed ? 1 : g_exitCodeSet ? (int) g_exitCode : 0;
 } //main
 
 
