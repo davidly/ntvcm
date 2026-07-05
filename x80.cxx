@@ -48,12 +48,14 @@ void x80_end_emulation() { g_State |= stateEndEmulation; }
 static uint64_t * g_pcHits = 0;
 void x80_profile_enable( bool enable )
 {
+#ifndef WATCOMDOS
     if ( enable && 0 == g_pcHits )
         g_pcHits = (uint64_t *) calloc( 65536, sizeof( uint64_t ) );
     if ( enable && ( 0 != g_pcHits ) )
         g_State |= stateProfile;
     else
         g_State &= ~stateProfile;
+#endif
 }
 const uint64_t * x80_profile_counts( void ) { return ( g_State & stateProfile ) ? g_pcHits : 0; }
 
