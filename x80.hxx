@@ -296,4 +296,6 @@ extern uint16_t x80_emulate( uint16_t maxcycles );             // execute up to 
 extern void x80_trace_instructions( bool trace );              // enable/disable tracing each instruction
 extern void x80_end_emulation();                               // stop the emulation
 extern void x80_trace_state( void );                           // trace the registers
+extern void x80_profile_enable( bool enable );                 // count executions per PC address
+extern const uint64_t * x80_profile_counts( void );            // 65536 per-PC execution counts, or NULL if disabled
 extern const char * x80_render_operation( uint16_t address );  // return a string with the disassembled instruction at address
