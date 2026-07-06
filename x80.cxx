@@ -1776,7 +1776,6 @@ not_inlined bool handle_state() // this code exists to reduce what would be mult
 template <bool Z80Mode> static uint16_t x80_emulate_impl( uint16_t maxcycles )
 {
     uint16_t cycles = 0;
-    const acycles_t & acycles = Z80Mode ? z80_cycles : i8080_cycles; // ms C++ will opportunistically read *both* in the loop below otherwise
 #if RETURN_INSTRUCTION_COUNT
     uint16_t instructions = 0;
 #endif
@@ -1791,7 +1790,7 @@ template <bool Z80Mode> static uint16_t x80_emulate_impl( uint16_t maxcycles )
 
         uint8_t op = memory[ reg.pc ];  // 1% of runtime
         reg.pc++;                       // 7% of runtime
-        cycles += acycles[ op ];
+        cycles += Z80Mode ? z80_cycles[ op ] : i8080_cycles[ op ];
 #if RETURN_INSTRUCTION_COUNT
         instructions++;
 #endif
@@ -1920,7 +1919,7 @@ template <bool Z80Mode> static uint16_t x80_emulate_impl( uint16_t maxcycles )
             case 0x64: // hook
             {
                 op = x80_invoke_hook();
-                cycles += acycles[ op ];
+                cycles += Z80Mode ? z80_cycles[ op ] : i8080_cycles[ op ];
                 if ( OPCODE_HLT == op ) // treat each possible return opcode separately to avoid a jump to restart for performance
                     goto _op_hlt;
                 else if ( OPCODE_NOP == op )

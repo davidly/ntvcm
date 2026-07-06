@@ -293,16 +293,32 @@ class CRssFeed
             } while( true );
         } //remove_tags
 
+#ifdef _MSC_VER
+        // This is Windows-only (both real MSVC and g++ built targeting native
+        // Windows via mg.bat/mgr.bat's -D _MSC_VER hack); Linux/macOS builds
+        // use replace_extended_characters() instead (see make_ascii_string
+        // below) and never compile this function at all, so windows.h (already
+        // included above whenever _MSC_VER is defined - see OPEN_SOURCE_GETURL)
+        // is safe to rely on here.
+        //
+        // Used to do the UTF-8 -> UTF-16 step via wstring_convert<codecvt_utf8
+        // <wchar_t>>, deprecated in C++17 with no replacement ever added to the
+        // standard. MultiByteToWideChar is the native, non-deprecated
+        // replacement for exactly this conversion on Windows.
         static string utf8_to_us_ascii( const char * utf8str )
         {
-            wstring_convert<codecvt_utf8<wchar_t>> wconv;
-            wstring wstr = wconv.from_bytes( utf8str );
+            int wlen = MultiByteToWideChar( CP_UTF8, 0, utf8str, -1, nullptr, 0 );
+            vector<wchar_t> wbuf( wlen );
+            MultiByteToWideChar( CP_UTF8, 0, utf8str, -1, wbuf.data(), wlen );
+            wstring wstr( wbuf.data() );
+
             vector<char> buf( wstr.size() );
             const locale loc( ".20127" ); // ".20127" works on Windows but not on g++ & linux. "C" loses characters.
             use_facet<ctype<wchar_t>>( loc ).narrow( wstr.data(), wstr.data() + wstr.size(), ' ', buf.data() );
             return string( buf.data(), buf.size() );
         } //utf8_to_ascii
-        
+#endif
+
         static void make_ascii_string( char * p )
         {
 #ifdef _MSC_VER
