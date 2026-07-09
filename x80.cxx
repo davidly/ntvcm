@@ -1784,7 +1784,7 @@ not_inlined bool handle_state() // this code exists to reduce what would be mult
 
 template <bool Z80Mode> static uint16_t x80_emulate_impl( uint16_t maxcycles )
 {
-    uint32_t cycles = 0;
+    uint16_t cycles = 0;
 #if RETURN_INSTRUCTION_COUNT
     uint16_t instructions = 0;
 #endif
