@@ -1405,6 +1405,19 @@ uint16_t z80_emulate( uint8_t op )    // this is just for instructions that aren
                 uint16_t val = * reg.rpAddressFromOp( op2 );
                 reg.SetH( z80_op_adc_16( reg.H(), val ) );
             }
+            else if ( 0x40 == ( op2 & 0xc7 ) ) // in r,(c); rm==6 is the undocumented flags-only variant
+            {
+                cycles = 12;
+                uint8_t val = 0xff; // no real I/O device attached; typical floating-bus value
+                uint8_t rm = 7 & ( op2 >> 3 );
+                if ( 6 != rm )
+                    * dst_address_rm( rm ) = val;
+                set_sign_zero_parity( val );
+                reg.clearHN();
+                reg.z80_assignYX( val );
+            }
+            else if ( 0x41 == ( op2 & 0xc7 ) ) // out (c),r; no real I/O device attached
+                cycles = 12;
             else
                 z80_ni( op, op2 );
             break;
