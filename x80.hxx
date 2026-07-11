@@ -66,13 +66,15 @@ struct registers
 
         // branchless: every fXxx member is a bool (0 or 1), so shifting it into
         // place and OR-ing together avoids a chain of conditional branches here.
+        // Each is cast to int first since msvc warns ('unsafe mix of type "int"
+        // and type "bool"') about shifting/OR-ing a bool directly.
 
-        f = ( Z80Mode ? ( fWasSubtract << 1 ) : 2 ) |
-            fCarry | ( fParityEven_Overflow << 2 ) | ( fAuxCarry << 4 ) |
-            ( fZero << 6 ) | ( fSign << 7 );
+        f = ( Z80Mode ? ( (int) fWasSubtract << 1 ) : 2 ) |
+            (int) fCarry | ( (int) fParityEven_Overflow << 2 ) | ( (int) fAuxCarry << 4 ) |
+            ( (int) fZero << 6 ) | ( (int) fSign << 7 );
 
         if ( Z80Mode )    // these flags are undocumented but must work to run emulation tests
-            f |= ( fY << 5 ) | ( fX << 3 );
+            f |= ( (int) fY << 5 ) | ( (int) fX << 3 );
 
         return f;
     } //materializeFlags
