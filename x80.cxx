@@ -730,9 +730,9 @@ uint16_t z80_emulate( uint8_t op )    // this is just for instructions that aren
         {
             cycles = 0; // base table already counted the 4T for this one-byte opcode
             swap( reg.a, reg.ap );
-            reg.materializeFlags();
+            reg.materializeFlags<true>(); // z80_emulate is only ever reached in Z80 mode
             swap( reg.f, reg.fp );
-            reg.unmaterializeFlags();
+            reg.unmaterializeFlags<true>();
             break;
         }
         case 0x10: // djnz
@@ -1716,13 +1716,13 @@ void replace_with_num( char * pc, const char * psearch, uint16_t num, uint8_t wi
     strcpy( pc, actemp );
 } //replace_with_num
 
-const char * x80_render_operation( uint16_t address )
+template <bool Z80Mode> const char * x80_render_operation_impl( uint16_t address )
 {
     static char ac[ 60 ];
     uint8_t op = memory[ address ];
     bool renderData = true;
 
-    if ( reg.fZ80Mode )
+    if ( Z80Mode )
     {
         strcpy( ac, z80_instructions[ op ] );
         if ( '*' == ac[ 0 ] )
@@ -1746,9 +1746,16 @@ const char * x80_render_operation( uint16_t address )
     }
 
     return ac;
+} //x80_render_operation_impl
+
+const char * x80_render_operation( uint16_t address )
+{
+    if ( reg.fZ80Mode )
+        return x80_render_operation_impl<true>( address );
+    return x80_render_operation_impl<false>( address );
 } //x80_render_operation
 
-not_inlined void x80_trace_state()
+template <bool Z80Mode> not_inlined void x80_trace_state_impl()
 {
     if ( !tracer.IsEnabled() ) // trace instructions may be on but global tracing turned off
         return;
@@ -1758,16 +1765,24 @@ not_inlined void x80_trace_state()
     uint8_t op3 = memory[ reg.pc + 2 ];
     uint8_t op4 = memory[ reg.pc + 3 ];
 
-    if ( reg.fZ80Mode )
+    if ( Z80Mode )
         tracer.Trace( "pc %04x, op %02x, op2 %02x, op3 %02x, op4 %02x, a %02x, B %04x, D %04x, H %04x, ix %04x, iy %04x, sp %04x, %s, %s\n",
                       reg.pc, op, op2, op3, op4, reg.a, reg.B(), reg.D(), reg.H(), reg.ix, reg.iy, reg.sp,
-                      reg.renderFlags(), x80_render_operation( reg.pc ) );
+                      reg.renderFlags<Z80Mode>(), x80_render_operation_impl<Z80Mode>( reg.pc ) );
     else
         tracer.Trace( "pc %04x, op %02x, op2 %02x, op3 %02x, a %02x, B %04x, D %04x, H %04x, sp %04x, %s, %s\n",
                       reg.pc, op, op2, op3, reg.a, reg.B(), reg.D(), reg.H(), reg.sp,
-                      reg.renderFlags(), x80_render_operation( reg.pc ) );
+                      reg.renderFlags<Z80Mode>(), x80_render_operation_impl<Z80Mode>( reg.pc ) );
 
 //    tracer.TraceBinaryData( & memory[ 0x42c5 + 0x16 ], 2, 4 );
+} //x80_trace_state_impl
+
+not_inlined void x80_trace_state()
+{
+    if ( reg.fZ80Mode )
+        x80_trace_state_impl<true>();
+    else
+        x80_trace_state_impl<false>();
 } //x80_trace_state
 
 bool check_conditional( uint8_t op ) // checks for conditional jump, call, and return
@@ -1779,13 +1794,13 @@ bool check_conditional( uint8_t op ) // checks for conditional jump, call, and r
     return condition;
 } //check_conditional
 
-not_inlined bool handle_state() // this code exists to reduce what would be multiple checks per instruction loop to just one check
+template <bool Z80Mode> not_inlined bool handle_state() // this code exists to reduce what would be multiple checks per instruction loop to just one check
 {
     if ( g_State & stateEndEmulation )
         return true;
 
     if ( g_State & stateTraceInstructions )
-        x80_trace_state();
+        x80_trace_state_impl<Z80Mode>();
 
     if ( g_State & stateProfile )
         g_pcHits[ reg.pc ]++;
@@ -1807,7 +1822,7 @@ template <bool Z80Mode> static uint16_t x80_emulate_impl( uint16_t maxcycles )
     while ( cycles < maxcycles )        // 4% of runtime checking if we're done
     {
         if ( 0 != g_State )
-            if ( handle_state() )
+            if ( handle_state<Z80Mode>() )
                 break;
 
         uint8_t op = memory[ reg.pc ];  // 1% of runtime
@@ -2013,9 +2028,9 @@ template <bool Z80Mode> static uint16_t x80_emulate_impl( uint16_t maxcycles )
             case 0xe9: { reg.pc = reg.H(); break; } // pchl
             case 0xeb: { uint16_t t = reg.H(); reg.SetH( reg.D() ); reg.SetD( t ); break; } // xchg
             case 0xee: { op_xra<Z80Mode>( pcbyte() ); break; } // xri
-            case 0xf1: { reg.SetPSW( popword() ); break; } // pop psw
+            case 0xf1: { reg.SetPSW<Z80Mode>( popword() ); break; } // pop psw
             case 0xf3: { reg.fINTE = false; break; } // di
-            case 0xf5: { pushword( reg.PSW() ); break; } // push psw
+            case 0xf5: { pushword( reg.PSW<Z80Mode>() ); break; } // push psw
             case 0xf6: { op_ora<Z80Mode>( pcbyte() ); break; } // ori
             case 0xf9: { reg.sp = reg.H(); break; } // sphl
             case 0xfb: { reg.fINTE = true; break; } // ei

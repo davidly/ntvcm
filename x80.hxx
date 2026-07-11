@@ -59,19 +59,19 @@ struct registers
     bool fZ80Mode;             // Not a cpu flag. true if emulating Z80, false if emulating i8080
     bool fINTE;                // Not a cpu flag. true if hardware interrupts are enabled. set/reset with ei and di
 
-    uint8_t materializeFlags()
+    template <bool Z80Mode> uint8_t materializeFlags()
     {
         // flags bits 7..0 (where they differ, 8080/Z80):
         // sign, zero, mustbe0, auxcarry/halfcarry, mustbe0, parityeven/overflow, mustbe1/subtract, carry
 
-        f = fZ80Mode ? ( fWasSubtract ? 2 : 0 ) : 2;
+        f = Z80Mode ? ( fWasSubtract ? 2 : 0 ) : 2;
         if ( fCarry ) f |= 1;
         if ( fParityEven_Overflow ) f |= 4;
         if ( fAuxCarry ) f |= 0x10;
         if ( fZero ) f |= 0x40;
         if ( fSign ) f |= 0x80;
 
-        if ( fZ80Mode )    // these flags are undocumented but must work to run emulation tests
+        if ( Z80Mode )    // these flags are undocumented but must work to run emulation tests
         {
             if ( fY ) f |= 0x20;
             if ( fX ) f |= 8;
@@ -80,9 +80,9 @@ struct registers
         return f;
     } //materializeFlags
 
-    uint16_t PSW()
+    template <bool Z80Mode> uint16_t PSW()
     {
-        materializeFlags();
+        materializeFlags<Z80Mode>();
 #ifdef TARGET_BIG_ENDIAN
         return * ( (uint16_t *) & a );
 #else
@@ -90,14 +90,14 @@ struct registers
 #endif
     } //PSW
 
-    void SetPSW( uint16_t x )
+    template <bool Z80Mode> void SetPSW( uint16_t x )
     {
 #ifdef TARGET_BIG_ENDIAN
         * ( (uint16_t *) & a ) = x;
 #else
         * ( (uint16_t *) & f ) = x;
 #endif
-        unmaterializeFlags();
+        unmaterializeFlags<Z80Mode>();
     } //SetPSW
 
 #ifdef TARGET_BIG_ENDIAN
@@ -120,9 +120,9 @@ struct registers
 
     void z80_increment_r() { /* reg.r++; */ } // 4.6% of runtime when the increment is enabled
 
-    void unmaterializeFlags()
+    template <bool Z80Mode> void unmaterializeFlags()
     {
-        if ( fZ80Mode )
+        if ( Z80Mode )
             fWasSubtract = ( 0 != ( f & 2 ) );
         else
         {
@@ -136,7 +136,7 @@ struct registers
         fZero = ( 0 != ( f & 0x40 ) );
         fSign = ( 0 != ( f & 0x80 ) );
 
-        if ( fZ80Mode )
+        if ( Z80Mode )
         {
             fY = ( 0 != ( f & 0x20 ) );
             fX = ( 0 != ( f & 8 ) );
@@ -179,29 +179,29 @@ struct registers
         return * ( ( & fZero ) + x );
     } //getFlag
 
-    const char * renderFlags()
+    template <bool Z80Mode> const char * renderFlags()
     {
         static char ac[10] = {0};
         size_t next = 0;
         ac[ next++ ] = fSign ? 'S' : 's';
         ac[ next++ ] = fZero ? 'Z' : 'z';
-        if ( fZ80Mode )
+        if ( Z80Mode )
             ac[ next++ ] = fY ? 'Y' : 'y';
 
-        if ( fZ80Mode )
+        if ( Z80Mode )
             ac[ next++ ] = fAuxCarry ? 'H' : 'h'; // half-carry; almost same meaning as aux-carry
         else
             ac[ next++ ] = fAuxCarry ? 'A' : 'a';
 
-        if ( fZ80Mode )
+        if ( Z80Mode )
             ac[ next++ ] = fX ? 'X' : 'x';
 
-        if ( fZ80Mode )
+        if ( Z80Mode )
             ac[ next++ ] = fParityEven_Overflow ? 'V' : 'v';
         else
             ac[ next++ ] = fParityEven_Overflow ? 'P' : 'p';
 
-        if ( fZ80Mode )
+        if ( Z80Mode )
             ac[ next++ ] = fWasSubtract ? 'N' : 'n';
 
         ac[ next++ ] = fCarry ? 'C' : 'c';
