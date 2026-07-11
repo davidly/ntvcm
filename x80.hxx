@@ -64,18 +64,15 @@ struct registers
         // flags bits 7..0 (where they differ, 8080/Z80):
         // sign, zero, mustbe0, auxcarry/halfcarry, mustbe0, parityeven/overflow, mustbe1/subtract, carry
 
-        f = Z80Mode ? ( fWasSubtract ? 2 : 0 ) : 2;
-        if ( fCarry ) f |= 1;
-        if ( fParityEven_Overflow ) f |= 4;
-        if ( fAuxCarry ) f |= 0x10;
-        if ( fZero ) f |= 0x40;
-        if ( fSign ) f |= 0x80;
+        // branchless: every fXxx member is a bool (0 or 1), so shifting it into
+        // place and OR-ing together avoids a chain of conditional branches here.
+
+        f = ( Z80Mode ? ( fWasSubtract << 1 ) : 2 ) |
+            fCarry | ( fParityEven_Overflow << 2 ) | ( fAuxCarry << 4 ) |
+            ( fZero << 6 ) | ( fSign << 7 );
 
         if ( Z80Mode )    // these flags are undocumented but must work to run emulation tests
-        {
-            if ( fY ) f |= 0x20;
-            if ( fX ) f |= 8;
-        }
+            f |= ( fY << 5 ) | ( fX << 3 );
 
         return f;
     } //materializeFlags
@@ -210,26 +207,28 @@ struct registers
         return ac;
     } //renderFlags
 
+    // 0xdd (ix) and 0xfd (iy) differ only in bit 5 (0 for dd, 1 for fd). ix/iy
+    // are declared adjacent (see the layout comment at the top of this struct),
+    // so indexing off &ix picks the right one with no branch, unlike the
+    // 0xdd/0xfd if/else this replaces.
+    inline uint16_t & z80_indexRef( uint8_t op )
+    {
+        assert( 0xdd == op || 0xfd == op );
+        return ( & ix )[ ( op >> 5 ) & 1 ];
+    } //z80_indexRef
+
     inline void z80_setIndex( uint8_t op, uint16_t val )
     {
-        if ( 0xdd == op )
-            ix = val;
-        else
-            iy = val;
+        z80_indexRef( op ) = val;
     } //z80_setIndex
 
     inline uint16_t z80_getIndex( uint8_t op )
     {
-        assert( 0xdd == op || 0xfd == op );
-
-        if ( 0xdd == op )
-            return ix;
-        return iy;
+        return z80_indexRef( op );
     } //z80_getIndex
 
     inline uint8_t z80_getIndexByte( uint8_t op, uint8_t hl )
     {
-        assert( 0xdd == op || 0xfd == op );
         assert( 0 == hl || 1 == hl );
 
         uint16_t result16 = z80_getIndex( op );
@@ -241,14 +240,9 @@ struct registers
 
     uint8_t * z80_getIndexByteAddress( uint8_t op, uint8_t hl )
     {
-        assert( 0xdd == op || 0xfd == op );
         assert( 0 == hl || 1 == hl );
 
-        uint8_t * pval;
-        if ( 0xdd == op )
-            pval = (uint8_t *) & ix;
-        else
-            pval = (uint8_t *) & iy;
+        uint8_t * pval = (uint8_t *) & z80_indexRef( op );
 
 #ifdef TARGET_BIG_ENDIAN
         if ( 1 == hl )
