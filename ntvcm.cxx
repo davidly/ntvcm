@@ -2299,6 +2299,7 @@ static int mi_inline_frame( const char * command )
     return isdigit( (unsigned char) *option ) ? atoi( option ) : -1;
 }
 
+#if 0 // unused
 static MIDebugVariable * mi_resolve_variable_expression( const char * argument, char * expression,
                                                         size_t expressionSize )
 {
@@ -2321,6 +2322,7 @@ static MIDebugVariable * mi_resolve_variable_expression( const char * argument, 
         memmove( expression, start, strlen( start ) + 1 );
     return mi_find_debug_variable( expression );
 }
+#endif
 
 static uint16_t mi_register_psw()
 {
