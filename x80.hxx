@@ -59,30 +59,29 @@ struct registers
     bool fZ80Mode;             // Not a cpu flag. true if emulating Z80, false if emulating i8080
     bool fINTE;                // Not a cpu flag. true if hardware interrupts are enabled. set/reset with ei and di
 
-    uint8_t materializeFlags()
+    template <bool Z80Mode> uint8_t materializeFlags()
     {
         // flags bits 7..0 (where they differ, 8080/Z80):
         // sign, zero, mustbe0, auxcarry/halfcarry, mustbe0, parityeven/overflow, mustbe1/subtract, carry
 
-        f = fZ80Mode ? ( fWasSubtract ? 2 : 0 ) : 2;
-        if ( fCarry ) f |= 1;
-        if ( fParityEven_Overflow ) f |= 4;
-        if ( fAuxCarry ) f |= 0x10;
-        if ( fZero ) f |= 0x40;
-        if ( fSign ) f |= 0x80;
+        // branchless: every fXxx member is a bool (0 or 1), so shifting it into
+        // place and OR-ing together avoids a chain of conditional branches here.
+        // Each is cast to int first since msvc warns ('unsafe mix of type "int"
+        // and type "bool"') about shifting/OR-ing a bool directly.
 
-        if ( fZ80Mode )    // these flags are undocumented but must work to run emulation tests
-        {
-            if ( fY ) f |= 0x20;
-            if ( fX ) f |= 8;
-        }
+        f = ( Z80Mode ? ( (int) fWasSubtract << 1 ) : 2 ) |
+            (int) fCarry | ( (int) fParityEven_Overflow << 2 ) | ( (int) fAuxCarry << 4 ) |
+            ( (int) fZero << 6 ) | ( (int) fSign << 7 );
+
+        if ( Z80Mode )    // these flags are undocumented but must work to run emulation tests
+            f |= ( (int) fY << 5 ) | ( (int) fX << 3 );
 
         return f;
     } //materializeFlags
 
-    uint16_t PSW()
+    template <bool Z80Mode> uint16_t PSW()
     {
-        materializeFlags();
+        materializeFlags<Z80Mode>();
 #ifdef TARGET_BIG_ENDIAN
         return * ( (uint16_t *) & a );
 #else
@@ -90,14 +89,14 @@ struct registers
 #endif
     } //PSW
 
-    void SetPSW( uint16_t x )
+    template <bool Z80Mode> void SetPSW( uint16_t x )
     {
 #ifdef TARGET_BIG_ENDIAN
         * ( (uint16_t *) & a ) = x;
 #else
         * ( (uint16_t *) & f ) = x;
 #endif
-        unmaterializeFlags();
+        unmaterializeFlags<Z80Mode>();
     } //SetPSW
 
 #ifdef TARGET_BIG_ENDIAN
@@ -120,9 +119,9 @@ struct registers
 
     void z80_increment_r() { /* reg.r++; */ } // 4.6% of runtime when the increment is enabled
 
-    void unmaterializeFlags()
+    template <bool Z80Mode> void unmaterializeFlags()
     {
-        if ( fZ80Mode )
+        if ( Z80Mode )
             fWasSubtract = ( 0 != ( f & 2 ) );
         else
         {
@@ -136,7 +135,7 @@ struct registers
         fZero = ( 0 != ( f & 0x40 ) );
         fSign = ( 0 != ( f & 0x80 ) );
 
-        if ( fZ80Mode )
+        if ( Z80Mode )
         {
             fY = ( 0 != ( f & 0x20 ) );
             fX = ( 0 != ( f & 8 ) );
@@ -179,29 +178,29 @@ struct registers
         return * ( ( & fZero ) + x );
     } //getFlag
 
-    const char * renderFlags()
+    template <bool Z80Mode> const char * renderFlags()
     {
         static char ac[10] = {0};
         size_t next = 0;
         ac[ next++ ] = fSign ? 'S' : 's';
         ac[ next++ ] = fZero ? 'Z' : 'z';
-        if ( fZ80Mode )
+        if ( Z80Mode )
             ac[ next++ ] = fY ? 'Y' : 'y';
 
-        if ( fZ80Mode )
+        if ( Z80Mode )
             ac[ next++ ] = fAuxCarry ? 'H' : 'h'; // half-carry; almost same meaning as aux-carry
         else
             ac[ next++ ] = fAuxCarry ? 'A' : 'a';
 
-        if ( fZ80Mode )
+        if ( Z80Mode )
             ac[ next++ ] = fX ? 'X' : 'x';
 
-        if ( fZ80Mode )
+        if ( Z80Mode )
             ac[ next++ ] = fParityEven_Overflow ? 'V' : 'v';
         else
             ac[ next++ ] = fParityEven_Overflow ? 'P' : 'p';
 
-        if ( fZ80Mode )
+        if ( Z80Mode )
             ac[ next++ ] = fWasSubtract ? 'N' : 'n';
 
         ac[ next++ ] = fCarry ? 'C' : 'c';
@@ -210,26 +209,28 @@ struct registers
         return ac;
     } //renderFlags
 
+    // 0xdd (ix) and 0xfd (iy) differ only in bit 5 (0 for dd, 1 for fd). ix/iy
+    // are declared adjacent (see the layout comment at the top of this struct),
+    // so indexing off &ix picks the right one with no branch, unlike the
+    // 0xdd/0xfd if/else this replaces.
+    inline uint16_t & z80_indexRef( uint8_t op )
+    {
+        assert( 0xdd == op || 0xfd == op );
+        return ( & ix )[ ( op >> 5 ) & 1 ];
+    } //z80_indexRef
+
     inline void z80_setIndex( uint8_t op, uint16_t val )
     {
-        if ( 0xdd == op )
-            ix = val;
-        else
-            iy = val;
+        z80_indexRef( op ) = val;
     } //z80_setIndex
 
     inline uint16_t z80_getIndex( uint8_t op )
     {
-        assert( 0xdd == op || 0xfd == op );
-
-        if ( 0xdd == op )
-            return ix;
-        return iy;
+        return z80_indexRef( op );
     } //z80_getIndex
 
     inline uint8_t z80_getIndexByte( uint8_t op, uint8_t hl )
     {
-        assert( 0xdd == op || 0xfd == op );
         assert( 0 == hl || 1 == hl );
 
         uint16_t result16 = z80_getIndex( op );
@@ -241,14 +242,9 @@ struct registers
 
     uint8_t * z80_getIndexByteAddress( uint8_t op, uint8_t hl )
     {
-        assert( 0xdd == op || 0xfd == op );
         assert( 0 == hl || 1 == hl );
 
-        uint8_t * pval;
-        if ( 0xdd == op )
-            pval = (uint8_t *) & ix;
-        else
-            pval = (uint8_t *) & iy;
+        uint8_t * pval = (uint8_t *) & z80_indexRef( op );
 
 #ifdef TARGET_BIG_ENDIAN
         if ( 1 == hl )
