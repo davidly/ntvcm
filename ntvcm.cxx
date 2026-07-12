@@ -326,6 +326,7 @@ struct MIDebugVariable
     int size;
     bool isArray;
     bool isVla;
+    bool isFunctionPointer;
     int elementSize;
     int dimensions[ 12 ];
     int dimensionCount;
@@ -518,11 +519,13 @@ static void mi_load_debug_metadata()
         int size;
         int isArray;
         int isVla;
+        int isFunctionPointer;
         int elementSize;
         int structId;
         int isUnion;
         int bitWidth;
         int bitShift;
+        int variableFields;
         char dimensions[ 128 ];
         if ( g_miDebugFunctionCount >= 1024 && !strncmp( line, "function-begin ", 15 ) )
         {
@@ -578,9 +581,21 @@ static void mi_load_debug_metadata()
                     g_miDebugVariables[ index ].end = (uint16_t) address;
             continue;
         }
-        if ( sscanf( line, "variable %lx \"%63[^\"]\" \"%63[^\"]\" %d %d %d %d %d %d %d \"%127[^\"]\"",
+        isFunctionPointer = 0;
+        dimensions[ 0 ] = 0;
+        variableFields = sscanf( line, "variable %lx \"%63[^\"]\" \"%63[^\"]\" %d %d %d %d %d %d %d %d \"%127[^\"]\"",
                      &address, functionName, variableName, &type, &storage,
-                     &offset, &size, &isArray, &isVla, &elementSize, dimensions ) >= 10 && address <= 0xffff &&
+                     &offset, &size, &isArray, &isVla, &elementSize,
+                     &isFunctionPointer, dimensions );
+        if ( variableFields < 11 )
+        {
+            isFunctionPointer = 0;
+            dimensions[ 0 ] = 0;
+            variableFields = sscanf( line, "variable %lx \"%63[^\"]\" \"%63[^\"]\" %d %d %d %d %d %d %d \"%127[^\"]\"",
+                         &address, functionName, variableName, &type, &storage,
+                         &offset, &size, &isArray, &isVla, &elementSize, dimensions );
+        }
+        if ( variableFields >= 10 && address <= 0xffff &&
              g_miDebugVariableCount < 4096 )
         {
             MIDebugVariable * variable = &g_miDebugVariables[ g_miDebugVariableCount++ ];
@@ -596,6 +611,7 @@ static void mi_load_debug_metadata()
             variable->size = size;
             variable->isArray = isArray != 0;
             variable->isVla = isVla != 0;
+            variable->isFunctionPointer = isFunctionPointer != 0;
             variable->elementSize = elementSize;
             mi_parse_dimensions( dimensions, variable->dimensions, &variable->dimensionCount );
             continue;
@@ -616,9 +632,20 @@ static void mi_load_debug_metadata()
             }
             continue;
         }
-        if ( sscanf( line, "global %lx \"%63[^\"]\" \"%63[^\"]\" %d %d %d %d %d \"%127[^\"]\"",
+        isFunctionPointer = 0;
+        dimensions[ 0 ] = 0;
+        variableFields = sscanf( line, "global %lx \"%63[^\"]\" \"%63[^\"]\" %d %d %d %d %d %d \"%127[^\"]\"",
                      &address, functionName, variableName, &type, &size, &isArray,
-                     &isVla, &elementSize, dimensions ) >= 8 && address <= 0xffff &&
+                     &isVla, &elementSize, &isFunctionPointer, dimensions );
+        if ( variableFields < 9 )
+        {
+            isFunctionPointer = 0;
+            dimensions[ 0 ] = 0;
+            variableFields = sscanf( line, "global %lx \"%63[^\"]\" \"%63[^\"]\" %d %d %d %d %d \"%127[^\"]\"",
+                         &address, functionName, variableName, &type, &size, &isArray,
+                         &isVla, &elementSize, dimensions );
+        }
+        if ( variableFields >= 8 && address <= 0xffff &&
              g_miDebugVariableCount < 4096 )
         {
             MIDebugVariable * variable = &g_miDebugVariables[ g_miDebugVariableCount++ ];
@@ -632,6 +659,7 @@ static void mi_load_debug_metadata()
             variable->size = size;
             variable->isArray = isArray != 0;
             variable->isVla = isVla != 0;
+            variable->isFunctionPointer = isFunctionPointer != 0;
             variable->elementSize = elementSize;
             mi_parse_dimensions( dimensions, variable->dimensions, &variable->dimensionCount );
             continue;
@@ -764,6 +792,7 @@ struct MIDebugValue
     bool immediate;
     unsigned long immediateValue;
     bool isArray;
+    bool isFunctionPointer;
     int elementSize;
     int dimensions[ 12 ];
     int dimensionCount;
@@ -838,7 +867,8 @@ static int mi_decay_pointer_type( int type )
     return type;
 }
 
-static const char * mi_type_name( int type, bool isArray, const int * dimensions, int dimensionCount )
+static const char * mi_type_name( int type, bool isArray, const int * dimensions, int dimensionCount,
+                                  bool isFunctionPointer = false )
 {
     static char typeName[ 128 ];
     MIDebugStruct * debugStruct;
@@ -860,8 +890,11 @@ static const char * mi_type_name( int type, bool isArray, const int * dimensions
     else if ( base == 5 ) strcpy( typeName, "float" );
     else if ( base == 6 ) strcpy( typeName, "_Bool" );
     else strcpy( typeName, "value" );
-    for ( index = 0; index < pointerDepth && strlen( typeName ) + 3 < sizeof( typeName ); index++ )
-        strcat( typeName, " *" );
+    if ( isFunctionPointer )
+        strcat( typeName, " (*)()" );
+    else
+        for ( index = 0; index < pointerDepth && strlen( typeName ) + 3 < sizeof( typeName ); index++ )
+            strcat( typeName, " *" );
     if ( isArray )
         for ( index = 0; index < dimensionCount && strlen( typeName ) + 16 < sizeof( typeName ); index++ )
             snprintf( typeName + strlen( typeName ), sizeof( typeName ) - strlen( typeName ),
@@ -872,7 +905,8 @@ static const char * mi_type_name( int type, bool isArray, const int * dimensions
 static const char * mi_variable_type_name( const MIDebugVariable * variable )
 {
     return mi_type_name( variable->type, variable->isArray,
-                         variable->dimensions, variable->dimensionCount );
+                         variable->dimensions, variable->dimensionCount,
+                         variable->isFunctionPointer );
 }
 
 static void mi_value_from_variable( const MIDebugVariable * variable, MIDebugValue * value )
@@ -885,6 +919,7 @@ static void mi_value_from_variable( const MIDebugVariable * variable, MIDebugVal
     value->type = variable->type;
     value->size = variable->size;
     value->isArray = variable->isArray;
+    value->isFunctionPointer = variable->isFunctionPointer;
     value->elementSize = variable->elementSize;
     value->dimensionCount = variable->dimensionCount;
     for ( index = 0; index < variable->dimensionCount; index++ )
@@ -1877,6 +1912,7 @@ static int mi_debug_value_child_count( const MIDebugValue * value )
     int index;
     int count = 0;
     if ( value->isArray && value->dimensionCount > 0 ) return value->dimensions[ 0 ];
+    if ( value->isFunctionPointer ) return 0;
     if ( value->type & ( 16 | 64 ) ) return 1;
     if ( value->type & 128 )
         for ( index = 0; index < g_miDebugFieldCount; index++ )
@@ -1895,7 +1931,7 @@ static bool mi_debug_value_child_expression( const MIDebugValue * parent, const 
         snprintf( displayName, displayNameSize, "[%d]", childIndex );
         return true;
     }
-    if ( parent->type & ( 16 | 64 ) )
+    if ( !parent->isFunctionPointer && ( parent->type & ( 16 | 64 ) ) )
     {
         if ( childIndex != 0 ) return false;
         snprintf( expression, expressionSize, "*%s", parentExpression );
@@ -2752,7 +2788,8 @@ static MIAction mi_handle_command_impl( const char * input )
             printf( "%s^done,name=\"%s\",numchild=\"%d\",value=\"%s\",type=\"%s\",thread-id=\"1\",has_more=\"0\"\n",
                     token, object->name, childCount, formatted,
                     mi_type_name( debugValue.type, debugValue.isArray,
-                                  debugValue.dimensions, debugValue.dimensionCount ) );
+                          debugValue.dimensions, debugValue.dimensionCount,
+                          debugValue.isFunctionPointer ) );
             fflush( stdout );
         }
     }
@@ -2773,7 +2810,8 @@ static MIAction mi_handle_command_impl( const char * input )
             char result[ 128 ];
             snprintf( result, sizeof( result ), "^done,type=\"%s\"",
                       mi_type_name( debugValue.type, debugValue.isArray,
-                                    debugValue.dimensions, debugValue.dimensionCount ) );
+                                    debugValue.dimensions, debugValue.dimensionCount,
+                                    debugValue.isFunctionPointer ) );
             mi_result( token, result );
         }
         else if ( !strncmp( command, "-var-show-attributes", 20 ) )
@@ -2802,7 +2840,8 @@ static MIAction mi_handle_command_impl( const char * input )
                         childIndex ? "," : "", childObject->name, displayName,
                         mi_debug_value_child_count( &childValue ), formatted,
                         mi_type_name( childValue.type, childValue.isArray,
-                                      childValue.dimensions, childValue.dimensionCount ) );
+                                      childValue.dimensions, childValue.dimensionCount,
+                                      childValue.isFunctionPointer ) );
             }
             printf( "],has_more=\"0\"\n" );
             fflush( stdout );
