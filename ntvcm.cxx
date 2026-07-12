@@ -272,6 +272,14 @@ static size_t g_fileInputOffset = 0;
 static vector<char> g_fileInputText;
 static bool g_sleepOnKbdLoop = true;
 static bool g_clearHOnBDOSReturn = true;
+
+// The MI (gdb Machine Interface) debugger protocol server below is not
+// needed for Watcom's real-mode DOS build (no host to attach a debugger
+// from, and it drags in host-only APIs like chdir() that DOS doesn't
+// have), so it's excluded entirely from that build rather than patched
+// to compile - there's no reason to carry the dead weight either.
+#ifndef WATCOMDOS
+
 static bool g_miMode = false;
 static char g_miProgram[ MAX_PATH ] = {0};
 static char g_miArguments[ 128 ] = {0};
@@ -3078,6 +3086,8 @@ static void mi_wait_for_program()
         mi_read_command( true, &action );
 }
 
+#endif //!WATCOMDOS
+
 // ^z. CP/M writes 128 bytes at a time. When a file is read by the emulator and isn't 128-byte aligned in size
 // we can only guess what the app that created such a file on CP/M would have had in the bytes above the
 // remainder of the file above the last byte of valid data. Most apps work with various fill values, but:
@@ -3968,11 +3978,13 @@ void send_character( uint8_t c )
 
 void output_character( uint8_t c )
 {
+#ifndef WATCOMDOS
     if ( g_miMode )
     {
         mi_target_character( c );
         return;
     }
+#endif
 
     // for terminal emulation, I only implement translations for actual sequences apps use.
     // if the output character is ESC, assume the app wants 80x24.
@@ -6189,6 +6201,7 @@ int main( int argc, char * argv[] )
         memset( &reg, 0, sizeof( reg ) );
         reg.fZ80Mode = true;
 
+#ifndef WATCOMDOS
         for ( int i = 1; i < argc; i++ )
             if ( !strncmp( argv[ i ], "--interpreter=mi", 16 ) || !strncmp( argv[ i ], "-interpreter=mi", 15 ) )
                 g_miMode = true;
@@ -6199,10 +6212,15 @@ int main( int argc, char * argv[] )
                 error( "unable to allocate debugger state" );
             mi_wait_for_program();
         }
+#endif
 
         char * pCommandTail = (char *) memory + COMMAND_TAIL_OFFSET;
         char * pCommandTailLen = (char *) memory + COMMAND_TAIL_LEN_OFFSET;
+#ifndef WATCOMDOS
         char * pcCOM = g_miMode ? g_miProgram : 0;
+#else
+        char * pcCOM = 0;
+#endif
         char * pcArg1 = 0;
         char * pcArg2 = 0;
         char * pfileInputText = 0;
@@ -6220,8 +6238,10 @@ int main( int argc, char * argv[] )
             char *parg = argv[i];
             char c = *parg;
 
+#ifndef WATCOMDOS
             if ( g_miMode )
                 continue;
+#endif
 
             // linux shell scripts pass carriage returns '\r' at the end of strings for DOS-style cr/lf files
 
@@ -6365,11 +6385,13 @@ int main( int argc, char * argv[] )
             }
         }
 
+#ifndef WATCOMDOS
         if ( g_miMode && g_miArguments[ 0 ] )
         {
             snprintf( pCommandTail, 128, " %s", g_miArguments );
             strupr( pCommandTail );
         }
+#endif
 
         tracer.Enable( trace, L"ntvcm.log", true );
         tracer.SetQuiet( true );
@@ -6574,8 +6596,10 @@ int main( int argc, char * argv[] )
         reg.bp = reg.cp = reg.dp = reg.ep = reg.hp = reg.lp = 0;
         reg.ix = reg.iy = 0;
 
+#ifndef WATCOMDOS
         if ( g_miMode )
             x80_debug_enable( true );
+#endif
 
         if ( trace )
         {
@@ -6583,10 +6607,16 @@ int main( int argc, char * argv[] )
             tracer.Trace( "starting execution of app '%s' size %ld\n", acCOM, file_size );
         }
 
+#ifndef WATCOMDOS
         if ( force80x24 && !g_miMode )
+#else
+        if ( force80x24 )
+#endif
             g_consoleConfig.EstablishConsoleOutput( 80, 24 );
 
+#ifndef WATCOMDOS
         if ( !g_miMode )
+#endif
         {
             ConsoleConfiguration::ConvertRedirectedLFToCR( true );
             g_consoleConfig.MakeKeyboardInputRaw(); // needed for non-Windows
@@ -6603,6 +6633,7 @@ int main( int argc, char * argv[] )
 #endif
 
         uint64_t total_cycles = 0;
+#ifndef WATCOMDOS
         if ( g_miMode )
         {
             MIAction action = mi_action_none;
@@ -6668,6 +6699,7 @@ int main( int argc, char * argv[] )
             }
         }
         else
+#endif
         {
             do
             {
