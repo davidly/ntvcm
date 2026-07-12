@@ -40,6 +40,10 @@
 #include <assert.h>
 #include <ctype.h>
 #include <sys/stat.h>
+#if !defined( _WIN32 ) && !defined( WATCOMDOS )
+#include <sys/select.h>
+#include <unistd.h>
+#endif
 
 #include <djl_os.hxx>
 #include <djltrace.hxx>
@@ -268,6 +272,2809 @@ static size_t g_fileInputOffset = 0;
 static vector<char> g_fileInputText;
 static bool g_sleepOnKbdLoop = true;
 static bool g_clearHOnBDOSReturn = true;
+static bool g_miMode = false;
+static char g_miProgram[ MAX_PATH ] = {0};
+static char g_miArguments[ 128 ] = {0};
+
+struct MIBreakpoint
+{
+    int number;
+    uint16_t address;
+    bool active;
+    bool temporary;
+    bool conditionErrorReported;
+    unsigned long hitCount;
+    unsigned long ignoreCount;
+    char condition[ 256 ];
+    char file[ MAX_PATH ];
+    int line;
+};
+
+static MIBreakpoint * g_miBreakpoints = 0;
+static int g_miNextBreakpoint = 1;
+static MIBreakpoint * g_miStoppedBreakpoint = 0;
+
+struct MIDebugLine
+{
+    uint16_t address;
+    int line;
+    char file[ MAX_PATH ];
+};
+
+static MIDebugLine * g_miDebugLines = 0;
+static int g_miDebugLineCount = 0;
+
+struct MIDebugFunction
+{
+    uint16_t start;
+    uint16_t end;
+    char name[ 64 ];
+    char sourceName[ 64 ];
+};
+
+struct MIDebugVariable
+{
+    uint16_t declaration;
+    uint16_t end;
+    uint16_t address;
+    bool global;
+    char function[ 64 ];
+    char name[ 64 ];
+    int type;
+    int storage;
+    int offset;
+    int size;
+    bool isArray;
+    bool isVla;
+    bool isFunctionPointer;
+    int elementSize;
+    int dimensions[ 12 ];
+    int dimensionCount;
+};
+
+struct MIDebugStruct
+{
+    int id;
+    int size;
+    bool isUnion;
+    char name[ 64 ];
+};
+
+struct MIDebugField
+{
+    int structId;
+    char name[ 64 ];
+    int type;
+    int offset;
+    int size;
+    bool isArray;
+    int elementSize;
+    int bitWidth;
+    int bitShift;
+    int dimensions[ 12 ];
+    int dimensionCount;
+};
+
+static MIDebugFunction * g_miDebugFunctions = 0;
+static int g_miDebugFunctionCount = 0;
+static MIDebugVariable * g_miDebugVariables = 0;
+static int g_miDebugVariableCount = 0;
+static MIDebugStruct * g_miDebugStructs = 0;
+static int g_miDebugStructCount = 0;
+static MIDebugField * g_miDebugFields = 0;
+static int g_miDebugFieldCount = 0;
+
+struct MIStackFrame
+{
+    uint16_t pc;
+    uint16_t ix;
+};
+
+static MIStackFrame * g_miStackFrames = 0;
+static int g_miStackFrameCount = 0;
+static int g_miSelectedFrame = 0;
+
+struct MIVariableObject
+{
+    bool active;
+    int frame;
+    char name[ 32 ];
+    char expression[ 256 ];
+};
+
+static MIVariableObject * g_miVariableObjects = 0;
+static int g_miVariableObjectCapacity = 0;
+static int g_miNextVariableObject = 1;
+
+static bool mi_allocate_state()
+{
+    g_miBreakpoints = (MIBreakpoint *) calloc( 256, sizeof( MIBreakpoint ) );
+    g_miDebugLines = (MIDebugLine *) calloc( 16384, sizeof( MIDebugLine ) );
+    g_miDebugFunctions = (MIDebugFunction *) calloc( 1024, sizeof( MIDebugFunction ) );
+    g_miDebugVariables = (MIDebugVariable *) calloc( 4096, sizeof( MIDebugVariable ) );
+    g_miDebugStructs = (MIDebugStruct *) calloc( 256, sizeof( MIDebugStruct ) );
+    g_miDebugFields = (MIDebugField *) calloc( 4096, sizeof( MIDebugField ) );
+    g_miStackFrames = (MIStackFrame *) calloc( 32, sizeof( MIStackFrame ) );
+    g_miVariableObjectCapacity = 256;
+    g_miVariableObjects = (MIVariableObject *) calloc( (size_t) g_miVariableObjectCapacity,
+                                                       sizeof( MIVariableObject ) );
+    return g_miBreakpoints && g_miDebugLines && g_miDebugFunctions &&
+           g_miDebugVariables && g_miDebugStructs && g_miDebugFields &&
+           g_miStackFrames && g_miVariableObjects;
+}
+
+static void mi_parse_dimensions( const char * text, int * dimensions, int * count )
+{
+    *count = 0;
+    while ( *text && *count < 12 )
+    {
+        char * end;
+        long value = strtol( text, &end, 10 );
+        if ( end == text ) break;
+        dimensions[ ( *count )++ ] = (int) value;
+        text = end;
+        if ( *text == ',' ) text++;
+        else break;
+    }
+}
+
+enum MISourceStepMode
+{
+    mi_source_step_none,
+    mi_source_step_into,
+    mi_source_step_over,
+    mi_source_step_out
+};
+
+static MISourceStepMode g_miSourceStepMode = mi_source_step_none;
+static char g_miSourceStepFile[ MAX_PATH ] = {0};
+static int g_miSourceStepLine = 0;
+static uint16_t g_miSourceStepSp = 0;
+static uint16_t g_miSourceStepReturnPc = 0;
+static uint16_t g_miSourceStepReturnIx = 0;
+
+static bool mi_path_suffix_equal( const char * requested, const char * recorded )
+{
+    const char * longer = requested;
+    const char * shorter = recorded;
+    size_t longerLength = strlen( longer );
+    size_t shorterLength = strlen( shorter );
+    size_t offset;
+    size_t index;
+    if ( shorterLength > longerLength )
+    {
+        const char * path = longer;
+        size_t length = longerLength;
+        longer = shorter;
+        longerLength = shorterLength;
+        shorter = path;
+        shorterLength = length;
+    }
+    offset = longerLength - shorterLength;
+    if ( offset && longer[ offset - 1 ] != '/' && longer[ offset - 1 ] != '\\' )
+        return false;
+    for ( index = 0; index < shorterLength; index++ )
+    {
+        char a = longer[ offset + index ];
+        char b = shorter[ index ];
+        if ( a == '\\' ) a = '/';
+        if ( b == '\\' ) b = '/';
+        if ( a != b )
+            return false;
+    }
+    return true;
+}
+
+static void mi_load_debug_metadata()
+{
+    char path[ MAX_PATH ];
+    char line[ 4096 ];
+    FILE * file;
+    char * extension;
+    char * slash;
+    char * backslash;
+    bool lineCapacityExceeded = false;
+    bool functionCapacityExceeded = false;
+    bool variableCapacityExceeded = false;
+    bool structCapacityExceeded = false;
+    bool fieldCapacityExceeded = false;
+
+    g_miDebugLineCount = 0;
+    g_miDebugFunctionCount = 0;
+    g_miDebugVariableCount = 0;
+    g_miDebugStructCount = 0;
+    g_miDebugFieldCount = 0;
+    strncpy( path, g_miProgram, sizeof( path ) - 1 );
+    path[ sizeof( path ) - 1 ] = 0;
+    extension = strrchr( path, '.' );
+    slash = strrchr( path, '/' );
+    backslash = strrchr( path, '\\' );
+    if ( !extension || ( slash && extension < slash ) || ( backslash && extension < backslash ) )
+        extension = path + strlen( path );
+    if ( (size_t) ( extension - path ) + 5 > sizeof( path ) )
+        return;
+    strcpy( extension, ".DBG" );
+    file = fopen( path, "r" );
+    if ( !file )
+        return;
+    if ( !fgets( line, sizeof( line ), file ) || strncmp( line, "DCCDBG 2", 8 ) )
+    {
+        fclose( file );
+        return;
+    }
+    while ( fgets( line, sizeof( line ), file ) )
+    {
+        unsigned long address;
+        int sourceLine;
+        char * firstQuote;
+        char * lastQuote;
+        size_t length;
+        MIDebugLine * debugLine;
+        char functionName[ 64 ];
+        char sourceFunctionName[ 64 ];
+        char variableName[ 64 ];
+        int type;
+        int storage;
+        int offset;
+        int size;
+        int isArray;
+        int isVla;
+        int isFunctionPointer;
+        int elementSize;
+        int structId;
+        int isUnion;
+        int bitWidth;
+        int bitShift;
+        int variableFields;
+        char dimensions[ 128 ];
+        if ( g_miDebugFunctionCount >= 1024 && !strncmp( line, "function-begin ", 15 ) )
+        {
+            functionCapacityExceeded = true;
+            continue;
+        }
+        if ( g_miDebugVariableCount >= 4096 &&
+             ( !strncmp( line, "variable ", 9 ) || !strncmp( line, "global ", 7 ) ) )
+        {
+            variableCapacityExceeded = true;
+            continue;
+        }
+        if ( g_miDebugStructCount >= 256 && !strncmp( line, "struct ", 7 ) )
+        {
+            structCapacityExceeded = true;
+            continue;
+        }
+        if ( g_miDebugFieldCount >= 4096 && !strncmp( line, "field ", 6 ) )
+        {
+            fieldCapacityExceeded = true;
+            continue;
+        }
+        if ( g_miDebugLineCount >= 16384 && !strncmp( line, "line ", 5 ) )
+        {
+            lineCapacityExceeded = true;
+            continue;
+        }
+        int functionFields = sscanf( line, "function-begin %lx \"%63[^\"]\" \"%63[^\"]\"",
+                         &address, functionName, sourceFunctionName );
+        if ( functionFields >= 2 &&
+             address <= 0xffff && g_miDebugFunctionCount < 1024 )
+        {
+            MIDebugFunction * function = &g_miDebugFunctions[ g_miDebugFunctionCount++ ];
+            function->start = (uint16_t) address;
+            function->end = 0xffff;
+            strcpy( function->name, functionName );
+            strcpy( function->sourceName, functionFields >= 3 ? sourceFunctionName : functionName );
+            continue;
+        }
+        if ( sscanf( line, "function-end %lx \"%63[^\"]\"", &address, functionName ) == 2 &&
+             address <= 0xffff )
+        {
+            int index;
+            for ( index = g_miDebugFunctionCount - 1; index >= 0; index-- )
+                if ( !strcmp( g_miDebugFunctions[ index ].name, functionName ) )
+                {
+                    g_miDebugFunctions[ index ].end = (uint16_t) address;
+                    break;
+                }
+            for ( index = 0; index < g_miDebugVariableCount; index++ )
+                if ( !g_miDebugVariables[ index ].global && g_miDebugVariables[ index ].end == 0xffff &&
+                     !strcmp( g_miDebugVariables[ index ].function, functionName ) )
+                    g_miDebugVariables[ index ].end = (uint16_t) address;
+            continue;
+        }
+        isFunctionPointer = 0;
+        dimensions[ 0 ] = 0;
+        variableFields = sscanf( line, "variable %lx \"%63[^\"]\" \"%63[^\"]\" %d %d %d %d %d %d %d %d \"%127[^\"]\"",
+                     &address, functionName, variableName, &type, &storage,
+                     &offset, &size, &isArray, &isVla, &elementSize,
+                     &isFunctionPointer, dimensions );
+        if ( variableFields < 11 )
+        {
+            isFunctionPointer = 0;
+            dimensions[ 0 ] = 0;
+            variableFields = sscanf( line, "variable %lx \"%63[^\"]\" \"%63[^\"]\" %d %d %d %d %d %d %d \"%127[^\"]\"",
+                         &address, functionName, variableName, &type, &storage,
+                         &offset, &size, &isArray, &isVla, &elementSize, dimensions );
+        }
+        if ( variableFields >= 10 && address <= 0xffff &&
+             g_miDebugVariableCount < 4096 )
+        {
+            MIDebugVariable * variable = &g_miDebugVariables[ g_miDebugVariableCount++ ];
+            variable->declaration = (uint16_t) address;
+            variable->end = 0xffff;
+            variable->address = 0;
+            variable->global = false;
+            strcpy( variable->function, functionName );
+            strcpy( variable->name, variableName );
+            variable->type = type;
+            variable->storage = storage;
+            variable->offset = offset;
+            variable->size = size;
+            variable->isArray = isArray != 0;
+            variable->isVla = isVla != 0;
+            variable->isFunctionPointer = isFunctionPointer != 0;
+            variable->elementSize = elementSize;
+            mi_parse_dimensions( dimensions, variable->dimensions, &variable->dimensionCount );
+            continue;
+        }
+        if ( sscanf( line, "variable-end %lx \"%63[^\"]\" \"%63[^\"]\" %d",
+                     &address, functionName, variableName, &offset ) == 4 && address <= 0xffff )
+        {
+            int index;
+            for ( index = g_miDebugVariableCount - 1; index >= 0; index-- )
+            {
+                MIDebugVariable * variable = &g_miDebugVariables[ index ];
+                if ( variable->end == 0xffff && variable->offset == offset &&
+                     !strcmp( variable->function, functionName ) && !strcmp( variable->name, variableName ) )
+                {
+                    variable->end = (uint16_t) address;
+                    break;
+                }
+            }
+            continue;
+        }
+        isFunctionPointer = 0;
+        dimensions[ 0 ] = 0;
+        variableFields = sscanf( line, "global %lx \"%63[^\"]\" \"%63[^\"]\" %d %d %d %d %d %d \"%127[^\"]\"",
+                     &address, functionName, variableName, &type, &size, &isArray,
+                     &isVla, &elementSize, &isFunctionPointer, dimensions );
+        if ( variableFields < 9 )
+        {
+            isFunctionPointer = 0;
+            dimensions[ 0 ] = 0;
+            variableFields = sscanf( line, "global %lx \"%63[^\"]\" \"%63[^\"]\" %d %d %d %d %d \"%127[^\"]\"",
+                         &address, functionName, variableName, &type, &size, &isArray,
+                         &isVla, &elementSize, dimensions );
+        }
+        if ( variableFields >= 8 && address <= 0xffff &&
+             g_miDebugVariableCount < 4096 )
+        {
+            MIDebugVariable * variable = &g_miDebugVariables[ g_miDebugVariableCount++ ];
+            memset( variable, 0, sizeof( *variable ) );
+            variable->address = (uint16_t) address;
+            variable->global = true;
+            strcpy( variable->function, "<global>" );
+            strcpy( variable->name, variableName );
+            variable->type = type;
+            variable->storage = 1;
+            variable->size = size;
+            variable->isArray = isArray != 0;
+            variable->isVla = isVla != 0;
+            variable->isFunctionPointer = isFunctionPointer != 0;
+            variable->elementSize = elementSize;
+            mi_parse_dimensions( dimensions, variable->dimensions, &variable->dimensionCount );
+            continue;
+        }
+        if ( sscanf( line, "struct %d %d %d \"%63[^\"]\"", &structId, &size,
+                     &isUnion, variableName ) == 4 && g_miDebugStructCount < 256 )
+        {
+            MIDebugStruct * debugStruct = &g_miDebugStructs[ g_miDebugStructCount++ ];
+            debugStruct->id = structId;
+            debugStruct->size = size;
+            debugStruct->isUnion = isUnion != 0;
+            strcpy( debugStruct->name, variableName );
+            continue;
+        }
+        if ( sscanf( line, "field %d \"%63[^\"]\" %d %d %d %d %d %d %d \"%127[^\"]\"",
+                     &structId, variableName, &type, &offset, &size, &isArray,
+                     &elementSize, &bitWidth, &bitShift, dimensions ) >= 9 &&
+             g_miDebugFieldCount < 4096 )
+        {
+            MIDebugField * field = &g_miDebugFields[ g_miDebugFieldCount++ ];
+            field->structId = structId;
+            strcpy( field->name, variableName );
+            field->type = type;
+            field->offset = offset;
+            field->size = size;
+            field->isArray = isArray != 0;
+            field->elementSize = elementSize;
+            field->bitWidth = bitWidth;
+            field->bitShift = bitShift;
+            mi_parse_dimensions( dimensions, field->dimensions, &field->dimensionCount );
+            continue;
+        }
+        if ( sscanf( line, "line %lx %d", &address, &sourceLine ) != 2 || address > 0xffff )
+            continue;
+        firstQuote = strchr( line, '"' );
+        lastQuote = strrchr( line, '"' );
+        if ( !firstQuote || lastQuote == firstQuote )
+            continue;
+        if ( g_miDebugLineCount >= 16384 )
+            continue;
+        debugLine = &g_miDebugLines[ g_miDebugLineCount++ ];
+        debugLine->address = (uint16_t) address;
+        debugLine->line = sourceLine;
+        length = (size_t) ( lastQuote - firstQuote - 1 );
+        if ( length >= sizeof( debugLine->file ) )
+            length = sizeof( debugLine->file ) - 1;
+        memcpy( debugLine->file, firstQuote + 1, length );
+        debugLine->file[ length ] = 0;
+    }
+    fclose( file );
+    if ( lineCapacityExceeded )
+        printf( "~\"warning: DCC debug line metadata capacity exceeded; later records were ignored\\n\"\n" );
+    if ( functionCapacityExceeded )
+        printf( "~\"warning: DCC debug function metadata capacity exceeded; later records were ignored\\n\"\n" );
+    if ( variableCapacityExceeded )
+        printf( "~\"warning: DCC debug variable metadata capacity exceeded; later records were ignored\\n\"\n" );
+    if ( structCapacityExceeded )
+        printf( "~\"warning: DCC debug struct metadata capacity exceeded; later records were ignored\\n\"\n" );
+    if ( fieldCapacityExceeded )
+        printf( "~\"warning: DCC debug field metadata capacity exceeded; later records were ignored\\n\"\n" );
+    if ( lineCapacityExceeded || functionCapacityExceeded || variableCapacityExceeded ||
+         structCapacityExceeded || fieldCapacityExceeded )
+        fflush( stdout );
+}
+
+static MIDebugFunction * mi_find_debug_function( uint16_t address )
+{
+    MIDebugFunction * best = NULL;
+    int index;
+    for ( index = 0; index < g_miDebugFunctionCount; index++ )
+    {
+        MIDebugFunction * function = &g_miDebugFunctions[ index ];
+        if ( address < function->start || address >= function->end )
+            continue;
+        if ( !best || function->start > best->start )
+            best = function;
+    }
+    return best;
+}
+
+static MIDebugFunction * mi_find_debug_function_name( const char * name )
+{
+    int index;
+    for ( index = 0; index < g_miDebugFunctionCount; index++ )
+        if ( !strcmp( g_miDebugFunctions[ index ].name, name ) ||
+             !strcmp( g_miDebugFunctions[ index ].sourceName, name ) )
+            return &g_miDebugFunctions[ index ];
+    return NULL;
+}
+
+static uint16_t mi_context_pc()
+{
+    return g_miSelectedFrame >= 0 && g_miSelectedFrame < g_miStackFrameCount ?
+           g_miStackFrames[ g_miSelectedFrame ].pc : reg.pc;
+}
+
+static uint16_t mi_context_ix()
+{
+    return g_miSelectedFrame >= 0 && g_miSelectedFrame < g_miStackFrameCount ?
+           g_miStackFrames[ g_miSelectedFrame ].ix : reg.ix;
+}
+
+static MIDebugVariable * mi_find_debug_variable( const char * name )
+{
+    uint16_t pc = mi_context_pc();
+    MIDebugFunction * function = mi_find_debug_function( pc );
+    MIDebugVariable * best = NULL;
+    int index;
+    if ( function ) for ( index = 0; index < g_miDebugVariableCount; index++ )
+    {
+        MIDebugVariable * variable = &g_miDebugVariables[ index ];
+        if ( strcmp( variable->function, function->name ) || strcmp( variable->name, name ) ||
+               variable->declaration > pc || pc >= variable->end )
+            continue;
+        if ( !best || variable->declaration >= best->declaration )
+            best = variable;
+    }
+    if ( best ) return best;
+    for ( index = 0; index < g_miDebugVariableCount; index++ )
+        if ( g_miDebugVariables[ index ].global && !strcmp( g_miDebugVariables[ index ].name, name ) )
+            return &g_miDebugVariables[ index ];
+    return best;
+}
+
+struct MIDebugValue
+{
+    uint16_t address;
+    int type;
+    int size;
+    bool immediate;
+    unsigned long immediateValue;
+    bool isArray;
+    bool isFunctionPointer;
+    int elementSize;
+    int dimensions[ 12 ];
+    int dimensionCount;
+    int bitWidth;
+    int bitShift;
+};
+
+static uint16_t mi_read_word( uint16_t address )
+{
+    return (uint16_t) ( memory[ address ] | ( (uint16_t) memory[ (uint16_t) ( address + 1 ) ] << 8 ) );
+}
+
+static void mi_rebuild_stack_frames()
+{
+    uint16_t frameIx = reg.ix;
+    uint16_t framePc = reg.pc;
+    g_miStackFrameCount = 0;
+    g_miSelectedFrame = 0;
+    while ( g_miStackFrameCount < 32 )
+    {
+        uint16_t callerIx;
+        uint16_t returnPc;
+        g_miStackFrames[ g_miStackFrameCount ].ix = frameIx;
+        g_miStackFrames[ g_miStackFrameCount ].pc = framePc;
+        g_miStackFrameCount++;
+        if ( frameIx > 0xfffb ) break;
+        callerIx = mi_read_word( frameIx );
+        returnPc = mi_read_word( (uint16_t) ( frameIx + 2 ) );
+        if ( callerIx <= frameIx || returnPc == 0 ) break;
+        framePc = (uint16_t) ( returnPc - 1 );
+        if ( !mi_find_debug_function( framePc ) ) break;
+        frameIx = callerIx;
+    }
+}
+
+static MIDebugStruct * mi_find_struct( int id )
+{
+    int index;
+    for ( index = 0; index < g_miDebugStructCount; index++ )
+        if ( g_miDebugStructs[ index ].id == id ) return &g_miDebugStructs[ index ];
+    return NULL;
+}
+
+static MIDebugField * mi_find_field( int structId, const char * name )
+{
+    int index;
+    for ( index = 0; index < g_miDebugFieldCount; index++ )
+        if ( g_miDebugFields[ index ].structId == structId &&
+             !strcmp( g_miDebugFields[ index ].name, name ) ) return &g_miDebugFields[ index ];
+    return NULL;
+}
+
+static int mi_type_size( int type )
+{
+    MIDebugStruct * debugStruct;
+    int base = type & 15;
+    if ( type & ( 16 | 64 ) ) return 2;
+    if ( type & 128 )
+    {
+        debugStruct = mi_find_struct( type >> 8 );
+        return debugStruct ? debugStruct->size : 0;
+    }
+    if ( base == 1 || base == 6 ) return 1;
+    if ( base == 4 || base == 5 ) return 4;
+    return 2;
+}
+
+static int mi_decay_pointer_type( int type )
+{
+    if ( type & 64 ) return type & ~64;
+    if ( type & 16 ) return type & ~16;
+    return type;
+}
+
+static const char * mi_type_name( int type, bool isArray, const int * dimensions, int dimensionCount,
+                                  bool isFunctionPointer = false )
+{
+    static char typeName[ 128 ];
+    MIDebugStruct * debugStruct;
+    int pointerDepth = ( type & 16 ? 1 : 0 ) + ( type & 64 ? 1 : 0 );
+    int valueType = type & ~( 16 | 64 );
+    int base = valueType & 15;
+    bool isUnsigned = ( type & 32 ) != 0;
+    int index;
+    if ( valueType & 128 )
+    {
+        debugStruct = mi_find_struct( valueType >> 8 );
+        snprintf( typeName, sizeof( typeName ), "%s %s",
+                  debugStruct && debugStruct->isUnion ? "union" : "struct",
+                  debugStruct && debugStruct->name[ 0 ] ? debugStruct->name : "<anonymous>" );
+    }
+    else if ( base == 1 ) strcpy( typeName, isUnsigned ? "unsigned char" : "char" );
+    else if ( base == 2 ) strcpy( typeName, isUnsigned ? "unsigned int" : "int" );
+    else if ( base == 4 ) strcpy( typeName, isUnsigned ? "unsigned long" : "long" );
+    else if ( base == 5 ) strcpy( typeName, "float" );
+    else if ( base == 6 ) strcpy( typeName, "_Bool" );
+    else strcpy( typeName, "value" );
+    if ( isFunctionPointer )
+        strcat( typeName, " (*)()" );
+    else
+        for ( index = 0; index < pointerDepth && strlen( typeName ) + 3 < sizeof( typeName ); index++ )
+            strcat( typeName, " *" );
+    if ( isArray )
+        for ( index = 0; index < dimensionCount && strlen( typeName ) + 16 < sizeof( typeName ); index++ )
+            snprintf( typeName + strlen( typeName ), sizeof( typeName ) - strlen( typeName ),
+                      "[%d]", dimensions[ index ] );
+    return typeName;
+}
+
+static const char * mi_variable_type_name( const MIDebugVariable * variable )
+{
+    return mi_type_name( variable->type, variable->isArray,
+                         variable->dimensions, variable->dimensionCount,
+                         variable->isFunctionPointer );
+}
+
+static void mi_value_from_variable( const MIDebugVariable * variable, MIDebugValue * value )
+{
+    int index;
+    memset( value, 0, sizeof( *value ) );
+    value->address = variable->global ? variable->address :
+                     (uint16_t) ( mi_context_ix() + variable->offset );
+    if ( variable->isVla ) value->address = mi_read_word( value->address );
+    value->type = variable->type;
+    value->size = variable->size;
+    value->isArray = variable->isArray;
+    value->isFunctionPointer = variable->isFunctionPointer;
+    value->elementSize = variable->elementSize;
+    value->dimensionCount = variable->dimensionCount;
+    for ( index = 0; index < variable->dimensionCount; index++ )
+        value->dimensions[ index ] = variable->dimensions[ index ];
+}
+
+    static bool mi_evaluate_integer_expression( const char * expression, unsigned long * result,
+                                                int * valueSize = NULL, bool * valueUnsigned = NULL );
+
+static bool mi_resolve_debug_value( const char * expression, MIDebugValue * value )
+{
+    char name[ 64 ];
+    int length = 0;
+    MIDebugVariable * variable;
+    while ( isspace( (unsigned char) *expression ) ) expression++;
+    if ( *expression == '*' )
+    {
+        expression++;
+        if ( !mi_resolve_debug_value( expression, value ) || !( value->type & ( 16 | 64 ) ) ) return false;
+        value->address = mi_read_word( value->address );
+        value->type = mi_decay_pointer_type( value->type );
+        value->size = mi_type_size( value->type );
+        value->isArray = false;
+        value->dimensionCount = 0;
+        return true;
+    }
+    while ( ( isalnum( (unsigned char) *expression ) || *expression == '_' ) && length + 1 < (int) sizeof( name ) )
+        name[ length++ ] = *expression++;
+    name[ length ] = 0;
+    variable = mi_find_debug_variable( name );
+    if ( !variable ) return false;
+    mi_value_from_variable( variable, value );
+    for (;;)
+    {
+        while ( isspace( (unsigned char) *expression ) ) expression++;
+        if ( *expression == '[' )
+        {
+            const char * indexStart;
+            const char * cursor;
+            char indexExpression[ 256 ];
+            unsigned long element;
+            int bracketDepth = 1;
+            int stride;
+            int index;
+            expression++;
+            indexStart = expression;
+            cursor = expression;
+            while ( *cursor && bracketDepth )
+            {
+                if ( *cursor == '[' ) bracketDepth++;
+                else if ( *cursor == ']' ) bracketDepth--;
+                if ( bracketDepth ) cursor++;
+            }
+            if ( bracketDepth || cursor == indexStart ||
+                 (size_t) ( cursor - indexStart ) >= sizeof( indexExpression ) ) return false;
+            memcpy( indexExpression, indexStart, (size_t) ( cursor - indexStart ) );
+            indexExpression[ cursor - indexStart ] = 0;
+            if ( !mi_evaluate_integer_expression( indexExpression, &element ) ) return false;
+            expression = cursor + 1;
+            if ( value->isArray && value->dimensionCount > 0 )
+            {
+                if ( element >= (unsigned long) value->dimensions[ 0 ] ) return false;
+                stride = value->dimensions[ 0 ] ? value->size / value->dimensions[ 0 ] : value->elementSize;
+                value->address = (uint16_t) ( value->address + element * stride );
+                value->size = stride;
+                for ( index = 1; index < value->dimensionCount; index++ )
+                    value->dimensions[ index - 1 ] = value->dimensions[ index ];
+                value->dimensionCount--;
+                value->isArray = value->dimensionCount > 0;
+                if ( !value->isArray ) value->size = value->elementSize;
+            }
+            else if ( value->type & ( 16 | 64 ) )
+            {
+                value->type = mi_decay_pointer_type( value->type );
+                stride = mi_type_size( value->type );
+                value->address = (uint16_t) ( mi_read_word( value->address ) + element * stride );
+                value->size = stride;
+            }
+            else return false;
+        }
+        else if ( *expression == '.' || ( expression[ 0 ] == '-' && expression[ 1 ] == '>' ) )
+        {
+            MIDebugField * field;
+            bool indirect = *expression == '-';
+            int structId;
+            int index;
+            expression += indirect ? 2 : 1;
+            length = 0;
+            while ( ( isalnum( (unsigned char) *expression ) || *expression == '_' ) && length + 1 < (int) sizeof( name ) )
+                name[ length++ ] = *expression++;
+            name[ length ] = 0;
+            if ( indirect )
+            {
+                if ( !( value->type & ( 16 | 64 ) ) ) return false;
+                value->address = mi_read_word( value->address );
+                value->type = mi_decay_pointer_type( value->type );
+            }
+            if ( !( value->type & 128 ) ) return false;
+            structId = value->type >> 8;
+            field = mi_find_field( structId, name );
+            if ( !field ) return false;
+            value->address = (uint16_t) ( value->address + field->offset );
+            value->type = field->type;
+            value->size = field->size;
+            value->isArray = field->isArray;
+            value->elementSize = field->elementSize;
+            value->bitWidth = field->bitWidth;
+            value->bitShift = field->bitShift;
+            value->dimensionCount = field->dimensionCount;
+            for ( index = 0; index < field->dimensionCount; index++ ) value->dimensions[ index ] = field->dimensions[ index ];
+        }
+        else break;
+    }
+    while ( isspace( (unsigned char) *expression ) ) expression++;
+    return *expression == 0;
+}
+
+struct MIExpressionParser
+{
+    const char * text;
+    bool ok;
+    int valueSize;
+    bool valueUnsigned;
+};
+
+static unsigned long mi_expression_mask( int size )
+{
+    return size == 1 ? 0xffUL : ( size == 2 ? 0xffffUL : 0xffffffffUL );
+}
+
+static unsigned long mi_expression_normalize( unsigned long value, int size, bool isUnsigned )
+{
+    value &= mi_expression_mask( size );
+    if ( isUnsigned ) return value;
+    if ( size == 1 ) return (unsigned long) (long) (int8_t) value;
+    if ( size == 2 ) return (unsigned long) (long) (int16_t) value;
+    return (unsigned long) (int64_t) (int32_t) value;
+}
+
+static int64_t mi_expression_signed( unsigned long value, int size )
+{
+    if ( size == 1 ) return (int8_t) value;
+    if ( size == 2 ) return (int16_t) value;
+    return (int32_t) value;
+}
+
+static void mi_expression_promote( int * size, bool * isUnsigned )
+{
+    if ( *size < 2 )
+    {
+        *size = 2;
+        *isUnsigned = false;
+    }
+}
+
+static void mi_expression_common_type( int leftSize, bool leftUnsigned,
+                                       int rightSize, bool rightUnsigned,
+                                       int * size, bool * isUnsigned )
+{
+    mi_expression_promote( &leftSize, &leftUnsigned );
+    mi_expression_promote( &rightSize, &rightUnsigned );
+    if ( leftSize == rightSize )
+    {
+        *size = leftSize;
+        *isUnsigned = leftUnsigned || rightUnsigned;
+    }
+    else if ( leftSize > rightSize )
+    {
+        *size = leftSize;
+        *isUnsigned = leftUnsigned;
+    }
+    else
+    {
+        *size = rightSize;
+        *isUnsigned = rightUnsigned;
+    }
+}
+
+static void mi_expression_set_int( MIExpressionParser * parser )
+{
+    parser->valueSize = 2;
+    parser->valueUnsigned = false;
+}
+
+static void mi_expression_space( MIExpressionParser * parser )
+{
+    while ( isspace( (unsigned char) *parser->text ) ) parser->text++;
+}
+
+static unsigned long mi_debug_value_integer( const MIDebugValue * value )
+{
+    unsigned long result;
+    unsigned long fieldMask;
+    if ( value->immediate ) return value->immediateValue;
+    result = memory[ value->address ];
+    if ( value->size > 1 ) result |= (unsigned long) memory[ (uint16_t) ( value->address + 1 ) ] << 8;
+    if ( value->size > 2 )
+    {
+        result |= (unsigned long) memory[ (uint16_t) ( value->address + 2 ) ] << 16;
+        result |= (unsigned long) memory[ (uint16_t) ( value->address + 3 ) ] << 24;
+    }
+    if ( value->bitWidth > 0 )
+    {
+        fieldMask = ( 1UL << value->bitWidth ) - 1;
+        result = ( result >> value->bitShift ) & fieldMask;
+        if ( !( value->type & 32 ) && ( result & ( 1UL << ( value->bitWidth - 1 ) ) ) )
+            result |= ~fieldMask;
+    }
+    else if ( !( value->type & 32 ) && value->size == 1 ) result = (unsigned long) (long) (signed char) result;
+    else if ( !( value->type & 32 ) && value->size == 2 ) result = (unsigned long) (long) (short) result;
+    return result;
+}
+
+static unsigned long mi_parse_comma( MIExpressionParser * parser );
+
+static unsigned long mi_parse_primary( MIExpressionParser * parser )
+{
+    unsigned long result = 0;
+    mi_expression_space( parser );
+    if ( *parser->text == '(' )
+    {
+        parser->text++;
+        result = mi_parse_comma( parser );
+        mi_expression_space( parser );
+        if ( *parser->text != ')' ) parser->ok = false;
+        else parser->text++;
+        return result;
+    }
+    if ( isdigit( (unsigned char) *parser->text ) )
+    {
+        const char * literal = parser->text;
+        char * end;
+        bool isUnsigned = false;
+        bool isLong = false;
+        bool decimal;
+        result = strtoul( parser->text, &end, 0 );
+        if ( end == parser->text ) parser->ok = false;
+        parser->text = end;
+        while ( *parser->text == 'u' || *parser->text == 'U' || *parser->text == 'l' || *parser->text == 'L' )
+        {
+            if ( *parser->text == 'u' || *parser->text == 'U' ) isUnsigned = true;
+            else isLong = true;
+            parser->text++;
+        }
+        decimal = literal[ 0 ] != '0';
+        if ( isUnsigned )
+        {
+            parser->valueSize = isLong || result > 0xffffUL ? 4 : 2;
+        }
+        else if ( isLong )
+        {
+            parser->valueSize = 4;
+            isUnsigned = result > 0x7fffffffUL;
+        }
+        else if ( decimal )
+        {
+            parser->valueSize = result <= 0x7fffUL ? 2 : 4;
+            isUnsigned = result > 0x7fffffffUL;
+        }
+        else if ( result <= 0x7fffUL )
+            parser->valueSize = 2;
+        else if ( result <= 0xffffUL )
+        {
+            parser->valueSize = 2;
+            isUnsigned = true;
+        }
+        else
+        {
+            parser->valueSize = 4;
+            isUnsigned = result > 0x7fffffffUL;
+        }
+        parser->valueUnsigned = isUnsigned;
+        return mi_expression_normalize( result, parser->valueSize, parser->valueUnsigned );
+    }
+    if ( *parser->text == '\'' )
+    {
+        parser->text++;
+        if ( *parser->text == '\\' )
+        {
+            parser->text++;
+            if ( *parser->text == 'n' ) result = '\n';
+            else if ( *parser->text == 'r' ) result = '\r';
+            else if ( *parser->text == 't' ) result = '\t';
+            else if ( *parser->text == '0' ) result = 0;
+            else result = (unsigned char) *parser->text;
+        }
+        else result = (unsigned char) *parser->text;
+        if ( !*parser->text ) parser->ok = false;
+        else parser->text++;
+        if ( *parser->text != '\'' ) parser->ok = false;
+        else parser->text++;
+        mi_expression_set_int( parser );
+        return result;
+    }
+    if ( isalpha( (unsigned char) *parser->text ) || *parser->text == '_' || *parser->text == '*' )
+    {
+        const char * start = parser->text;
+        const char * cursor = parser->text;
+        char expression[ 256 ];
+        int bracketDepth = 0;
+        MIDebugValue value;
+        while ( *cursor == '*' ) cursor++;
+        while ( *cursor )
+        {
+            if ( *cursor == '[' ) bracketDepth++;
+            else if ( *cursor == ']' ) bracketDepth--;
+            else if ( bracketDepth == 0 &&
+                      ( isspace( (unsigned char) *cursor ) || strchr( "+*/%<>=!&|^?:,()", *cursor ) ||
+                        ( *cursor == '-' && cursor[ 1 ] != '>' ) ) ) break;
+            cursor++;
+        }
+        if ( cursor == start || (size_t) ( cursor - start ) >= sizeof( expression ) )
+        {
+            parser->ok = false;
+            return 0;
+        }
+        memcpy( expression, start, (size_t) ( cursor - start ) );
+        expression[ cursor - start ] = 0;
+        if ( !mi_resolve_debug_value( expression, &value ) || value.isArray || ( value.type & 128 ) )
+        {
+            parser->ok = false;
+            return 0;
+        }
+        if ( ( value.type & 15 ) == 5 )
+        {
+            parser->ok = false;
+            return 0;
+        }
+        parser->text = cursor;
+        parser->valueSize = value.type & ( 16 | 64 ) ? 2 : value.size;
+        parser->valueUnsigned = ( value.type & ( 16 | 64 | 32 ) ) != 0;
+        return mi_debug_value_integer( &value );
+    }
+    parser->ok = false;
+    return 0;
+}
+
+static unsigned long mi_parse_unary( MIExpressionParser * parser )
+{
+    static const struct
+    {
+        const char * text;
+        int size;
+        bool isUnsigned;
+        bool isBoolean;
+    } casts[] = {
+        { "(unsigned char)", 1, true, false }, { "(char)", 1, false, false },
+        { "(unsigned int)", 2, true, false }, { "(unsigned)", 2, true, false },
+        { "(int)", 2, false, false }, { "(short)", 2, false, false },
+        { "(unsigned long)", 4, true, false }, { "(long)", 4, false, false },
+        { "(_Bool)", 1, true, true }
+    };
+    int castIndex;
+    mi_expression_space( parser );
+    if ( !strncmp( parser->text, "sizeof", 6 ) &&
+         !isalnum( (unsigned char) parser->text[ 6 ] ) && parser->text[ 6 ] != '_' )
+    {
+        char operand[ 256 ];
+        const char * start;
+        const char * cursor;
+        int depth = 0;
+        MIDebugValue value;
+        parser->text += 6;
+        mi_expression_space( parser );
+        if ( *parser->text != '(' ) { parser->ok = false; return 0; }
+        start = ++parser->text;
+        cursor = start;
+        do
+        {
+            if ( *cursor == '(' ) depth++;
+            else if ( *cursor == ')' )
+            {
+                if ( depth == 0 ) break;
+                depth--;
+            }
+            if ( *cursor ) cursor++;
+        } while ( *cursor );
+        if ( *cursor != ')' || cursor == start ||
+             (size_t) ( cursor - start ) >= sizeof( operand ) )
+        {
+            parser->ok = false;
+            return 0;
+        }
+        memcpy( operand, start, (size_t) ( cursor - start ) );
+        operand[ cursor - start ] = 0;
+        parser->text = cursor + 1;
+        parser->valueSize = 2;
+        parser->valueUnsigned = true;
+        if ( mi_resolve_debug_value( operand, &value ) ) return (unsigned long) value.size;
+        if ( strchr( operand, '*' ) ) return 2;
+        if ( strstr( operand, "char" ) || strstr( operand, "_Bool" ) ) return 1;
+        if ( strstr( operand, "long" ) || strstr( operand, "float" ) ) return 4;
+        if ( strstr( operand, "int" ) || strstr( operand, "short" ) ||
+             !strcmp( operand, "unsigned" ) || !strcmp( operand, "signed" ) ) return 2;
+        parser->ok = false;
+        return 0;
+    }
+    for ( castIndex = 0; castIndex < (int) ( sizeof( casts ) / sizeof( casts[ 0 ] ) ); castIndex++ )
+    {
+        size_t castLength = strlen( casts[ castIndex ].text );
+        unsigned long result;
+        if ( strncmp( parser->text, casts[ castIndex ].text, castLength ) ) continue;
+        parser->text += castLength;
+        result = mi_parse_unary( parser );
+        parser->valueSize = casts[ castIndex ].size;
+        parser->valueUnsigned = casts[ castIndex ].isUnsigned;
+        if ( casts[ castIndex ].isBoolean ) return result != 0;
+        return mi_expression_normalize( result, parser->valueSize, parser->valueUnsigned );
+    }
+    if ( *parser->text == '+' )
+    {
+        unsigned long result;
+        parser->text++;
+        result = mi_parse_unary( parser );
+        mi_expression_promote( &parser->valueSize, &parser->valueUnsigned );
+        return mi_expression_normalize( result, parser->valueSize, parser->valueUnsigned );
+    }
+    if ( *parser->text == '-' && parser->text[ 1 ] != '>' )
+    {
+        unsigned long result;
+        parser->text++;
+        result = mi_parse_unary( parser );
+        mi_expression_promote( &parser->valueSize, &parser->valueUnsigned );
+        return mi_expression_normalize( 0UL - result, parser->valueSize, parser->valueUnsigned );
+    }
+    if ( *parser->text == '!' )
+    {
+        unsigned long result;
+        parser->text++;
+        result = !mi_parse_unary( parser );
+        mi_expression_set_int( parser );
+        return result;
+    }
+    if ( *parser->text == '~' )
+    {
+        unsigned long result;
+        parser->text++;
+        result = mi_parse_unary( parser );
+        mi_expression_promote( &parser->valueSize, &parser->valueUnsigned );
+        return mi_expression_normalize( ~result, parser->valueSize, parser->valueUnsigned );
+    }
+    return mi_parse_primary( parser );
+}
+
+static unsigned long mi_parse_multiplicative( MIExpressionParser * parser )
+{
+    unsigned long left = mi_parse_unary( parser );
+    int leftSize = parser->valueSize;
+    bool leftUnsigned = parser->valueUnsigned;
+    for (;;)
+    {
+        char operation;
+        unsigned long right;
+        int rightSize;
+        bool rightUnsigned;
+        int commonSize;
+        bool commonUnsigned;
+        mi_expression_space( parser );
+        operation = *parser->text;
+        if ( operation != '*' && operation != '/' && operation != '%' ) break;
+        parser->text++;
+        right = mi_parse_unary( parser );
+        rightSize = parser->valueSize;
+        rightUnsigned = parser->valueUnsigned;
+        mi_expression_common_type( leftSize, leftUnsigned, rightSize, rightUnsigned,
+                                   &commonSize, &commonUnsigned );
+        left = mi_expression_normalize( left, commonSize, commonUnsigned );
+        right = mi_expression_normalize( right, commonSize, commonUnsigned );
+        if ( ( operation == '/' || operation == '%' ) && right == 0 ) { parser->ok = false; return 0; }
+        if ( operation == '*' ) left *= right;
+        else if ( commonUnsigned ) left = operation == '/' ? left / right : left % right;
+        else if ( operation == '/' )
+            left = (unsigned long) ( mi_expression_signed( left, commonSize ) /
+                                     mi_expression_signed( right, commonSize ) );
+        else
+            left = (unsigned long) ( mi_expression_signed( left, commonSize ) %
+                                     mi_expression_signed( right, commonSize ) );
+        left = mi_expression_normalize( left, commonSize, commonUnsigned );
+        leftSize = commonSize;
+        leftUnsigned = commonUnsigned;
+    }
+    parser->valueSize = leftSize;
+    parser->valueUnsigned = leftUnsigned;
+    return left;
+}
+
+static unsigned long mi_parse_additive( MIExpressionParser * parser )
+{
+    unsigned long left = mi_parse_multiplicative( parser );
+    int leftSize = parser->valueSize;
+    bool leftUnsigned = parser->valueUnsigned;
+    for (;;)
+    {
+        char operation;
+        unsigned long right;
+        int rightSize;
+        bool rightUnsigned;
+        int commonSize;
+        bool commonUnsigned;
+        mi_expression_space( parser );
+        operation = *parser->text;
+        if ( operation != '+' && ( operation != '-' || parser->text[1] == '>' ) ) break;
+        parser->text++;
+        right = mi_parse_multiplicative( parser );
+        rightSize = parser->valueSize;
+        rightUnsigned = parser->valueUnsigned;
+        mi_expression_common_type( leftSize, leftUnsigned, rightSize, rightUnsigned,
+                                   &commonSize, &commonUnsigned );
+        left = mi_expression_normalize( left, commonSize, commonUnsigned );
+        right = mi_expression_normalize( right, commonSize, commonUnsigned );
+        left = operation == '+' ? left + right : left - right;
+        left = mi_expression_normalize( left, commonSize, commonUnsigned );
+        leftSize = commonSize;
+        leftUnsigned = commonUnsigned;
+    }
+    parser->valueSize = leftSize;
+    parser->valueUnsigned = leftUnsigned;
+    return left;
+}
+
+static unsigned long mi_parse_shift( MIExpressionParser * parser )
+{
+    unsigned long left = mi_parse_additive( parser );
+    int leftSize = parser->valueSize;
+    bool leftUnsigned = parser->valueUnsigned;
+    for (;;)
+    {
+        unsigned long right;
+        mi_expression_space( parser );
+        if ( strncmp( parser->text, "<<", 2 ) && strncmp( parser->text, ">>", 2 ) ) break;
+        bool leftShift = parser->text[0] == '<';
+        mi_expression_promote( &leftSize, &leftUnsigned );
+        left = mi_expression_normalize( left, leftSize, leftUnsigned );
+        parser->text += 2;
+        right = mi_parse_additive( parser );
+        if ( right >= (unsigned long) ( leftSize * 8 ) ) { parser->ok = false; return 0; }
+        if ( leftShift ) left <<= right;
+        else if ( leftUnsigned ) left >>= right;
+        else left = (unsigned long) ( mi_expression_signed( left, leftSize ) >> right );
+        left = mi_expression_normalize( left, leftSize, leftUnsigned );
+    }
+    parser->valueSize = leftSize;
+    parser->valueUnsigned = leftUnsigned;
+    return left;
+}
+
+static unsigned long mi_parse_relational( MIExpressionParser * parser )
+{
+    unsigned long left = mi_parse_shift( parser );
+    int leftSize = parser->valueSize;
+    bool leftUnsigned = parser->valueUnsigned;
+    for (;;)
+    {
+        unsigned long right;
+        int rightSize;
+        bool rightUnsigned;
+        int commonSize;
+        bool commonUnsigned;
+        int operation = 0;
+        mi_expression_space( parser );
+        if ( !strncmp( parser->text, "<=", 2 ) ) operation = 1;
+        else if ( !strncmp( parser->text, ">=", 2 ) ) operation = 2;
+        else if ( *parser->text == '<' && parser->text[1] != '<' ) operation = 3;
+        else if ( *parser->text == '>' && parser->text[1] != '>' ) operation = 4;
+        else break;
+        parser->text += operation <= 2 ? 2 : 1;
+        right = mi_parse_shift( parser );
+        rightSize = parser->valueSize;
+        rightUnsigned = parser->valueUnsigned;
+        mi_expression_common_type( leftSize, leftUnsigned, rightSize, rightUnsigned,
+                                   &commonSize, &commonUnsigned );
+        left = mi_expression_normalize( left, commonSize, commonUnsigned );
+        right = mi_expression_normalize( right, commonSize, commonUnsigned );
+        if ( commonUnsigned )
+        {
+            if ( operation == 1 ) left = left <= right;
+            else if ( operation == 2 ) left = left >= right;
+            else if ( operation == 3 ) left = left < right;
+            else left = left > right;
+        }
+        else
+        {
+            int64_t signedLeft = mi_expression_signed( left, commonSize );
+            int64_t signedRight = mi_expression_signed( right, commonSize );
+            if ( operation == 1 ) left = signedLeft <= signedRight;
+            else if ( operation == 2 ) left = signedLeft >= signedRight;
+            else if ( operation == 3 ) left = signedLeft < signedRight;
+            else left = signedLeft > signedRight;
+        }
+        leftSize = 2;
+        leftUnsigned = false;
+    }
+    parser->valueSize = leftSize;
+    parser->valueUnsigned = leftUnsigned;
+    return left;
+}
+
+static unsigned long mi_parse_equality( MIExpressionParser * parser )
+{
+    unsigned long left = mi_parse_relational( parser );
+    int leftSize = parser->valueSize;
+    bool leftUnsigned = parser->valueUnsigned;
+    for (;;)
+    {
+        bool equal;
+        unsigned long right;
+        int rightSize;
+        bool rightUnsigned;
+        int commonSize;
+        bool commonUnsigned;
+        mi_expression_space( parser );
+        if ( strncmp( parser->text, "==", 2 ) && strncmp( parser->text, "!=", 2 ) ) break;
+        equal = parser->text[0] == '=';
+        parser->text += 2;
+        right = mi_parse_relational( parser );
+        rightSize = parser->valueSize;
+        rightUnsigned = parser->valueUnsigned;
+        mi_expression_common_type( leftSize, leftUnsigned, rightSize, rightUnsigned,
+                                   &commonSize, &commonUnsigned );
+        left = mi_expression_normalize( left, commonSize, commonUnsigned );
+        right = mi_expression_normalize( right, commonSize, commonUnsigned );
+        left = equal ? left == right : left != right;
+        leftSize = 2;
+        leftUnsigned = false;
+    }
+    parser->valueSize = leftSize;
+    parser->valueUnsigned = leftUnsigned;
+    return left;
+}
+
+static unsigned long mi_parse_bit_and( MIExpressionParser * parser )
+{
+    unsigned long left = mi_parse_equality( parser );
+    int leftSize = parser->valueSize;
+    bool leftUnsigned = parser->valueUnsigned;
+    for (;;)
+    {
+        unsigned long right;
+        int rightSize;
+        bool rightUnsigned;
+        int commonSize;
+        bool commonUnsigned;
+        mi_expression_space( parser );
+        if ( *parser->text != '&' || parser->text[1] == '&' ) break;
+        parser->text++;
+        right = mi_parse_equality( parser );
+        rightSize = parser->valueSize;
+        rightUnsigned = parser->valueUnsigned;
+        mi_expression_common_type( leftSize, leftUnsigned, rightSize, rightUnsigned,
+                                   &commonSize, &commonUnsigned );
+        left = mi_expression_normalize( left, commonSize, commonUnsigned ) &
+               mi_expression_normalize( right, commonSize, commonUnsigned );
+        left = mi_expression_normalize( left, commonSize, commonUnsigned );
+        leftSize = commonSize;
+        leftUnsigned = commonUnsigned;
+    }
+    parser->valueSize = leftSize;
+    parser->valueUnsigned = leftUnsigned;
+    return left;
+}
+
+static unsigned long mi_parse_bit_xor( MIExpressionParser * parser )
+{
+    unsigned long left = mi_parse_bit_and( parser );
+    int leftSize = parser->valueSize;
+    bool leftUnsigned = parser->valueUnsigned;
+    for (;;)
+    {
+        unsigned long right;
+        int rightSize;
+        bool rightUnsigned;
+        int commonSize;
+        bool commonUnsigned;
+        mi_expression_space( parser );
+        if ( *parser->text != '^' ) break;
+        parser->text++;
+        right = mi_parse_bit_and( parser );
+        rightSize = parser->valueSize;
+        rightUnsigned = parser->valueUnsigned;
+        mi_expression_common_type( leftSize, leftUnsigned, rightSize, rightUnsigned,
+                                   &commonSize, &commonUnsigned );
+        left = mi_expression_normalize( left, commonSize, commonUnsigned ) ^
+               mi_expression_normalize( right, commonSize, commonUnsigned );
+        left = mi_expression_normalize( left, commonSize, commonUnsigned );
+        leftSize = commonSize;
+        leftUnsigned = commonUnsigned;
+    }
+    parser->valueSize = leftSize;
+    parser->valueUnsigned = leftUnsigned;
+    return left;
+}
+
+static unsigned long mi_parse_bit_or( MIExpressionParser * parser )
+{
+    unsigned long left = mi_parse_bit_xor( parser );
+    int leftSize = parser->valueSize;
+    bool leftUnsigned = parser->valueUnsigned;
+    for (;;)
+    {
+        unsigned long right;
+        int rightSize;
+        bool rightUnsigned;
+        int commonSize;
+        bool commonUnsigned;
+        mi_expression_space( parser );
+        if ( *parser->text != '|' || parser->text[1] == '|' ) break;
+        parser->text++;
+        right = mi_parse_bit_xor( parser );
+        rightSize = parser->valueSize;
+        rightUnsigned = parser->valueUnsigned;
+        mi_expression_common_type( leftSize, leftUnsigned, rightSize, rightUnsigned,
+                                   &commonSize, &commonUnsigned );
+        left = mi_expression_normalize( left, commonSize, commonUnsigned ) |
+               mi_expression_normalize( right, commonSize, commonUnsigned );
+        left = mi_expression_normalize( left, commonSize, commonUnsigned );
+        leftSize = commonSize;
+        leftUnsigned = commonUnsigned;
+    }
+    parser->valueSize = leftSize;
+    parser->valueUnsigned = leftUnsigned;
+    return left;
+}
+
+static unsigned long mi_parse_logical_and( MIExpressionParser * parser )
+{
+    unsigned long left = mi_parse_bit_or( parser );
+    while ( ( mi_expression_space( parser ), !strncmp( parser->text, "&&", 2 ) ) )
+    {
+        unsigned long right;
+        parser->text += 2;
+        right = mi_parse_bit_or( parser );
+        left = left != 0 && right != 0;
+        mi_expression_set_int( parser );
+    }
+    return left;
+}
+
+static unsigned long mi_parse_logical_or( MIExpressionParser * parser )
+{
+    unsigned long left = mi_parse_logical_and( parser );
+    while ( ( mi_expression_space( parser ), !strncmp( parser->text, "||", 2 ) ) )
+    {
+        unsigned long right;
+        parser->text += 2;
+        right = mi_parse_logical_and( parser );
+        left = left != 0 || right != 0;
+        mi_expression_set_int( parser );
+    }
+    return left;
+}
+
+static unsigned long mi_parse_conditional( MIExpressionParser * parser )
+{
+    unsigned long condition = mi_parse_logical_or( parser );
+    unsigned long whenTrue;
+    unsigned long whenFalse;
+    int trueSize;
+    bool trueUnsigned;
+    int falseSize;
+    bool falseUnsigned;
+    int commonSize;
+    bool commonUnsigned;
+    mi_expression_space( parser );
+    if ( *parser->text != '?' ) return condition;
+    parser->text++;
+    whenTrue = mi_parse_comma( parser );
+    trueSize = parser->valueSize;
+    trueUnsigned = parser->valueUnsigned;
+    mi_expression_space( parser );
+    if ( *parser->text != ':' )
+    {
+        parser->ok = false;
+        return 0;
+    }
+    parser->text++;
+    whenFalse = mi_parse_conditional( parser );
+    falseSize = parser->valueSize;
+    falseUnsigned = parser->valueUnsigned;
+    mi_expression_common_type( trueSize, trueUnsigned, falseSize, falseUnsigned,
+                               &commonSize, &commonUnsigned );
+    parser->valueSize = commonSize;
+    parser->valueUnsigned = commonUnsigned;
+    return mi_expression_normalize( condition ? whenTrue : whenFalse,
+                                    commonSize, commonUnsigned );
+}
+
+static unsigned long mi_parse_comma( MIExpressionParser * parser )
+{
+    unsigned long result = mi_parse_conditional( parser );
+    while ( ( mi_expression_space( parser ), *parser->text == ',' ) )
+    {
+        parser->text++;
+        result = mi_parse_conditional( parser );
+    }
+    return result;
+}
+
+static bool mi_evaluate_integer_expression( const char * expression, unsigned long * result,
+                                            int * valueSize, bool * valueUnsigned )
+{
+    MIExpressionParser parser;
+    parser.text = expression;
+    parser.ok = true;
+    parser.valueSize = 2;
+    parser.valueUnsigned = false;
+    *result = mi_parse_comma( &parser );
+    mi_expression_space( &parser );
+    if ( valueSize ) *valueSize = parser.valueSize;
+    if ( valueUnsigned ) *valueUnsigned = parser.valueUnsigned;
+    return parser.ok && *parser.text == 0;
+}
+
+static bool mi_resolve_or_evaluate( const char * expression, MIDebugValue * value )
+{
+    size_t length;
+    bool valueUnsigned;
+    if ( mi_resolve_debug_value( expression, value ) ) return true;
+    length = strlen( expression );
+    if ( length >= 2 && expression[ 0 ] == '&' )
+    {
+        char operand[ 256 ];
+        const char * operandStart = expression + 1;
+        size_t operandLength = length - 1;
+        while ( operandLength && isspace( (unsigned char) *operandStart ) )
+        {
+            operandStart++;
+            operandLength--;
+        }
+        if ( operandLength >= 2 && operandStart[ 0 ] == '(' && operandStart[ operandLength - 1 ] == ')' )
+        {
+            operandStart++;
+            operandLength -= 2;
+        }
+        if ( operandLength >= sizeof( operand ) ) return false;
+        memcpy( operand, operandStart, operandLength );
+        operand[ operandLength ] = 0;
+        if ( !mi_resolve_debug_value( operand, value ) ) return false;
+        value->immediate = true;
+        value->immediateValue = value->address;
+        value->type = value->type & 16 ? value->type | 64 : value->type | 16;
+        value->size = 2;
+        value->isArray = false;
+        value->dimensionCount = 0;
+        return true;
+    }
+    memset( value, 0, sizeof( *value ) );
+    if ( !mi_evaluate_integer_expression( expression, &value->immediateValue,
+                                          &value->size, &valueUnsigned ) ) return false;
+    value->immediate = true;
+    value->type = ( value->size == 1 ? 1 : ( value->size == 4 ? 4 : 2 ) ) |
+                  ( valueUnsigned ? 32 : 0 );
+    return true;
+}
+
+static void mi_format_string_preview( uint16_t address, int limit, char * output, size_t outputSize )
+{
+    size_t used = 0;
+    int index;
+    if ( outputSize < 3 ) return;
+    output[ used++ ] = '\'';
+    for ( index = 0; index < limit && used + 5 < outputSize; index++ )
+    {
+        unsigned char character = memory[ (uint16_t) ( address + index ) ];
+        if ( !character ) break;
+        if ( character == '"' || character == '\\' )
+        {
+            output[ used++ ] = '\\';
+            output[ used++ ] = (char) character;
+        }
+        else if ( character == '\n' || character == '\r' || character == '\t' )
+        {
+            output[ used++ ] = '\\';
+            output[ used++ ] = character == '\n' ? 'n' : ( character == '\r' ? 'r' : 't' );
+        }
+        else if ( isprint( character ) ) output[ used++ ] = (char) character;
+        else
+        {
+            snprintf( output + used, outputSize - used, "\\x%02x", character );
+            used += 4;
+        }
+    }
+    if ( index == limit && used + 4 < outputSize )
+    {
+        output[ used++ ] = '.';
+        output[ used++ ] = '.';
+        output[ used++ ] = '.';
+    }
+    output[ used++ ] = '\'';
+    output[ used ] = 0;
+}
+
+static void mi_format_debug_value( const MIDebugValue * debugValue, char * output, size_t outputSize )
+{
+    uint16_t address = debugValue->address;
+    unsigned long value = debugValue->immediate ? debugValue->immediateValue : memory[ address ];
+    int base = debugValue->type & 15;
+    bool isUnsigned = ( debugValue->type & 32 ) != 0;
+    if ( debugValue->isArray )
+    {
+        if ( base == 1 && debugValue->elementSize == 1 )
+            mi_format_string_preview( address, debugValue->size < 48 ? debugValue->size : 48,
+                                      output, outputSize );
+        else
+            snprintf( output, outputSize, "[%d]", debugValue->dimensionCount ? debugValue->dimensions[ 0 ] : 0 );
+        return;
+    }
+    if ( debugValue->type & 128 ) { snprintf( output, outputSize, "{%s}", mi_type_name( debugValue->type, false, NULL, 0 ) ); return; }
+    if ( !debugValue->immediate && debugValue->size > 1 )
+        value |= (unsigned long) memory[ (uint16_t) ( address + 1 ) ] << 8;
+    if ( !debugValue->immediate && debugValue->size > 2 )
+    {
+        value |= (unsigned long) memory[ (uint16_t) ( address + 2 ) ] << 16;
+        value |= (unsigned long) memory[ (uint16_t) ( address + 3 ) ] << 24;
+    }
+    if ( debugValue->bitWidth > 0 )
+    {
+        unsigned long fieldValue = ( value >> debugValue->bitShift ) &
+                                   ( ( 1UL << debugValue->bitWidth ) - 1 );
+        if ( !isUnsigned && ( fieldValue & ( 1UL << ( debugValue->bitWidth - 1 ) ) ) )
+            snprintf( output, outputSize, "%ld",
+                      (long) fieldValue - (long) ( 1UL << debugValue->bitWidth ) );
+        else
+            snprintf( output, outputSize, "%lu", fieldValue );
+    }
+    else if ( debugValue->type & ( 16 | 64 ) )
+    {
+        if ( base == 1 && ( value & 0xffff ) != 0 )
+        {
+            char preview[ 64 ];
+            mi_format_string_preview( (uint16_t) value, 32, preview, sizeof( preview ) );
+            snprintf( output, outputSize, "0x%04lx %s", value & 0xffff, preview );
+        }
+        else
+            snprintf( output, outputSize, "0x%04lx", value & 0xffff );
+    }
+    else if ( base == 5 && debugValue->size == 4 )
+    {
+        uint32_t bits = (uint32_t) value;
+        float floatValue;
+        memcpy( &floatValue, &bits, sizeof( floatValue ) );
+        snprintf( output, outputSize, "%g", (double) floatValue );
+    }
+    else if ( isUnsigned )
+        snprintf( output, outputSize, "%lu", value );
+    else if ( debugValue->size == 1 )
+        snprintf( output, outputSize, "%d", (int) (int8_t) value );
+    else if ( debugValue->size == 2 )
+        snprintf( output, outputSize, "%d", (int) (int16_t) value );
+    else
+        snprintf( output, outputSize, "%ld", (long) (int32_t) value );
+}
+
+static void mi_format_variable_value( const MIDebugVariable * variable, char * output, size_t outputSize )
+{
+    MIDebugValue value;
+    mi_value_from_variable( variable, &value );
+    mi_format_debug_value( &value, output, outputSize );
+}
+
+static bool mi_debug_value_writable( const MIDebugValue * value )
+{
+    return !value->immediate && !value->isArray && !( value->type & 128 ) &&
+           ( value->type & 15 ) != 5 &&
+           ( value->size == 1 || value->size == 2 || value->size == 4 );
+}
+
+static bool mi_write_debug_value( const MIDebugValue * value, unsigned long newValue )
+{
+    unsigned long storedValue = newValue;
+    int index;
+    if ( !mi_debug_value_writable( value ) ) return false;
+    if ( ( value->type & 15 ) == 6 ) storedValue = newValue != 0;
+    if ( value->bitWidth > 0 )
+    {
+        unsigned long fieldMask = ( ( 1UL << value->bitWidth ) - 1 ) << value->bitShift;
+        unsigned long oldValue = memory[ value->address ];
+        if ( value->size > 1 ) oldValue = mi_read_word( value->address );
+        if ( value->size > 2 )
+            oldValue |= (unsigned long) mi_read_word( (uint16_t) ( value->address + 2 ) ) << 16;
+        storedValue = ( oldValue & ~fieldMask ) |
+                      ( ( newValue << value->bitShift ) & fieldMask );
+    }
+    for ( index = 0; index < value->size; index++ )
+        memory[ (uint16_t) ( value->address + index ) ] = (uint8_t) ( storedValue >> ( index * 8 ) );
+    return true;
+}
+
+static int mi_debug_value_child_count( const MIDebugValue * value )
+{
+    int index;
+    int count = 0;
+    if ( value->isArray && value->dimensionCount > 0 ) return value->dimensions[ 0 ];
+    if ( value->isFunctionPointer ) return 0;
+    if ( value->type & ( 16 | 64 ) ) return 1;
+    if ( value->type & 128 )
+        for ( index = 0; index < g_miDebugFieldCount; index++ )
+            if ( g_miDebugFields[ index ].structId == ( value->type >> 8 ) ) count++;
+    return count;
+}
+
+static bool mi_debug_value_child_expression( const MIDebugValue * parent, const char * parentExpression,
+                                             int childIndex, char * expression, size_t expressionSize,
+                                             char * displayName, size_t displayNameSize )
+{
+    if ( parent->isArray && parent->dimensionCount > 0 )
+    {
+        if ( childIndex < 0 || childIndex >= parent->dimensions[ 0 ] ) return false;
+        snprintf( expression, expressionSize, "%s[%d]", parentExpression, childIndex );
+        snprintf( displayName, displayNameSize, "[%d]", childIndex );
+        return true;
+    }
+    if ( !parent->isFunctionPointer && ( parent->type & ( 16 | 64 ) ) )
+    {
+        if ( childIndex != 0 ) return false;
+        snprintf( expression, expressionSize, "*%s", parentExpression );
+        strcpy( displayName, "*" );
+        return true;
+    }
+    if ( parent->type & 128 )
+    {
+        int index;
+        int found = 0;
+        for ( index = 0; index < g_miDebugFieldCount; index++ )
+            if ( g_miDebugFields[ index ].structId == ( parent->type >> 8 ) )
+            {
+                if ( found++ != childIndex ) continue;
+                snprintf( expression, expressionSize, "%s.%s", parentExpression, g_miDebugFields[ index ].name );
+                strncpy( displayName, g_miDebugFields[ index ].name, displayNameSize - 1 );
+                displayName[ displayNameSize - 1 ] = 0;
+                return true;
+            }
+    }
+    return false;
+}
+
+static MIVariableObject * mi_create_variable_object( const char * expression )
+{
+    int slot;
+    MIVariableObject * object;
+    for ( slot = 0; slot < g_miVariableObjectCapacity && g_miVariableObjects[ slot ].active; slot++ ) {}
+    if ( slot == g_miVariableObjectCapacity )
+    {
+        int oldCapacity = g_miVariableObjectCapacity;
+        int newCapacity = oldCapacity * 2;
+        MIVariableObject * grown = (MIVariableObject *) realloc(
+            g_miVariableObjects, (size_t) newCapacity * sizeof( MIVariableObject ) );
+        if ( !grown ) return NULL;
+        g_miVariableObjects = grown;
+        memset( g_miVariableObjects + oldCapacity, 0,
+                (size_t) ( newCapacity - oldCapacity ) * sizeof( MIVariableObject ) );
+        g_miVariableObjectCapacity = newCapacity;
+    }
+    object = &g_miVariableObjects[ slot ];
+    object->active = true;
+    object->frame = g_miSelectedFrame;
+    snprintf( object->name, sizeof( object->name ), "var%d", g_miNextVariableObject++ );
+    strncpy( object->expression, expression, sizeof( object->expression ) - 1 );
+    object->expression[ sizeof( object->expression ) - 1 ] = 0;
+    return object;
+}
+
+static MIVariableObject * mi_find_variable_object_in_command( const char * command )
+{
+    int slot;
+    for ( slot = 0; slot < g_miVariableObjectCapacity; slot++ )
+    {
+        MIVariableObject * object = &g_miVariableObjects[ slot ];
+        const char * found;
+        size_t length;
+        if ( !object->active ) continue;
+        length = strlen( object->name );
+        found = command;
+        while ( ( found = strstr( found, object->name ) ) != NULL )
+        {
+            char before = found == command ? ' ' : found[ -1 ];
+            char after = found[ length ];
+            if ( ( isspace( (unsigned char) before ) || before == '"' ) &&
+                 ( !after || isspace( (unsigned char) after ) || after == '"' ) ) return object;
+            found += length;
+        }
+    }
+    return NULL;
+}
+
+static MIDebugLine * mi_find_source_line( const char * file, int line )
+{
+    MIDebugLine * best = NULL;
+    int index;
+    for ( index = 0; index < g_miDebugLineCount; index++ )
+    {
+        MIDebugLine * candidate = &g_miDebugLines[ index ];
+        if ( !mi_path_suffix_equal( file, candidate->file ) || candidate->line < line )
+            continue;
+        if ( !best || candidate->line < best->line ||
+             ( candidate->line == best->line && candidate->address < best->address ) )
+            best = candidate;
+    }
+    return best;
+}
+
+static MIDebugLine * mi_find_address_line( uint16_t address )
+{
+    MIDebugLine * best = NULL;
+    MIDebugFunction * function = mi_find_debug_function( address );
+    int index;
+    if ( g_miDebugFunctionCount && !function )
+        return NULL;
+    for ( index = 0; index < g_miDebugLineCount; index++ )
+    {
+        MIDebugLine * candidate = &g_miDebugLines[ index ];
+        if ( candidate->address > address ||
+             ( function && candidate->address < function->start ) )
+            continue;
+        if ( !best || candidate->address >= best->address )
+            best = candidate;
+    }
+    return best;
+}
+
+static void mi_start_source_step( MISourceStepMode mode )
+{
+    MIDebugLine * debugLine = mi_find_address_line( reg.pc );
+    g_miSourceStepMode = mode;
+    g_miSourceStepFile[ 0 ] = 0;
+    g_miSourceStepLine = 0;
+    g_miSourceStepSp = reg.sp;
+    if ( debugLine )
+    {
+        strncpy( g_miSourceStepFile, debugLine->file, sizeof( g_miSourceStepFile ) - 1 );
+        g_miSourceStepFile[ sizeof( g_miSourceStepFile ) - 1 ] = 0;
+        g_miSourceStepLine = debugLine->line;
+    }
+    x80_debug_step();
+}
+
+static bool mi_start_source_step_out()
+{
+    uint16_t frameIx = mi_context_ix();
+    if ( frameIx > 0xfffb )
+        return false;
+    g_miSourceStepReturnIx = mi_read_word( frameIx );
+    g_miSourceStepReturnPc = mi_read_word( (uint16_t) ( frameIx + 2 ) );
+    if ( g_miSourceStepReturnIx <= frameIx || g_miSourceStepReturnPc == 0 )
+        return false;
+    g_miSourceStepMode = mi_source_step_out;
+    x80_debug_step();
+    return true;
+}
+
+static bool mi_source_step_complete()
+{
+    MIDebugLine * debugLine;
+    if ( g_miSourceStepMode == mi_source_step_none ||
+         x80_debug_reason() != x80_debug_stop_step )
+        return true;
+    if ( g_miSourceStepMode == mi_source_step_out )
+        return reg.pc == g_miSourceStepReturnPc && reg.ix == g_miSourceStepReturnIx;
+    debugLine = mi_find_address_line( reg.pc );
+    if ( !debugLine )
+        return false;
+    if ( g_miSourceStepLine == debugLine->line &&
+         !strcmp( g_miSourceStepFile, debugLine->file ) )
+        return false;
+    if ( g_miSourceStepMode == mi_source_step_over && reg.sp < g_miSourceStepSp )
+        return false;
+    return true;
+}
+
+static MIBreakpoint * mi_find_address_breakpoint( uint16_t address )
+{
+    int slot;
+    for ( slot = 0; slot < 256; slot++ )
+        if ( g_miBreakpoints[ slot ].active && g_miBreakpoints[ slot ].address == address )
+            return &g_miBreakpoints[ slot ];
+    return NULL;
+}
+
+static void mi_copy_quoted_argument( const char * argument, char * output, size_t output_size );
+
+static void mi_update_cpu_breakpoint( uint16_t address )
+{
+    int slot;
+    for ( slot = 0; slot < 256; slot++ )
+        if ( g_miBreakpoints[ slot ].active && g_miBreakpoints[ slot ].address == address )
+        {
+            x80_debug_set_breakpoint( address, true );
+            return;
+        }
+    x80_debug_set_breakpoint( address, false );
+}
+
+static void mi_configure_breakpoint( MIBreakpoint * breakpoint, const char * command )
+{
+    const char * conditionOption = strstr( command, " -c " );
+    const char * ignoreOption = strstr( command, " -i " );
+    breakpoint->temporary = strstr( command, " -t " ) != NULL;
+    breakpoint->conditionErrorReported = false;
+    breakpoint->hitCount = 0;
+    breakpoint->ignoreCount = ignoreOption ? strtoul( ignoreOption + 4, NULL, 0 ) : 0;
+    breakpoint->condition[ 0 ] = 0;
+    if ( conditionOption )
+        mi_copy_quoted_argument( conditionOption + 4, breakpoint->condition,
+                                 sizeof( breakpoint->condition ) );
+}
+
+static bool mi_prepare_breakpoint_stop()
+{
+    int slot;
+    bool matched = false;
+    bool breakpointRemoved = false;
+    g_miStoppedBreakpoint = NULL;
+    mi_rebuild_stack_frames();
+    for ( slot = 0; slot < 256; slot++ )
+    {
+        MIBreakpoint * breakpoint = &g_miBreakpoints[ slot ];
+        unsigned long conditionValue = 1;
+        if ( !breakpoint->active || breakpoint->address != reg.pc ) continue;
+        matched = true;
+        breakpoint->hitCount++;
+        if ( breakpoint->hitCount <= breakpoint->ignoreCount ) continue;
+        if ( breakpoint->condition[ 0 ] &&
+             !mi_evaluate_integer_expression( breakpoint->condition, &conditionValue ) )
+        {
+            if ( !breakpoint->conditionErrorReported )
+            {
+                printf( "&\"Breakpoint %d condition could not be evaluated; stopping\\n\"\n",
+                        breakpoint->number );
+                fflush( stdout );
+                breakpoint->conditionErrorReported = true;
+            }
+            conditionValue = 1;
+        }
+        if ( !conditionValue ) continue;
+        if ( !g_miStoppedBreakpoint )
+            g_miStoppedBreakpoint = breakpoint;
+        if ( breakpoint->temporary )
+        {
+            breakpoint->active = false;
+            breakpointRemoved = true;
+        }
+    }
+    if ( breakpointRemoved )
+        mi_update_cpu_breakpoint( reg.pc );
+    return g_miStoppedBreakpoint != NULL || !matched;
+}
+
+static const char * mi_skip_token( const char * line, char * token, size_t token_size )
+{
+    size_t length = 0;
+    while ( isdigit( (unsigned char) *line ) )
+    {
+        if ( length + 1 < token_size )
+            token[ length++ ] = *line;
+        line++;
+    }
+    token[ length ] = 0;
+    return line;
+}
+
+static void mi_result( const char * token, const char * result )
+{
+    printf( "%s%s\n", token, result );
+    fflush( stdout );
+}
+
+static void mi_escape_text( const char * text, char * escaped, size_t escaped_size )
+{
+    size_t out = 0;
+    while ( *text && out + 2 < escaped_size )
+    {
+        unsigned char c = (unsigned char) *text++;
+        if ( c == '\\' || c == '"' )
+        {
+            escaped[ out++ ] = '\\';
+            escaped[ out++ ] = (char) c;
+        }
+        else if ( c == '\n' || c == '\r' || c == '\t' )
+        {
+            escaped[ out++ ] = '\\';
+            escaped[ out++ ] = c == '\n' ? 'n' : ( c == '\r' ? 'r' : 't' );
+        }
+        else if ( c >= 0x20 && c < 0x7f )
+            escaped[ out++ ] = (char) c;
+    }
+    escaped[ out ] = 0;
+}
+
+static void mi_emit_source_location( const char * file, int line )
+{
+    char escapedFile[ MAX_PATH * 2 ];
+    mi_escape_text( file, escapedFile, sizeof( escapedFile ) );
+    printf( ",file=\"%s\",fullname=\"%s\",line=\"%d\"", escapedFile, escapedFile, line );
+}
+
+static void mi_target_character( uint8_t c )
+{
+    char text[ 2 ] = { (char) c, 0 };
+    char escaped[ 8 ];
+    mi_escape_text( text, escaped, sizeof( escaped ) );
+    printf( "@\"%s\"\n", escaped );
+    fflush( stdout );
+}
+
+static bool mi_input_ready()
+{
+#if defined( _WIN32 )
+    HANDLE input = GetStdHandle( STD_INPUT_HANDLE );
+    DWORD available = 0;
+    return input != INVALID_HANDLE_VALUE && PeekNamedPipe( input, NULL, 0, NULL, &available, NULL ) && available != 0;
+#elif defined( WATCOMDOS )
+    return false;
+#else
+    fd_set input;
+    struct timeval timeout = { 0, 0 };
+    FD_ZERO( &input );
+    FD_SET( STDIN_FILENO, &input );
+    return select( STDIN_FILENO + 1, &input, NULL, NULL, &timeout ) > 0;
+#endif
+}
+
+static const char * mi_find_argument( const char * command )
+{
+    const char * argument = strchr( command, ' ' );
+    if ( !argument )
+        return "";
+    while ( *argument == ' ' )
+        argument++;
+    return argument;
+}
+
+static void mi_copy_quoted_argument( const char * argument, char * output, size_t output_size )
+{
+    size_t length = 0;
+    while ( *argument == ' ' )
+        argument++;
+    if ( *argument == '"' )
+        argument++;
+    while ( *argument && *argument != '"' && length + 1 < output_size )
+    {
+        if ( *argument == '\\' && argument[ 1 ] )
+            argument++;
+        output[ length++ ] = *argument++;
+    }
+    output[ length ] = 0;
+}
+
+static void mi_copy_last_argument( const char * command, char * output, size_t output_size )
+{
+    const char * end = command + strlen( command );
+    const char * start;
+    while ( end > command && end[ -1 ] == ' ' )
+        end--;
+    start = end;
+    if ( start > command && start[ -1 ] == '"' )
+    {
+        start--;
+        while ( start > command )
+        {
+            start--;
+            if ( *start == '"' && ( start == command || start[ -1 ] != '\\' ) )
+                break;
+        }
+    }
+    else
+        while ( start > command && start[ -1 ] != ' ' )
+            start--;
+    mi_copy_quoted_argument( start, output, output_size );
+}
+
+static int mi_inline_frame( const char * command )
+{
+    const char * option = strstr( command, "--frame" );
+    if ( !option ) return -1;
+    option += 7;
+    if ( *option == '=' ) option++;
+    while ( isspace( (unsigned char) *option ) ) option++;
+    return isdigit( (unsigned char) *option ) ? atoi( option ) : -1;
+}
+
+static MIDebugVariable * mi_resolve_variable_expression( const char * argument, char * expression,
+                                                        size_t expressionSize )
+{
+    char * start;
+    char * end;
+    mi_copy_quoted_argument( argument, expression, expressionSize );
+    start = expression;
+    while ( isspace( (unsigned char) *start ) ) start++;
+    end = start + strlen( start );
+    while ( end > start && isspace( (unsigned char) end[ -1 ] ) ) *--end = 0;
+    while ( end - start >= 2 && *start == '(' && end[ -1 ] == ')' )
+    {
+        start++;
+        end--;
+        *end = 0;
+        while ( isspace( (unsigned char) *start ) ) start++;
+        while ( end > start && isspace( (unsigned char) end[ -1 ] ) ) *--end = 0;
+    }
+    if ( start != expression )
+        memmove( expression, start, strlen( start ) + 1 );
+    return mi_find_debug_variable( expression );
+}
+
+static uint16_t mi_register_psw()
+{
+    return reg.fZ80Mode ? reg.PSW<true>() : reg.PSW<false>();
+}
+
+static unsigned long mi_register_value( int index )
+{
+    switch ( index )
+    {
+        case 0: return mi_register_psw();
+        case 1: return reg.B();
+        case 2: return reg.D();
+        case 3: return reg.H();
+        case 4: return reg.ix;
+        case 5: return reg.iy;
+        case 6: return reg.sp;
+        case 7: return reg.pc;
+        case 8: return reg.ap | ( (unsigned long) reg.fp << 8 );
+        case 9: return reg.bp | ( (unsigned long) reg.cp << 8 );
+        case 10: return reg.dp | ( (unsigned long) reg.ep << 8 );
+        case 11: return reg.hp | ( (unsigned long) reg.lp << 8 );
+        case 12: return reg.i;
+        case 13: return reg.r;
+        default: return 0;
+    }
+}
+
+static void mi_emit_stop()
+{
+    const char * reason = "signal-received";
+    int breakpointNumber = 0;
+    MIBreakpoint * breakpoint = NULL;
+    MIDebugLine * debugLine = mi_find_address_line( reg.pc );
+    mi_rebuild_stack_frames();
+    if ( x80_debug_reason() == x80_debug_stop_breakpoint )
+    {
+        reason = "breakpoint-hit";
+        breakpoint = g_miStoppedBreakpoint;
+        if ( breakpoint ) breakpointNumber = breakpoint->number;
+    }
+    else if ( x80_debug_reason() == x80_debug_stop_step )
+        reason = "end-stepping-range";
+    else if ( x80_debug_reason() == x80_debug_stop_entry )
+        reason = "entry-point-hit";
+    else if ( x80_debug_reason() == x80_debug_stop_pause )
+        reason = "signal-received";
+    printf( "*stopped,reason=\"%s\"", reason );
+    if ( breakpointNumber )
+        printf( ",bkptno=\"%d\"", breakpointNumber );
+    printf( ",frame={addr=\"0x%04x\",func=\"??\"", reg.pc );
+    if ( breakpoint && breakpoint->file[ 0 ] )
+        mi_emit_source_location( breakpoint->file, breakpoint->line );
+    else if ( debugLine )
+        mi_emit_source_location( debugLine->file, debugLine->line );
+    printf( "},thread-id=\"1\",stopped-threads=\"all\"\n" );
+    fflush( stdout );
+}
+
+enum MIAction
+{
+    mi_action_none,
+    mi_action_run,
+    mi_action_exit
+};
+
+static MIAction mi_handle_command_impl( const char * input )
+{
+    char line[ 4096 ];
+    char token[ 32 ];
+    const char * command;
+    size_t length;
+
+    strncpy( line, input, sizeof( line ) - 1 );
+    line[ sizeof( line ) - 1 ] = 0;
+    length = strlen( line );
+    while ( length && ( line[ length - 1 ] == '\n' || line[ length - 1 ] == '\r' ) )
+        line[ --length ] = 0;
+    command = mi_skip_token( line, token, sizeof( token ) );
+    {
+        int frame = mi_inline_frame( command );
+        if ( frame >= 0 && frame < g_miStackFrameCount ) g_miSelectedFrame = frame;
+    }
+
+    if ( !strncmp( command, "-file-exec-and-symbols", 22 ) )
+    {
+        mi_copy_quoted_argument( mi_find_argument( command ), g_miProgram, sizeof( g_miProgram ) );
+        mi_load_debug_metadata();
+        mi_result( token, "^done" );
+    }
+    else if ( !strncmp( command, "-symbol-list-lines", 18 ) )
+    {
+        char sourceFile[ MAX_PATH ];
+        bool first = true;
+        int index;
+        mi_copy_quoted_argument( mi_find_argument( command ), sourceFile, sizeof( sourceFile ) );
+        printf( "%s^done,lines=[", token );
+        for ( index = 0; index < g_miDebugLineCount; index++ )
+        {
+            MIDebugLine * debugLine = &g_miDebugLines[ index ];
+            if ( !mi_path_suffix_equal( sourceFile, debugLine->file ) )
+                continue;
+            printf( "%s{pc=\"0x%04x\",line=\"%d\"}", first ? "" : ",",
+                    debugLine->address, debugLine->line );
+            first = false;
+        }
+        printf( "]\n" );
+        fflush( stdout );
+    }
+    else if ( !strncmp( command, "-list-features", 14 ) )
+        mi_result( token, "^done,features=[]" );
+    else if ( !strncmp( command, "-exec-arguments", 15 ) )
+    {
+        strncpy( g_miArguments, mi_find_argument( command ), sizeof( g_miArguments ) - 1 );
+        g_miArguments[ sizeof( g_miArguments ) - 1 ] = 0;
+        mi_result( token, "^done" );
+    }
+    else if ( !strncmp( command, "-environment-cd", 15 ) )
+    {
+        char path[ MAX_PATH ];
+        mi_copy_quoted_argument( mi_find_argument( command ), path, sizeof( path ) );
+        if ( chdir( path ) == 0 )
+            mi_result( token, "^done" );
+        else
+            mi_result( token, "^error,msg=\"unable to change directory\"" );
+    }
+    else if ( !strncmp( command, "-exec-run", 9 ) || !strncmp( command, "-exec-continue", 14 ) )
+    {
+        g_miSourceStepMode = mi_source_step_none;
+        x80_debug_continue();
+        mi_result( token, "^running" );
+        printf( "*running,thread-id=\"all\"\n" );
+        fflush( stdout );
+        return mi_action_run;
+    }
+    else if ( !strncmp( command, "-exec-step-instruction", 22 ) ||
+              !strncmp( command, "-exec-next-instruction", 22 ) )
+    {
+        g_miSourceStepMode = mi_source_step_none;
+        x80_debug_step();
+        mi_result( token, "^running" );
+        printf( "*running,thread-id=\"all\"\n" );
+        fflush( stdout );
+        return mi_action_run;
+    }
+    else if ( !strncmp( command, "-exec-step", 10 ) || !strncmp( command, "-exec-next", 10 ) )
+    {
+        mi_start_source_step( !strncmp( command, "-exec-next", 10 ) ?
+                              mi_source_step_over : mi_source_step_into );
+        mi_result( token, "^running" );
+        printf( "*running,thread-id=\"all\"\n" );
+        fflush( stdout );
+        return mi_action_run;
+    }
+    else if ( !strncmp( command, "-exec-finish", 12 ) )
+    {
+        if ( !mi_start_source_step_out() )
+        {
+            int frame = g_miSelectedFrame >= 0 ? g_miSelectedFrame : 0;
+            if ( !g_miStackFrameCount || frame != g_miStackFrameCount - 1 )
+            {
+                mi_result( token, "^error,msg=\"unable to determine caller return address\"" );
+                return mi_action_none;
+            }
+            g_miSourceStepMode = mi_source_step_none;
+            x80_debug_continue();
+        }
+        mi_result( token, "^running" );
+        printf( "*running,thread-id=\"all\"\n" );
+        fflush( stdout );
+        return mi_action_run;
+    }
+    else if ( !strncmp( command, "-exec-interrupt", 15 ) )
+    {
+        x80_debug_pause();
+        mi_result( token, "^done" );
+    }
+    else if ( !strncmp( command, "-break-insert", 13 ) )
+    {
+        const char * star = strrchr( command, '*' );
+        if ( star )
+        {
+            unsigned long address = strtoul( star + 1, NULL, 0 );
+            int slot;
+            for ( slot = 0; slot < 256 && g_miBreakpoints[ slot ].active; slot++ ) {}
+            if ( slot < 256 && address <= 0xffff )
+            {
+                memset( &g_miBreakpoints[ slot ], 0, sizeof( g_miBreakpoints[ slot ] ) );
+                g_miBreakpoints[ slot ].number = g_miNextBreakpoint++;
+                g_miBreakpoints[ slot ].address = (uint16_t) address;
+                g_miBreakpoints[ slot ].active = true;
+                mi_configure_breakpoint( &g_miBreakpoints[ slot ], command );
+                g_miBreakpoints[ slot ].file[ 0 ] = 0;
+                g_miBreakpoints[ slot ].line = 0;
+                mi_update_cpu_breakpoint( (uint16_t) address );
+                printf( "%s^done,bkpt={number=\"%d\",type=\"breakpoint\",disp=\"%s\",enabled=\"y\",addr=\"0x%04lx\",thread-groups=[\"i1\"],times=\"0\",original-location=\"*0x%04lx\"}\n",
+                    token, g_miBreakpoints[ slot ].number,
+                    g_miBreakpoints[ slot ].temporary ? "del" : "keep", address, address );
+                fflush( stdout );
+            }
+            else
+                mi_result( token, "^error,msg=\"invalid breakpoint address\"" );
+        }
+        else
+        {
+            char sourceFile[ MAX_PATH ] = {0};
+            int sourceLine = 0;
+            const char * fileOption = strstr( command, " -f " );
+            const char * lineOption = strstr( command, " -l " );
+            MIDebugLine * debugLine = NULL;
+            MIDebugFunction * debugFunction = NULL;
+            uint16_t breakpointAddress = 0;
+            int slot;
+            if ( fileOption && lineOption )
+            {
+                mi_copy_quoted_argument( fileOption + 4, sourceFile, sizeof( sourceFile ) );
+                sourceLine = atoi( lineOption + 4 );
+            }
+            else
+            {
+                char location[ MAX_PATH + 32 ];
+                char * colon;
+                mi_copy_last_argument( command, location, sizeof( location ) );
+                colon = strrchr( location, ':' );
+                if ( colon )
+                {
+                    *colon++ = 0;
+                    strncpy( sourceFile, location, sizeof( sourceFile ) - 1 );
+                    sourceLine = atoi( colon );
+                }
+                else
+                {
+                    strncpy( sourceFile, location, sizeof( sourceFile ) - 1 );
+                    debugFunction = mi_find_debug_function_name( location );
+                }
+            }
+            if ( sourceLine > 0 )
+            {
+                debugLine = mi_find_source_line( sourceFile, sourceLine );
+                if ( debugLine ) breakpointAddress = debugLine->address;
+            }
+            else if ( debugFunction )
+            {
+                breakpointAddress = debugFunction->start;
+                debugLine = mi_find_address_line( breakpointAddress );
+                if ( debugLine && debugLine->address != breakpointAddress ) debugLine = NULL;
+            }
+            for ( slot = 0; slot < 256 && g_miBreakpoints[ slot ].active; slot++ ) {}
+            if ( breakpointAddress && slot < 256 )
+            {
+                char escapedOriginal[ MAX_PATH * 2 ];
+                mi_escape_text( sourceFile, escapedOriginal, sizeof( escapedOriginal ) );
+                memset( &g_miBreakpoints[ slot ], 0, sizeof( g_miBreakpoints[ slot ] ) );
+                g_miBreakpoints[ slot ].number = g_miNextBreakpoint++;
+                g_miBreakpoints[ slot ].address = breakpointAddress;
+                g_miBreakpoints[ slot ].active = true;
+                mi_configure_breakpoint( &g_miBreakpoints[ slot ], command );
+                if ( debugLine )
+                {
+                    strncpy( g_miBreakpoints[ slot ].file, debugLine->file, sizeof( g_miBreakpoints[ slot ].file ) - 1 );
+                    g_miBreakpoints[ slot ].file[ sizeof( g_miBreakpoints[ slot ].file ) - 1 ] = 0;
+                    g_miBreakpoints[ slot ].line = debugLine->line;
+                }
+                mi_update_cpu_breakpoint( breakpointAddress );
+                printf( "%s^done,bkpt={number=\"%d\",type=\"breakpoint\",disp=\"%s\",enabled=\"y\",addr=\"0x%04x\"",
+                    token, g_miBreakpoints[ slot ].number,
+                        g_miBreakpoints[ slot ].temporary ? "del" : "keep", breakpointAddress );
+                if ( debugLine )
+                    mi_emit_source_location( debugLine->file, debugLine->line );
+                printf( ",thread-groups=[\"i1\"],times=\"0\",original-location=\"%s",
+                    escapedOriginal );
+                if ( sourceLine ) printf( ":%d", sourceLine );
+                printf( "\"}\n" );
+                fflush( stdout );
+            }
+            else
+                mi_result( token, "^error,msg=\"no executable source location found\"" );
+        }
+    }
+    else if ( !strncmp( command, "-break-list", 11 ) )
+    {
+        bool first = true;
+        int slot;
+        printf( "%s^done,BreakpointTable={nr_rows=\"", token );
+        {
+            int count = 0;
+            for ( slot = 0; slot < 256; slot++ ) if ( g_miBreakpoints[ slot ].active ) count++;
+            printf( "%d\",nr_cols=\"6\",body=[", count );
+        }
+        for ( slot = 0; slot < 256; slot++ )
+        {
+            MIBreakpoint * breakpoint = &g_miBreakpoints[ slot ];
+            if ( !breakpoint->active ) continue;
+            printf( "%sbkpt={number=\"%d\",type=\"breakpoint\",disp=\"%s\",enabled=\"y\",addr=\"0x%04x\",times=\"%lu\"}",
+                    first ? "" : ",", breakpoint->number,
+                    breakpoint->temporary ? "del" : "keep", breakpoint->address,
+                    breakpoint->hitCount );
+            first = false;
+        }
+        printf( "]}\n" );
+        fflush( stdout );
+    }
+    else if ( !strncmp( command, "-break-delete", 13 ) )
+    {
+        int number = atoi( mi_find_argument( command ) );
+        int slot;
+        for ( slot = 0; slot < 256; slot++ )
+            if ( g_miBreakpoints[ slot ].active && g_miBreakpoints[ slot ].number == number )
+            {
+                uint16_t address = g_miBreakpoints[ slot ].address;
+                g_miBreakpoints[ slot ].active = false;
+                mi_update_cpu_breakpoint( address );
+            }
+        mi_result( token, "^done" );
+    }
+    else if ( !strncmp( command, "-data-list-register-names", 25 ) )
+        mi_result( token, "^done,register-names=[\"af\",\"bc\",\"de\",\"hl\",\"ix\",\"iy\",\"sp\",\"pc\",\"af'\",\"bc'\",\"de'\",\"hl'\",\"i\",\"r\"]" );
+    else if ( !strncmp( command, "-data-list-register-values", 26 ) )
+    {
+        int index;
+        printf( "%s^done,register-values=[", token );
+        for ( index = 0; index < 14; index++ )
+            printf( "%s{number=\"%d\",value=\"0x%04lx\"}", index ? "," : "", index, mi_register_value( index ) );
+        printf( "]\n" );
+        fflush( stdout );
+    }
+    else if ( !strncmp( command, "-data-read-memory-bytes", 23 ) )
+    {
+        const char * argument = mi_find_argument( command );
+        long offset = 0;
+        unsigned long baseAddress;
+        long effectiveAddress;
+        unsigned long address;
+        if ( !strncmp( argument, "-o", 2 ) && isspace( (unsigned char) argument[ 2 ] ) )
+        {
+            argument += 2;
+            offset = strtol( argument, (char **) &argument, 0 );
+        }
+        baseAddress = strtoul( argument, (char **) &argument, 0 );
+        unsigned long count = strtoul( argument, NULL, 0 );
+        unsigned long index;
+        effectiveAddress = (long) baseAddress + offset;
+        if ( effectiveAddress < 0 ) effectiveAddress = 0;
+        if ( effectiveAddress > 0xffff ) effectiveAddress = 0xffff;
+        address = (unsigned long) effectiveAddress;
+        if ( count > 0x10000 - address ) count = 0x10000 - address;
+        printf( "%s^done,memory=[{begin=\"0x%04lx\",offset=\"0x00000000\",end=\"0x%04lx\",contents=\"", token, address, address + count );
+        for ( index = 0; index < count; index++ ) printf( "%02x", memory[ address + index ] );
+        printf( "\"}]\n" );
+        fflush( stdout );
+    }
+    else if ( !strncmp( command, "-data-disassemble", 17 ) )
+    {
+        const char * startOption = strstr( command, "-s " );
+        const char * endOption = strstr( command, "-e " );
+        const char * modeOption = strstr( command, "--" );
+        unsigned long start;
+        unsigned long end;
+        unsigned long address;
+        int mode;
+        bool first = true;
+        if ( !startOption || !endOption || !modeOption )
+        {
+            mi_result( token, "^error,msg=\"-data-disassemble requires -s START -e END -- MODE\"" );
+            return mi_action_none;
+        }
+        start = strtoul( startOption + 3, NULL, 0 );
+        end = strtoul( endOption + 3, NULL, 0 );
+        mode = atoi( modeOption + 2 );
+        if ( start > 0xffff || end > 0x10000 || end < start )
+        {
+            mi_result( token, "^error,msg=\"invalid disassembly address range\"" );
+            return mi_action_none;
+        }
+        if ( mode != 0 && mode != 2 )
+        {
+            mi_result( token, "^error,msg=\"mixed source and assembly disassembly is not supported\"" );
+            return mi_action_none;
+        }
+        printf( "%s^done,asm_insns=[", token );
+        address = start;
+        while ( address < end )
+        {
+            uint8_t instructionLength = x80_instruction_length( (uint16_t) address );
+            MIDebugFunction * function = mi_find_debug_function( (uint16_t) address );
+            char escapedInstruction[ 128 ];
+            char rawInstruction[ 64 ];
+            unsigned int index;
+            if ( !instructionLength || instructionLength > 0x10000 - address )
+            {
+                instructionLength = 1;
+                snprintf( rawInstruction, sizeof( rawInstruction ), "db %02xh", memory[ address ] );
+            }
+            else
+            {
+                strncpy( rawInstruction, x80_render_operation( (uint16_t) address ),
+                         sizeof( rawInstruction ) - 1 );
+                rawInstruction[ sizeof( rawInstruction ) - 1 ] = 0;
+            }
+            mi_escape_text( rawInstruction,
+                            escapedInstruction, sizeof( escapedInstruction ) );
+            printf( "%s{address=\"0x%04lx\",func-name=\"%s\",offset=\"%lu\",opcodes=\"",
+                    first ? "" : ",", address,
+                    function ? function->sourceName : "??",
+                    function ? address - function->start : 0 );
+            for ( index = 0; index < instructionLength; index++ )
+                printf( "%s%02x", index ? " " : "", memory[ address + index ] );
+            printf( "\",inst=\"%s\"}", escapedInstruction );
+            first = false;
+            address += instructionLength;
+        }
+        printf( "]\n" );
+        fflush( stdout );
+    }
+    else if ( !strncmp( command, "-data-evaluate-expression", 25 ) )
+    {
+        char expression[ 256 ];
+        unsigned long value = 0;
+        MIDebugValue debugValue;
+        mi_copy_last_argument( command, expression, sizeof( expression ) );
+        if ( mi_resolve_or_evaluate( expression, &debugValue ) )
+        {
+            char formatted[ 64 ];
+            mi_format_debug_value( &debugValue, formatted, sizeof( formatted ) );
+            printf( "%s^done,value=\"%s\"\n", token, formatted );
+            fflush( stdout );
+            return mi_action_none;
+        }
+        if ( strchr( expression, '$' ) )
+        {
+            const char * name = strchr( expression, '$' ) + 1;
+            if ( !strncmp( name, "pc", 2 ) ) value = reg.pc;
+            else if ( !strncmp( name, "sp", 2 ) ) value = reg.sp;
+            else if ( !strncmp( name, "af", 2 ) ) value = mi_register_psw();
+            else if ( !strncmp( name, "bc", 2 ) ) value = reg.B();
+            else if ( !strncmp( name, "de", 2 ) ) value = reg.D();
+            else if ( !strncmp( name, "hl", 2 ) ) value = reg.H();
+            else if ( !strncmp( name, "ix", 2 ) ) value = reg.ix;
+            else if ( !strncmp( name, "iy", 2 ) ) value = reg.iy;
+        }
+        else
+        {
+            char * end;
+            value = strtoul( expression, &end, 0 );
+            while ( isspace( (unsigned char) *end ) ) end++;
+            if ( end == expression || *end )
+            {
+                printf( "%s^error,msg=\"unsupported or side-effecting expression\"\n", token );
+                fflush( stdout );
+                return mi_action_none;
+            }
+        }
+        printf( "%s^done,value=\"0x%04lx\"\n", token, value );
+        fflush( stdout );
+    }
+    else if ( !strncmp( command, "-var-create", 11 ) )
+    {
+        char expression[ 256 ];
+        MIDebugValue debugValue;
+        MIVariableObject * object;
+        mi_copy_last_argument( command, expression, sizeof( expression ) );
+        object = mi_resolve_or_evaluate( expression, &debugValue ) ? mi_create_variable_object( expression ) : NULL;
+        if ( !object )
+            mi_result( token, "^error,msg=\"variable is not available in the current scope\"" );
+        else
+        {
+            char formatted[ 64 ];
+            int childCount = mi_debug_value_child_count( &debugValue );
+            mi_format_debug_value( &debugValue, formatted, sizeof( formatted ) );
+            printf( "%s^done,name=\"%s\",numchild=\"%d\",value=\"%s\",type=\"%s\",thread-id=\"1\",has_more=\"0\"\n",
+                    token, object->name, childCount, formatted,
+                    mi_type_name( debugValue.type, debugValue.isArray,
+                          debugValue.dimensions, debugValue.dimensionCount,
+                          debugValue.isFunctionPointer ) );
+            fflush( stdout );
+        }
+    }
+    else if ( !strncmp( command, "-var-evaluate-expression", 24 ) ||
+              !strncmp( command, "-var-info-type", 14 ) ||
+              !strncmp( command, "-var-show-attributes", 20 ) ||
+              !strncmp( command, "-var-list-children", 18 ) )
+    {
+        MIVariableObject * object;
+        MIDebugValue debugValue;
+        int selectedFrame = g_miSelectedFrame;
+        object = mi_find_variable_object_in_command( command );
+        if ( object ) g_miSelectedFrame = object->frame;
+        if ( !object || !mi_resolve_or_evaluate( object->expression, &debugValue ) )
+            mi_result( token, "^error,msg=\"variable object is not available\"" );
+        else if ( !strncmp( command, "-var-info-type", 14 ) )
+        {
+            char result[ 128 ];
+            snprintf( result, sizeof( result ), "^done,type=\"%s\"",
+                      mi_type_name( debugValue.type, debugValue.isArray,
+                                    debugValue.dimensions, debugValue.dimensionCount,
+                                    debugValue.isFunctionPointer ) );
+            mi_result( token, result );
+        }
+        else if ( !strncmp( command, "-var-show-attributes", 20 ) )
+            mi_result( token, mi_debug_value_writable( &debugValue ) ?
+                       "^done,attr=\"editable\"" : "^done,attr=\"noneditable\"" );
+        else if ( !strncmp( command, "-var-list-children", 18 ) )
+        {
+            int childCount = mi_debug_value_child_count( &debugValue );
+            int childIndex;
+            printf( "%s^done,numchild=\"%d\",children=[", token, childCount );
+            for ( childIndex = 0; childIndex < childCount; childIndex++ )
+            {
+                char childExpression[ 256 ];
+                char displayName[ 64 ];
+                char formatted[ 64 ];
+                MIDebugValue childValue;
+                MIVariableObject * childObject;
+                if ( !mi_debug_value_child_expression( &debugValue, object->expression, childIndex,
+                                                       childExpression, sizeof( childExpression ),
+                                                       displayName, sizeof( displayName ) ) ||
+                     !mi_resolve_debug_value( childExpression, &childValue ) ) continue;
+                childObject = mi_create_variable_object( childExpression );
+                if ( !childObject ) break;
+                mi_format_debug_value( &childValue, formatted, sizeof( formatted ) );
+                printf( "%schild={name=\"%s\",exp=\"%s\",numchild=\"%d\",value=\"%s\",type=\"%s\",thread-id=\"1\"}",
+                        childIndex ? "," : "", childObject->name, displayName,
+                        mi_debug_value_child_count( &childValue ), formatted,
+                        mi_type_name( childValue.type, childValue.isArray,
+                                      childValue.dimensions, childValue.dimensionCount,
+                                      childValue.isFunctionPointer ) );
+            }
+            printf( "],has_more=\"0\"\n" );
+            fflush( stdout );
+        }
+        else
+        {
+            char formatted[ 64 ];
+            mi_format_debug_value( &debugValue, formatted, sizeof( formatted ) );
+            printf( "%s^done,value=\"%s\"\n", token, formatted );
+            fflush( stdout );
+        }
+        g_miSelectedFrame = selectedFrame;
+    }
+    else if ( !strncmp( command, "-var-assign", 11 ) )
+    {
+        MIVariableObject * object = mi_find_variable_object_in_command( command );
+        MIDebugValue debugValue;
+        unsigned long newValue;
+        char assignment[ 256 ];
+        const char * argument = mi_find_argument( command );
+        int selectedFrame = g_miSelectedFrame;
+        bool assigned = false;
+        if ( object )
+        {
+            const char * objectName = strstr( argument, object->name );
+            argument = objectName ? objectName + strlen( object->name ) : argument;
+            while ( isspace( (unsigned char) *argument ) ) argument++;
+            mi_copy_quoted_argument( argument, assignment, sizeof( assignment ) );
+            g_miSelectedFrame = object->frame;
+            assigned = mi_resolve_debug_value( object->expression, &debugValue ) &&
+                       mi_evaluate_integer_expression( assignment, &newValue ) &&
+                       mi_write_debug_value( &debugValue, newValue );
+        }
+        if ( !assigned )
+            mi_result( token, "^error,msg=\"variable is not editable or value is unsupported\"" );
+        else
+        {
+            char formatted[ 64 ];
+            mi_format_debug_value( &debugValue, formatted, sizeof( formatted ) );
+            printf( "%s^done,value=\"%s\"\n", token, formatted );
+            fflush( stdout );
+        }
+        g_miSelectedFrame = selectedFrame;
+    }
+    else if ( !strncmp( command, "-var-update", 11 ) )
+    {
+        bool first = true;
+        int selectedFrame = g_miSelectedFrame;
+        int slot;
+        printf( "%s^done,changelist=[", token );
+        for ( slot = 0; slot < g_miVariableObjectCapacity; slot++ )
+        {
+            MIVariableObject * object = &g_miVariableObjects[ slot ];
+            MIDebugValue debugValue;
+            char formatted[ 64 ];
+            if ( !object->active ) continue;
+            g_miSelectedFrame = object->frame;
+            if ( !mi_resolve_or_evaluate( object->expression, &debugValue ) )
+                printf( "%s{name=\"%s\",in_scope=\"false\"}", first ? "" : ",", object->name );
+            else
+            {
+                mi_format_debug_value( &debugValue, formatted, sizeof( formatted ) );
+                printf( "%s{name=\"%s\",value=\"%s\",in_scope=\"true\",type_changed=\"false\",has_more=\"0\"}",
+                        first ? "" : ",", object->name, formatted );
+            }
+            first = false;
+        }
+        g_miSelectedFrame = selectedFrame;
+        printf( "]\n" );
+        fflush( stdout );
+    }
+    else if ( !strncmp( command, "-var-delete", 11 ) )
+    {
+        char objectName[ 32 ];
+        int slot;
+        mi_copy_last_argument( command, objectName, sizeof( objectName ) );
+        for ( slot = 0; slot < g_miVariableObjectCapacity; slot++ )
+            if ( g_miVariableObjects[ slot ].active && !strcmp( g_miVariableObjects[ slot ].name, objectName ) )
+                g_miVariableObjects[ slot ].active = false;
+        mi_result( token, "^done,ndeleted=\"1\"" );
+    }
+    else if ( !strncmp( command, "-stack-select-frame", 19 ) )
+    {
+        int frame = atoi( mi_find_argument( command ) );
+        if ( frame >= 0 && frame < g_miStackFrameCount )
+        {
+            g_miSelectedFrame = frame;
+            mi_result( token, "^done" );
+        }
+        else
+            mi_result( token, "^error,msg=\"invalid stack frame\"" );
+    }
+    else if ( !strncmp( command, "-stack-list-frames", 18 ) )
+    {
+        int frame;
+        printf( "%s^done,stack=[", token );
+        for ( frame = 0; frame < g_miStackFrameCount; frame++ )
+        {
+            MIStackFrame * stackFrame = &g_miStackFrames[ frame ];
+            MIDebugFunction * function = mi_find_debug_function( stackFrame->pc );
+            MIDebugLine * debugLine = mi_find_address_line( stackFrame->pc );
+            printf( "%sframe={level=\"%d\",addr=\"0x%04x\",func=\"%s\"",
+                    frame ? "," : "", frame, stackFrame->pc, function ? function->sourceName : "??" );
+            if ( debugLine )
+                mi_emit_source_location( debugLine->file, debugLine->line );
+            printf( "}" );
+        }
+        printf( "]\n" );
+        fflush( stdout );
+    }
+    else if ( !strncmp( command, "-stack-info-depth", 17 ) )
+    {
+        char result[ 64 ];
+        snprintf( result, sizeof( result ), "^done,depth=\"%d\"", g_miStackFrameCount );
+        mi_result( token, result );
+    }
+    else if ( !strncmp( command, "-stack-list-arguments", 21 ) )
+    {
+        int savedFrame = g_miSelectedFrame;
+        int frame;
+        printf( "%s^done,stack-args=[", token );
+        for ( frame = 0; frame < g_miStackFrameCount; frame++ )
+        {
+            MIDebugFunction * function;
+            bool first = true;
+            int index;
+            g_miSelectedFrame = frame;
+            function = mi_find_debug_function( mi_context_pc() );
+            printf( "%sframe={level=\"%d\",args=[", frame ? "," : "", frame );
+            if ( function ) for ( index = 0; index < g_miDebugVariableCount; index++ )
+            {
+                MIDebugVariable * variable = &g_miDebugVariables[ index ];
+                char formatted[ 64 ];
+                 if ( variable->storage != 3 || strcmp( variable->function, function->name ) ||
+                     variable->declaration > mi_context_pc() || mi_context_pc() >= variable->end ) continue;
+                mi_format_variable_value( variable, formatted, sizeof( formatted ) );
+                printf( "%s{name=\"%s\",value=\"%s\"}", first ? "" : ",", variable->name, formatted );
+                first = false;
+            }
+            printf( "]}" );
+        }
+        g_miSelectedFrame = savedFrame;
+        printf( "]\n" );
+        fflush( stdout );
+    }
+    else if ( !strncmp( command, "-stack-list-locals", 18 ) || !strncmp( command, "-stack-list-variables", 21 ) )
+    {
+        MIDebugFunction * function = mi_find_debug_function( mi_context_pc() );
+        bool first = true;
+        int index;
+        printf( "%s^done,variables=[", token );
+        if ( function )
+            for ( index = 0; index < g_miDebugVariableCount; index++ )
+            {
+                MIDebugVariable * variable = &g_miDebugVariables[ index ];
+                char formatted[ 64 ];
+                 if ( strcmp( variable->function, function->name ) || variable->declaration > mi_context_pc() ||
+                     mi_context_pc() >= variable->end || mi_find_debug_variable( variable->name ) != variable )
+                    continue;
+                mi_format_variable_value( variable, formatted, sizeof( formatted ) );
+                printf( "%s{name=\"%s\",value=\"%s\",type=\"%s\"%s}",
+                        first ? "" : ",", variable->name, formatted,
+                        mi_variable_type_name( variable ),
+                        variable->storage == 3 ? ",arg=\"1\"" : "" );
+                first = false;
+            }
+        printf( "]\n" );
+        fflush( stdout );
+    }
+    else if ( !strncmp( command, "-thread-info", 12 ) )
+    {
+        MIBreakpoint * breakpoint = mi_find_address_breakpoint( reg.pc );
+        MIDebugLine * debugLine = mi_find_address_line( reg.pc );
+        printf( "%s^done,threads=[{id=\"1\",target-id=\"CP/M\",frame={level=\"0\",addr=\"0x%04x\",func=\"??\"", token, reg.pc );
+        if ( breakpoint && breakpoint->file[ 0 ] )
+            mi_emit_source_location( breakpoint->file, breakpoint->line );
+        else if ( debugLine )
+            mi_emit_source_location( debugLine->file, debugLine->line );
+        printf( "},state=\"stopped\"}],current-thread-id=\"1\"\n" );
+        fflush( stdout );
+    }
+    else if ( !strncmp( command, "-thread-list-ids", 16 ) )
+        mi_result( token, "^done,thread-ids={thread-id=\"1\",number-of-threads=\"1\"},current-thread-id=\"1\"" );
+    else if ( !strncmp( command, "-list-thread-groups", 19 ) )
+        mi_result( token, "^done,groups=[{id=\"i1\",type=\"process\",pid=\"1\",executable=\"ntvcm\"}]" );
+    else if ( !strncmp( command, "-gdb-exit", 9 ) )
+    {
+        mi_result( token, "^exit" );
+        return mi_action_exit;
+    }
+    else
+        mi_result( token, "^done" );
+
+    return mi_action_none;
+}
+
+static MIAction mi_handle_command( const char * input )
+{
+    int selectedFrame = g_miSelectedFrame;
+    int inlineFrame = mi_inline_frame( input );
+    MIAction action = mi_handle_command_impl( input );
+    if ( inlineFrame >= 0 && inlineFrame < g_miStackFrameCount )
+        g_miSelectedFrame = selectedFrame;
+    return action;
+}
+
+static bool mi_read_command( bool wait, MIAction * action )
+{
+    char line[ 4096 ];
+    if ( !wait && !mi_input_ready() )
+        return false;
+    if ( !fgets( line, sizeof( line ), stdin ) )
+    {
+        *action = mi_action_exit;
+        return false;
+    }
+    *action = mi_handle_command( line );
+    return true;
+}
+
+static void mi_wait_for_program()
+{
+    MIAction action = mi_action_none;
+    printf( "=thread-group-added,id=\"i1\"\n(gdb) \n" );
+    fflush( stdout );
+    while ( !g_miProgram[ 0 ] && action != mi_action_exit )
+        mi_read_command( true, &action );
+}
 
 // ^z. CP/M writes 128 bytes at a time. When a file is read by the emulator and isn't 128-byte aligned in size
 // we can only guess what the app that created such a file on CP/M would have had in the bytes above the
@@ -1159,6 +3966,12 @@ void send_character( uint8_t c )
 
 void output_character( uint8_t c )
 {
+    if ( g_miMode )
+    {
+        mi_target_character( c );
+        return;
+    }
+
     // for terminal emulation, I only implement translations for actual sequences apps use.
     // if the output character is ESC, assume the app wants 80x24.
 
@@ -3111,6 +5924,7 @@ uint8_t x80_invoke_hook()
 void usage()
 {
     printf( "Usage: ntvcm [-?] [-c] [-g:<file>] [-p] [-s:X] [-t] <command> [arg1] [arg2]\n" );
+    printf( "       ntvcm --interpreter=mi  (GDB/MI mode for VS Code cppdbg)\n" );
 } //usage
 
 void help()
@@ -3373,9 +6187,20 @@ int main( int argc, char * argv[] )
         memset( &reg, 0, sizeof( reg ) );
         reg.fZ80Mode = true;
 
+        for ( int i = 1; i < argc; i++ )
+            if ( !strncmp( argv[ i ], "--interpreter=mi", 16 ) || !strncmp( argv[ i ], "-interpreter=mi", 15 ) )
+                g_miMode = true;
+
+        if ( g_miMode )
+        {
+            if ( !mi_allocate_state() )
+                error( "unable to allocate debugger state" );
+            mi_wait_for_program();
+        }
+
         char * pCommandTail = (char *) memory + COMMAND_TAIL_OFFSET;
         char * pCommandTailLen = (char *) memory + COMMAND_TAIL_LEN_OFFSET;
-        char * pcCOM = 0;
+        char * pcCOM = g_miMode ? g_miProgram : 0;
         char * pcArg1 = 0;
         char * pcArg2 = 0;
         char * pfileInputText = 0;
@@ -3392,6 +6217,9 @@ int main( int argc, char * argv[] )
         {
             char *parg = argv[i];
             char c = *parg;
+
+            if ( g_miMode )
+                continue;
 
             // linux shell scripts pass carriage returns '\r' at the end of strings for DOS-style cr/lf files
 
@@ -3533,6 +6361,12 @@ int main( int argc, char * argv[] )
                 else if ( 0 == pcArg2 && '-' != *parg )
                     pcArg2 = parg;
             }
+        }
+
+        if ( g_miMode && g_miArguments[ 0 ] )
+        {
+            snprintf( pCommandTail, 128, " %s", g_miArguments );
+            strupr( pCommandTail );
         }
 
         tracer.Enable( trace, L"ntvcm.log", true );
@@ -3738,17 +6572,23 @@ int main( int argc, char * argv[] )
         reg.bp = reg.cp = reg.dp = reg.ep = reg.hp = reg.lp = 0;
         reg.ix = reg.iy = 0;
 
+        if ( g_miMode )
+            x80_debug_enable( true );
+
         if ( trace )
         {
             x80_trace_state();
             tracer.Trace( "starting execution of app '%s' size %ld\n", acCOM, file_size );
         }
 
-        if ( force80x24 )
+        if ( force80x24 && !g_miMode )
             g_consoleConfig.EstablishConsoleOutput( 80, 24 );
 
-        ConsoleConfiguration::ConvertRedirectedLFToCR( true );
-        g_consoleConfig.MakeKeyboardInputRaw(); // needed for non-Windows
+        if ( !g_miMode )
+        {
+            ConsoleConfiguration::ConvertRedirectedLFToCR( true );
+            g_consoleConfig.MakeKeyboardInputRaw(); // needed for non-Windows
+        }
 
         CPUCycleDelay delay( clockrate );
 
@@ -3761,15 +6601,82 @@ int main( int argc, char * argv[] )
 #endif
 
         uint64_t total_cycles = 0;
-        do
+        if ( g_miMode )
         {
-            total_cycles += x80_emulate( 10000 );
+            MIAction action = mi_action_none;
+            bool stopReported = false;
+            bool debuggerExit = false;
+
+            printf( "=thread-group-started,id=\"i1\",pid=\"1\"\n=thread-created,id=\"1\",group-id=\"i1\"\n" );
+            fflush( stdout );
+
+            while ( !g_emulationEnded && !debuggerExit )
+            {
+                if ( x80_debug_stopped() )
+                {
+                    if ( !stopReported && x80_debug_reason() == x80_debug_stop_breakpoint &&
+                         !mi_prepare_breakpoint_stop() )
+                    {
+                        x80_debug_continue();
+                        continue;
+                    }
+                    if ( !mi_source_step_complete() )
+                    {
+                        x80_debug_step();
+                        continue;
+                    }
+                    g_miSourceStepMode = mi_source_step_none;
+                    if ( !stopReported )
+                    {
+                        mi_emit_stop();
+                        stopReported = true;
+                    }
+
+                    if ( !mi_read_command( true, &action ) || action == mi_action_exit )
+                    {
+                        debuggerExit = true;
+                        break;
+                    }
+                    if ( action == mi_action_run )
+                        stopReported = false;
+                }
+                else
+                {
+                    total_cycles += x80_emulate( 10000 );
+                    if ( g_emulationEnded || x80_debug_stopped() )
+                        continue;
+
+                    while ( mi_read_command( false, &action ) )
+                    {
+                        if ( action == mi_action_exit )
+                        {
+                            debuggerExit = true;
+                            break;
+                        }
+                        if ( x80_debug_stopped() )
+                            break;
+                    }
+                }
+            }
 
             if ( g_emulationEnded )
-                break;
+            {
+                printf( "*stopped,reason=\"exited-normally\"\n=thread-exited,id=\"1\",group-id=\"i1\"\n=thread-group-exited,id=\"i1\",exit-code=\"0\"\n" );
+                fflush( stdout );
+            }
+        }
+        else
+        {
+            do
+            {
+                total_cycles += x80_emulate( 10000 );
 
-            delay.Delay( total_cycles );
-        } while ( true );
+                if ( g_emulationEnded )
+                    break;
+
+                delay.Delay( total_cycles );
+            } while ( true );
+        }
 
 #ifdef WATCOMDOS
         uint32_t tDone = DosTimeInMS();

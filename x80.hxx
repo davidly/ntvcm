@@ -295,3 +295,22 @@ extern void x80_trace_state( void );                           // trace the regi
 extern void x80_profile_enable( bool enable );                 // count executions per PC address
 extern const uint64_t * x80_profile_counts( void );            // 65536 per-PC execution counts, or NULL if disabled
 extern const char * x80_render_operation( uint16_t address );  // return a string with the disassembled instruction at address
+extern uint8_t x80_instruction_length( uint16_t address );      // return the decoded instruction length in bytes
+
+enum x80_debug_stop_reason
+{
+    x80_debug_stop_none,
+    x80_debug_stop_entry,
+    x80_debug_stop_breakpoint,
+    x80_debug_stop_step,
+    x80_debug_stop_pause
+};
+
+extern void x80_debug_enable( bool enable );
+extern void x80_debug_continue();
+extern void x80_debug_step();
+extern void x80_debug_pause();
+extern bool x80_debug_stopped();
+extern x80_debug_stop_reason x80_debug_reason();
+extern void x80_debug_set_breakpoint( uint16_t address, bool enable );
+extern void x80_debug_clear_breakpoints();

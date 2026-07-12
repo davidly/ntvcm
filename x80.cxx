@@ -40,8 +40,79 @@ static uint8_t g_State = 0;
 const uint8_t stateTraceInstructions = 1;
 const uint8_t stateEndEmulation = 2;
 const uint8_t stateProfile = 4;
+const uint8_t stateDebug = 8;
 void x80_trace_instructions( bool t ) { if ( t ) g_State |= stateTraceInstructions; else g_State &= ~stateTraceInstructions; }
 void x80_end_emulation() { g_State |= stateEndEmulation; }
+
+static uint8_t * g_debugBreakpoints = 0;
+static bool g_debugEnabled = false;
+static bool g_debugRunning = false;
+static bool g_debugSingleStep = false;
+static bool g_debugStepStarted = false;
+static uint16_t g_debugSkipBreakpoint = 0;
+static bool g_debugHaveSkipBreakpoint = false;
+static x80_debug_stop_reason g_debugStopReason = x80_debug_stop_none;
+
+void x80_debug_enable( bool enable )
+{
+    if ( enable && 0 == g_debugBreakpoints )
+        g_debugBreakpoints = (uint8_t *) calloc( 65536, sizeof( uint8_t ) );
+    if ( enable && 0 == g_debugBreakpoints )
+        enable = false;
+    g_debugEnabled = enable;
+    g_debugRunning = false;
+    g_debugSingleStep = false;
+    g_debugStepStarted = false;
+    g_debugHaveSkipBreakpoint = false;
+    g_debugStopReason = enable ? x80_debug_stop_entry : x80_debug_stop_none;
+    if ( enable )
+        g_State |= stateDebug;
+    else
+        g_State &= ~stateDebug;
+}
+
+void x80_debug_continue()
+{
+    bool resumeFromBreakpoint = g_debugStopReason == x80_debug_stop_breakpoint;
+    g_debugRunning = true;
+    g_debugSingleStep = false;
+    g_debugStepStarted = false;
+    g_debugSkipBreakpoint = reg.pc;
+    g_debugHaveSkipBreakpoint = resumeFromBreakpoint && g_debugBreakpoints && g_debugBreakpoints[ reg.pc ] != 0;
+    g_debugStopReason = x80_debug_stop_none;
+}
+
+void x80_debug_step()
+{
+    bool resumeFromBreakpoint = g_debugStopReason == x80_debug_stop_breakpoint;
+    g_debugRunning = true;
+    g_debugSingleStep = true;
+    g_debugStepStarted = false;
+    g_debugSkipBreakpoint = reg.pc;
+    g_debugHaveSkipBreakpoint = resumeFromBreakpoint && g_debugBreakpoints && g_debugBreakpoints[ reg.pc ] != 0;
+    g_debugStopReason = x80_debug_stop_none;
+}
+
+void x80_debug_pause()
+{
+    g_debugRunning = false;
+    g_debugStopReason = x80_debug_stop_pause;
+}
+
+bool x80_debug_stopped() { return g_debugEnabled && !g_debugRunning; }
+x80_debug_stop_reason x80_debug_reason() { return g_debugStopReason; }
+
+void x80_debug_set_breakpoint( uint16_t address, bool enable )
+{
+    if ( g_debugBreakpoints )
+        g_debugBreakpoints[ address ] = enable ? 1 : 0;
+}
+
+void x80_debug_clear_breakpoints()
+{
+    if ( g_debugBreakpoints )
+        memset( g_debugBreakpoints, 0, 65536 );
+}
 
 // Optional per-PC execution profiler. Kept behind the existing g_State gate so
 // the instruction loop still has one check for all optional per-instruction work.
@@ -1755,6 +1826,46 @@ const char * x80_render_operation( uint16_t address )
     return x80_render_operation_impl<false>( address );
 } //x80_render_operation
 
+uint8_t x80_instruction_length( uint16_t address )
+{
+    uint8_t op = memory[ address ];
+    const char * instruction;
+
+    if ( !reg.fZ80Mode )
+    {
+        instruction = i8080_instructions[ op ];
+        return strstr( instruction, "d16" ) || strstr( instruction, "a16" ) ? 3 :
+               ( strstr( instruction, "d8" ) ? 2 : 1 );
+    }
+
+    if ( op == 0xcb )
+        return 2;
+    if ( op == 0xed )
+    {
+        uint8_t op2 = memory[ (uint16_t) ( address + 1 ) ];
+        return ( op2 & 0x0f ) == 0x0b || ( op2 & 0x0f ) == 0x03 ? 4 : 2;
+    }
+    if ( op == 0xdd || op == 0xfd )
+    {
+        uint8_t op2 = memory[ (uint16_t) ( address + 1 ) ];
+        if ( op2 == 0xcb || op2 == 0x21 || op2 == 0x22 || op2 == 0x2a || op2 == 0x36 )
+            return 4;
+        if ( ( op2 & 0x47 ) == 0x46 || ( op2 & 0xf8 ) == 0x70 ||
+             ( op2 & 0xc7 ) == 0x86 || op2 == 0x34 || op2 == 0x35 ||
+             op2 == 0x26 || op2 == 0x2e )
+            return 3;
+        return 2;
+    }
+
+    instruction = z80_instructions[ op ];
+    if ( strstr( instruction, "d16" ) || strstr( instruction, "a16" ) )
+        return 3;
+    if ( strstr( instruction, "d8" ) || op == 0x10 || op == 0x18 ||
+         op == 0x20 || op == 0x28 || op == 0x30 || op == 0x38 )
+        return 2;
+    return 1;
+} //x80_instruction_length
+
 template <bool Z80Mode> not_inlined void x80_trace_state_impl()
 {
     if ( !tracer.IsEnabled() ) // trace instructions may be on but global tracing turned off
@@ -1798,6 +1909,31 @@ template <bool Z80Mode> not_inlined bool handle_state() // this code exists to r
 {
     if ( g_State & stateEndEmulation )
         return true;
+
+    if ( g_State & stateDebug )
+    {
+        if ( !g_debugRunning )
+            return true;
+
+        if ( g_debugSingleStep && g_debugStepStarted )
+        {
+            g_debugRunning = false;
+            g_debugStopReason = x80_debug_stop_step;
+            return true;
+        }
+
+        if ( g_debugHaveSkipBreakpoint && reg.pc == g_debugSkipBreakpoint )
+            g_debugHaveSkipBreakpoint = false;
+        else if ( g_debugBreakpoints && g_debugBreakpoints[ reg.pc ] )
+        {
+            g_debugRunning = false;
+            g_debugStopReason = x80_debug_stop_breakpoint;
+            return true;
+        }
+
+        if ( g_debugSingleStep )
+            g_debugStepStarted = true;
+    }
 
     if ( g_State & stateTraceInstructions )
         x80_trace_state_impl<Z80Mode>();
