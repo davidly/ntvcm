@@ -2322,11 +2322,16 @@ static MIDebugVariable * mi_resolve_variable_expression( const char * argument, 
     return mi_find_debug_variable( expression );
 }
 
+static uint16_t mi_register_psw()
+{
+    return reg.fZ80Mode ? reg.PSW<true>() : reg.PSW<false>();
+}
+
 static unsigned long mi_register_value( int index )
 {
     switch ( index )
     {
-        case 0: return reg.PSW();
+        case 0: return mi_register_psw();
         case 1: return reg.B();
         case 2: return reg.D();
         case 3: return reg.H();
@@ -2699,14 +2704,14 @@ static MIAction mi_handle_command_impl( const char * input )
         address = start;
         while ( address < end )
         {
-            uint8_t length = x80_instruction_length( (uint16_t) address );
+            uint8_t instructionLength = x80_instruction_length( (uint16_t) address );
             MIDebugFunction * function = mi_find_debug_function( (uint16_t) address );
             char escapedInstruction[ 128 ];
             char rawInstruction[ 64 ];
             unsigned int index;
-            if ( !length || length > 0x10000 - address )
+            if ( !instructionLength || instructionLength > 0x10000 - address )
             {
-                length = 1;
+                instructionLength = 1;
                 snprintf( rawInstruction, sizeof( rawInstruction ), "db %02xh", memory[ address ] );
             }
             else
@@ -2721,11 +2726,11 @@ static MIAction mi_handle_command_impl( const char * input )
                     first ? "" : ",", address,
                     function ? function->sourceName : "??",
                     function ? address - function->start : 0 );
-            for ( index = 0; index < length; index++ )
+            for ( index = 0; index < instructionLength; index++ )
                 printf( "%s%02x", index ? " " : "", memory[ address + index ] );
             printf( "\",inst=\"%s\"}", escapedInstruction );
             first = false;
-            address += length;
+            address += instructionLength;
         }
         printf( "]\n" );
         fflush( stdout );
@@ -2749,7 +2754,7 @@ static MIAction mi_handle_command_impl( const char * input )
             const char * name = strchr( expression, '$' ) + 1;
             if ( !strncmp( name, "pc", 2 ) ) value = reg.pc;
             else if ( !strncmp( name, "sp", 2 ) ) value = reg.sp;
-            else if ( !strncmp( name, "af", 2 ) ) value = reg.PSW();
+            else if ( !strncmp( name, "af", 2 ) ) value = mi_register_psw();
             else if ( !strncmp( name, "bc", 2 ) ) value = reg.B();
             else if ( !strncmp( name, "de", 2 ) ) value = reg.D();
             else if ( !strncmp( name, "hl", 2 ) ) value = reg.H();
