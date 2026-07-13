@@ -2439,7 +2439,17 @@ static MIAction mi_handle_command_impl( const char * input )
         for ( index = 0; index < g_miDebugLineCount; index++ )
         {
             MIDebugLine * debugLine = &g_miDebugLines[ index ];
+            int next;
             if ( !mi_path_suffix_equal( sourceFile, debugLine->file ) )
+                continue;
+            for ( next = index + 1;
+                  next < g_miDebugLineCount &&
+                  g_miDebugLines[ next ].address == debugLine->address;
+                  next++ )
+                if ( mi_path_suffix_equal( sourceFile, g_miDebugLines[ next ].file ) )
+                    break;
+            if ( next < g_miDebugLineCount &&
+                 g_miDebugLines[ next ].address == debugLine->address )
                 continue;
             printf( "%s{pc=\"0x%04x\",line=\"%d\"}", first ? "" : ",",
                     debugLine->address, debugLine->line );
