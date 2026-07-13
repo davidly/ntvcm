@@ -44,6 +44,14 @@ const uint8_t stateDebug = 8;
 void x80_trace_instructions( bool t ) { if ( t ) g_State |= stateTraceInstructions; else g_State &= ~stateTraceInstructions; }
 void x80_end_emulation() { g_State |= stateEndEmulation; }
 
+// The gdb/MI debugger backend (breakpoints, step, continue) is not needed
+// for Watcom's real-mode DOS build - there's no host to attach a debugger
+// from, the 64K breakpoint table is a poor use of DOS's scarce memory, and
+// the caller in ntvcm.cxx never invokes any of this under WATCOMDOS - so
+// it's excluded entirely rather than patched to silence its truncation
+// warnings (the 65536-byte calloc/memset below don't fit a 16-bit int).
+#ifndef WATCOMDOS
+
 static uint8_t * g_debugBreakpoints = 0;
 static bool g_debugEnabled = false;
 static bool g_debugRunning = false;
@@ -111,6 +119,8 @@ void x80_debug_clear_breakpoints()
     if ( g_debugBreakpoints )
         memset( g_debugBreakpoints, 0, 65536 );
 }
+
+#endif //!WATCOMDOS
 
 // Optional per-PC execution profiler. Kept behind the existing g_State gate so
 // the instruction loop still has one check for all optional per-instruction work.
@@ -1908,6 +1918,7 @@ template <bool Z80Mode> not_inlined bool handle_state() // this code exists to r
     if ( g_State & stateEndEmulation )
         return true;
 
+#ifndef WATCOMDOS
     if ( g_State & stateDebug )
     {
         if ( !g_debugRunning )
@@ -1932,6 +1943,7 @@ template <bool Z80Mode> not_inlined bool handle_state() // this code exists to r
         if ( g_debugSingleStep )
             g_debugStepStarted = true;
     }
+#endif //!WATCOMDOS
 
     if ( g_State & stateTraceInstructions )
         x80_trace_state_impl<Z80Mode>();
