@@ -2050,11 +2050,19 @@ static MIDebugLine * mi_find_address_line( uint16_t address )
 static void mi_start_source_step( MISourceStepMode mode )
 {
     MIDebugLine * debugLine = mi_find_address_line( reg.pc );
+    MIBreakpoint * stoppedBreakpoint =
+        x80_debug_reason() == x80_debug_stop_breakpoint ? g_miStoppedBreakpoint : NULL;
     g_miSourceStepMode = mode;
     g_miSourceStepFile[ 0 ] = 0;
     g_miSourceStepLine = 0;
     g_miSourceStepSp = reg.sp;
-    if ( debugLine )
+    if ( stoppedBreakpoint && stoppedBreakpoint->address == reg.pc && stoppedBreakpoint->file[ 0 ] )
+    {
+        strncpy( g_miSourceStepFile, stoppedBreakpoint->file, sizeof( g_miSourceStepFile ) - 1 );
+        g_miSourceStepFile[ sizeof( g_miSourceStepFile ) - 1 ] = 0;
+        g_miSourceStepLine = stoppedBreakpoint->line;
+    }
+    else if ( debugLine )
     {
         strncpy( g_miSourceStepFile, debugLine->file, sizeof( g_miSourceStepFile ) - 1 );
         g_miSourceStepFile[ sizeof( g_miSourceStepFile ) - 1 ] = 0;

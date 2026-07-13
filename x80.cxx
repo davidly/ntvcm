@@ -81,23 +81,21 @@ void x80_debug_enable( bool enable )
 
 void x80_debug_continue()
 {
-    bool resumeFromBreakpoint = g_debugStopReason == x80_debug_stop_breakpoint;
     g_debugRunning = true;
     g_debugSingleStep = false;
     g_debugStepStarted = false;
     g_debugSkipBreakpoint = reg.pc;
-    g_debugHaveSkipBreakpoint = resumeFromBreakpoint && g_debugBreakpoints && g_debugBreakpoints[ reg.pc ] != 0;
+    g_debugHaveSkipBreakpoint = g_debugBreakpoints && g_debugBreakpoints[ reg.pc ] != 0;
     g_debugStopReason = x80_debug_stop_none;
 }
 
 void x80_debug_step()
 {
-    bool resumeFromBreakpoint = g_debugStopReason == x80_debug_stop_breakpoint;
     g_debugRunning = true;
     g_debugSingleStep = true;
     g_debugStepStarted = false;
     g_debugSkipBreakpoint = reg.pc;
-    g_debugHaveSkipBreakpoint = resumeFromBreakpoint && g_debugBreakpoints && g_debugBreakpoints[ reg.pc ] != 0;
+    g_debugHaveSkipBreakpoint = g_debugBreakpoints && g_debugBreakpoints[ reg.pc ] != 0;
     g_debugStopReason = x80_debug_stop_none;
 }
 
