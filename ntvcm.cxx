@@ -2588,6 +2588,8 @@ static MIAction mi_handle_command_impl( const char * input )
             if ( sourceLine > 0 )
             {
                 debugLine = mi_find_source_line( sourceFile, sourceLine );
+                if ( debugLine && debugLine->line != sourceLine )
+                    debugLine = NULL;
                 if ( debugLine ) breakpointAddress = debugLine->address;
             }
             else if ( debugFunction )
