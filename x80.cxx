@@ -1963,19 +1963,6 @@ template <bool Z80Mode> not_inlined bool handle_state( uint32_t cycles ) // this
 
     if ( g_State & stateProfile )
     {
-        // cycles is the running total *before* the instruction at reg.pc runs -
-        // i.e. the total as of the end of the previously-recorded instruction.
-        // x80_emulate_impl resets its own "cycles" to 0 on every call (it's
-        // invoked repeatedly with a fixed maxcycles from the main loop), so a
-        // drop from the last call's value is a new batch starting, not real
-        // elapsed time - skip attributing across that gap rather than let the
-        // subtraction wrap into a bogus, arbitrarily large spike attributed
-        // to a random address. The tail instruction of the outgoing batch
-        // quietly loses its own attribution instead - usually a few cycles,
-        // but up to ~1.38M if a large ldir/lddr/cpir/cpdr (BC up to 0xFFFF,
-        // ~21T/iteration) happens to be the one that pushes cycles past
-        // maxcycles for that batch. Still bounded and non-corrupting either
-        // way, which is what matters here.
         if ( cycles >= g_profileLastCycles )
             g_pcHits[ g_profileLastPC ] += ( cycles - g_profileLastCycles );
         g_profileLastPC = reg.pc;
@@ -1989,11 +1976,6 @@ template <bool Z80Mode> not_inlined bool handle_state( uint32_t cycles ) // this
 
 template <bool Z80Mode> static uint32_t x80_emulate_impl( uint16_t maxcycles )
 {
-    // uint32_t: a single ldir/lddr/cpir/cpdr can cost up to ~1.38M cycles on
-    // its own (see z80_emulate), well past both maxcycles and uint16_t range,
-    // so this loop's own running total needs the same headroom - and
-    // handle_state()'s batch-reset detection below depends on it never
-    // wrapping mid-batch.
     uint32_t cycles = 0;
 #if RETURN_INSTRUCTION_COUNT
     uint16_t instructions = 0;
@@ -2231,15 +2213,6 @@ template <bool Z80Mode> static uint32_t x80_emulate_impl( uint16_t maxcycles )
         reg.z80_increment_r(); // do this for 8080 too to avoid the 'if' statement
     } //while
 _all_done:
-    // Flush the still-pending sample for this batch's own last-recorded
-    // instruction: handle_state() only attributes an instruction's cost when
-    // the *next* one starts, so without this, the final instruction of every
-    // batch would silently lose its attribution - normally a few cycles, but
-    // up to ~1.38M if it happened to be a large ldir/lddr/cpir/cpdr. Same
-    // guard as handle_state(): if this batch ran zero instructions (e.g. an
-    // immediate debug-stop), cycles stays at its initial value and is below
-    // g_profileLastCycles, so this correctly no-ops instead of re-flushing
-    // (double-counting) a sample an earlier batch already attributed.
     if ( ( g_State & stateProfile ) && ( cycles >= g_profileLastCycles ) )
         g_pcHits[ g_profileLastPC ] += ( cycles - g_profileLastCycles );
 #if RETURN_INSTRUCTION_COUNT
