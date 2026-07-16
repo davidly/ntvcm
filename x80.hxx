@@ -288,7 +288,7 @@ extern void x80_hard_exit( const char * pcerror, uint8_t arg1, uint8_t arg2 ); /
 
 // emulator API
 
-extern uint16_t x80_emulate( uint16_t maxcycles );             // execute up to about maxcycles
+extern uint32_t x80_emulate( uint16_t maxcycles );             // execute up to about maxcycles
 extern void x80_trace_instructions( bool trace );              // enable/disable tracing each instruction
 extern void x80_end_emulation();                               // stop the emulation
 extern void x80_trace_state( void );                           // trace the registers

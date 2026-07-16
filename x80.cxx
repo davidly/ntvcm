@@ -124,14 +124,22 @@ void x80_debug_clear_breakpoints()
 
 // Optional per-PC execution profiler. Kept behind the existing g_State gate so
 // the instruction loop still has one check for all optional per-instruction work.
+// Weighted by cycles rather than raw execution count (see handle_state()) so a
+// 23-cycle "call" doesn't count the same as a 4-cycle "inc hl".
 static uint64_t * g_pcHits = 0;
+static uint16_t g_profileLastPC = 0;
+static uint32_t g_profileLastCycles = 0;
 void x80_profile_enable( bool enable )
 {
 #ifndef WATCOMDOS
     if ( enable && 0 == g_pcHits )
         g_pcHits = (uint64_t *) calloc( 65536, sizeof( uint64_t ) );
     if ( enable && ( 0 != g_pcHits ) )
+    {
         g_State |= stateProfile;
+        g_profileLastPC = 0;
+        g_profileLastCycles = 0;
+    }
     else
         g_State &= ~stateProfile;
 #endif
@@ -799,9 +807,14 @@ void z80_op_srl( uint8_t * pval )
     *pval = val;
 } //z80_op_srl
 
-uint16_t z80_emulate( uint8_t op )    // this is just for instructions that aren't shared with 8080
+uint32_t z80_emulate( uint8_t op )    // this is just for instructions that aren't shared with 8080
 {
-    uint16_t cycles = 4; // general-purpose default
+    // uint32_t, not uint16_t: BC can be up to 0xFFFF (0 counts as 0x10000 -
+    // decrement-then-test wraps 0 to 0xFFFF before the loop condition sees
+    // it, running the full 65536 iterations, matching real Z80 hardware) and
+    // ldir/lddr/cpir/cpdr cost ~21T per iteration, so a single one of these
+    // can cost up to ~1.38M cycles - already past uint16_t range on its own.
+    uint32_t cycles = 4; // general-purpose default
 
     switch ( op )
     {
@@ -1913,7 +1926,7 @@ bool check_conditional( uint8_t op ) // checks for conditional jump, call, and r
     return condition;
 } //check_conditional
 
-template <bool Z80Mode> not_inlined bool handle_state() // this code exists to reduce what would be multiple checks per instruction loop to just one check
+template <bool Z80Mode> not_inlined bool handle_state( uint32_t cycles ) // this code exists to reduce what would be multiple checks per instruction loop to just one check
 {
     if ( g_State & stateEndEmulation )
         return true;
@@ -1949,16 +1962,39 @@ template <bool Z80Mode> not_inlined bool handle_state() // this code exists to r
         x80_trace_state_impl<Z80Mode>();
 
     if ( g_State & stateProfile )
-        g_pcHits[ reg.pc ]++;
+    {
+        // cycles is the running total *before* the instruction at reg.pc runs -
+        // i.e. the total as of the end of the previously-recorded instruction.
+        // x80_emulate_impl resets its own "cycles" to 0 on every call (it's
+        // invoked repeatedly with a fixed maxcycles from the main loop), so a
+        // drop from the last call's value is a new batch starting, not real
+        // elapsed time - skip attributing across that gap rather than let the
+        // subtraction wrap into a bogus, arbitrarily large spike attributed
+        // to a random address. The tail instruction of the outgoing batch
+        // quietly loses its own attribution instead - usually a few cycles,
+        // but up to ~1.38M if a large ldir/lddr/cpir/cpdr (BC up to 0xFFFF,
+        // ~21T/iteration) happens to be the one that pushes cycles past
+        // maxcycles for that batch. Still bounded and non-corrupting either
+        // way, which is what matters here.
+        if ( cycles >= g_profileLastCycles )
+            g_pcHits[ g_profileLastPC ] += ( cycles - g_profileLastCycles );
+        g_profileLastPC = reg.pc;
+        g_profileLastCycles = cycles;
+    }
 
     return false;
 } //handle_state
 
 #define RETURN_INSTRUCTION_COUNT 0
 
-template <bool Z80Mode> static uint16_t x80_emulate_impl( uint16_t maxcycles )
+template <bool Z80Mode> static uint32_t x80_emulate_impl( uint16_t maxcycles )
 {
-    uint16_t cycles = 0;
+    // uint32_t: a single ldir/lddr/cpir/cpdr can cost up to ~1.38M cycles on
+    // its own (see z80_emulate), well past both maxcycles and uint16_t range,
+    // so this loop's own running total needs the same headroom - and
+    // handle_state()'s batch-reset detection below depends on it never
+    // wrapping mid-batch.
+    uint32_t cycles = 0;
 #if RETURN_INSTRUCTION_COUNT
     uint16_t instructions = 0;
 #endif
@@ -1968,7 +2004,7 @@ template <bool Z80Mode> static uint16_t x80_emulate_impl( uint16_t maxcycles )
     while ( cycles < maxcycles )        // 4% of runtime checking if we're done
     {
         if ( 0 != g_State )
-            if ( handle_state<Z80Mode>() )
+            if ( handle_state<Z80Mode>( cycles ) )
                 break;
 
         uint8_t op = memory[ reg.pc ];  // 1% of runtime
@@ -2195,6 +2231,17 @@ template <bool Z80Mode> static uint16_t x80_emulate_impl( uint16_t maxcycles )
         reg.z80_increment_r(); // do this for 8080 too to avoid the 'if' statement
     } //while
 _all_done:
+    // Flush the still-pending sample for this batch's own last-recorded
+    // instruction: handle_state() only attributes an instruction's cost when
+    // the *next* one starts, so without this, the final instruction of every
+    // batch would silently lose its attribution - normally a few cycles, but
+    // up to ~1.38M if it happened to be a large ldir/lddr/cpir/cpdr. Same
+    // guard as handle_state(): if this batch ran zero instructions (e.g. an
+    // immediate debug-stop), cycles stays at its initial value and is below
+    // g_profileLastCycles, so this correctly no-ops instead of re-flushing
+    // (double-counting) a sample an earlier batch already attributed.
+    if ( ( g_State & stateProfile ) && ( cycles >= g_profileLastCycles ) )
+        g_pcHits[ g_profileLastPC ] += ( cycles - g_profileLastCycles );
 #if RETURN_INSTRUCTION_COUNT
     return instructions;
 #else
@@ -2202,7 +2249,7 @@ _all_done:
 #endif
 } //x80_emulate_impl
 
-uint16_t x80_emulate( uint16_t maxcycles )
+uint32_t x80_emulate( uint16_t maxcycles )
 {
     if ( reg.fZ80Mode )
         return x80_emulate_impl<true>( maxcycles );
