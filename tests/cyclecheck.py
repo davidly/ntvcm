@@ -35,6 +35,7 @@ CASES = [
     ("ld bc,(nn)",  [0xED, 0x4B] + w16(SCR), 20),
     # --- base table (ntvcm bug: 0x2A counts 20) ---
     ("ld hl,(nn)",  [0x2A] + w16(SCR),      16),
+    ("ld sp,hl",    [0xF9],                 6),
     # --- DD/FD indexed (ntvcm bugs) ---
     ("ld a,(ix+0)", [0xDD, 0x7E, 0x00],     19),
     ("ld (ix+0),a", [0xDD, 0x77, 0x00],     19),
@@ -47,12 +48,40 @@ CASES = [
     ("dec ix",      [0xDD, 0x2B],           10),
     ("add ix,bc",   [0xDD, 0x09],           15),
     ("add a,(ix+0)",[0xDD, 0x86, 0x00],     19),
+    ("ld a,(iy+0)", [0xFD, 0x7E, 0x00],     19),
+    ("ld iyh,n",    [0xFD, 0x26, 0x00],     11),
+    ("ld sp,ix",    [0xDD, 0xF9],           10),
+    ("ex (sp),iy",  [0xFD, 0xE3],           23),
+    # --- CB and indexed-CB families ---
+    ("rlc b",       [0xCB, 0x00],            8),
+    ("rlc (hl)",    [0xCB, 0x06],           15),
+    ("bit 0,(hl)",  [0xCB, 0x46],           12),
+    ("res 0,(hl)",  [0xCB, 0x86],           15),
+    ("bit 0,(ix+0)",[0xDD, 0xCB, 0x00, 0x46], 20),
+    ("set 0,(iy+0)",[0xFD, 0xCB, 0x00, 0xC6], 23),
     # --- ED block/arith (ntvcm bug: counts 4) ---
     ("ldi",         [0xED, 0xA0],           16),
     ("ldd",         [0xED, 0xA8],           16),
     ("cpi",         [0xED, 0xA1],           16),
     ("cpd",         [0xED, 0xA9],           16),
     ("adc hl,bc",   [0xED, 0x4A],           15),
+    ("sbc hl,sp",   [0xED, 0x72],           15),
+    ("ld sp,(nn)",  [0xED, 0x7B] + w16(SCR), 20),
+    ("neg",         [0xED, 0x44],            8),
+    ("rrd",         [0xED, 0x67],           18),
+    ("in b,(c)",    [0xED, 0x40],           12),
+    # --- base-table controls that differ from 8080 ---
+    ("ex de,hl",    [0xEB],                 4),
+    ("ex af,af'",   [0x08],                 4),
+    ("exx",         [0xD9],                 4),
+    # --- variable-timing control flow ---
+    ("jr +0",       [0x18, 0x00],           12),
+    ("jr nz,nt",    [0xAF, 0x20, 0x00],     4 + 7),
+    ("jr z,taken",  [0xAF, 0x28, 0x00],     4 + 12),
+    ("djnz nt",     [0x06, 0x01, 0x10, 0x00], 7 + 8),
+    ("djnz taken",  [0x06, 0x02, 0x10, 0x00], 7 + 13),
+    ("call nz,nt",  [0xAF, 0xC4] + w16(SCR), 4 + 10),
+    ("ret nz,nt",   [0xAF, 0xC0],           4 + 5),
 ]
 
 def make_com(body, k):
