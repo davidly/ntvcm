@@ -1902,6 +1902,8 @@ template <bool Z80Mode> not_inlined void x80_trace_state_impl()
     uint8_t op3 = memory[ reg.pc + 2 ];
     uint8_t op4 = memory[ reg.pc + 3 ];
 
+#ifndef WATCOMDOS
+
     // only trace the function name when it changes vs. the last traced
     // instruction (i.e. after a branch, call, return, or fall-through into
     // a new function) - not on every straight-line instruction.
@@ -1919,6 +1921,8 @@ template <bool Z80Mode> not_inlined void x80_trace_state_impl()
         else
             tracer.Trace( "%s:\n", symbol_name );
     }
+
+#endif
 
     if ( Z80Mode )
         tracer.Trace( "pc %04x, op %02x, op2 %02x, op3 %02x, op4 %02x, a %02x, B %04x, D %04x, H %04x, ix %04x, iy %04x, sp %04x, %s, %s\n",

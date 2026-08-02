@@ -6204,6 +6204,8 @@ static bool load_file( char const * file_path, long & file_size, void * buffer )
     return ok;
 } //load_file
 
+#ifndef WATCOMDOS
+
 struct SymbolEntry
 {
     char name[ 32 ];
@@ -6325,6 +6327,8 @@ const char * emulator_symbol_lookup( uint16_t address, uint16_t & offset )
     offset = address - g_symbols[ found ].value;
     return g_symbols[ found ].name;
 } //emulator_symbol_lookup
+
+#endif // WATCOMDOS
 
 #ifdef TARGET_BIG_ENDIAN
 static void setmword( uint16_t offset, uint16_t value ) { * (uint16_t *) & memory[ offset ] = flip_endian16( value ); }
@@ -6707,8 +6711,10 @@ int main( int argc, char * argv[] )
             exit( 1 );
         }
 
+#ifndef WATCOMDOS
         if ( traceInstructions )
             try_load_symbols_for( acCOM );
+#endif
 
         // this old Chess app fails if H is set to 0 during BDOS calls. Apparently it only ever ran on eumulators.
 
