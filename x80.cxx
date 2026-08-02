@@ -1887,6 +1887,11 @@ uint8_t x80_instruction_length( uint16_t address )
     return 1;
 } //x80_instruction_length
 
+// shared (not per-template-instantiation) so a build with both Z80 and 8080
+// trace paths compiled in still tracks "did the function change" as one
+// stream of instructions, the same way m68000.cxx's trace_state() does.
+static const char * g_previous_trace_symbol = 0;
+
 template <bool Z80Mode> not_inlined void x80_trace_state_impl()
 {
     if ( !tracer.IsEnabled() ) // trace instructions may be on but global tracing turned off
@@ -1896,6 +1901,24 @@ template <bool Z80Mode> not_inlined void x80_trace_state_impl()
     uint8_t op2 = memory[ reg.pc + 1 ];
     uint8_t op3 = memory[ reg.pc + 2 ];
     uint8_t op4 = memory[ reg.pc + 3 ];
+
+    // only trace the function name when it changes vs. the last traced
+    // instruction (i.e. after a branch, call, return, or fall-through into
+    // a new function) - not on every straight-line instruction.
+    uint16_t symbol_offset;
+    const char * symbol_name = emulator_symbol_lookup( reg.pc, symbol_offset );
+    if ( symbol_name == g_previous_trace_symbol )
+        symbol_name = "";
+    else
+        g_previous_trace_symbol = symbol_name;
+
+    if ( 0 != symbol_name[ 0 ] )
+    {
+        if ( 0 != symbol_offset )
+            tracer.Trace( "%s + %x:\n", symbol_name, symbol_offset );
+        else
+            tracer.Trace( "%s:\n", symbol_name );
+    }
 
     if ( Z80Mode )
         tracer.Trace( "pc %04x, op %02x, op2 %02x, op3 %02x, op4 %02x, a %02x, B %04x, D %04x, H %04x, ix %04x, iy %04x, sp %04x, %s, %s\n",

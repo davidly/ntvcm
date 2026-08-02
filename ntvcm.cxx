@@ -6204,6 +6204,128 @@ static bool load_file( char const * file_path, long & file_size, void * buffer )
     return ok;
 } //load_file
 
+struct SymbolEntry
+{
+    char name[ 32 ];
+    uint16_t value;
+};
+
+static vector<SymbolEntry> g_symbols; // sorted ascending by value once loaded
+
+static void load_symbol_file( const char * pfile )
+{
+    FILE * fp = fopen( pfile, "r" );
+    if ( 0 == fp )
+        return;
+
+    char addr_token[ 16 ];
+    char name_token[ 32 ];
+
+    // %s skips all leading whitespace (spaces, tabs, and newlines), so this
+    // reads "ADDR NAME" pairs regardless of how many appear per line.
+    while ( 2 == fscanf( fp, "%15s %31s", addr_token, name_token ) )
+    {
+        char * endptr = 0;
+        unsigned long value = strtoul( addr_token, &endptr, 16 );
+        if ( 0 == endptr || addr_token == endptr || 0 != *endptr )
+            continue; // not a 4-digit-hex token where one was expected; skip and keep scanning
+
+        SymbolEntry entry;
+        memset( entry.name, 0, sizeof( entry.name ) );
+        strncpy( entry.name, name_token, sizeof( entry.name ) - 1 );
+        entry.value = (uint16_t) value;
+        g_symbols.push_back( entry );
+    }
+
+    fclose( fp );
+
+    if ( g_symbols.empty() )
+        return;
+
+    // simple insertion sort - g_symbols is at most a few hundred entries
+    // for any real CP/M app, so this is trivial next to the cost of tracing
+    // itself (which this table only exists to serve).
+    for ( size_t i = 1; i < g_symbols.size(); i++ )
+    {
+        SymbolEntry key = g_symbols[ i ];
+        size_t j = i;
+        while ( j > 0 && g_symbols[ j - 1 ].value > key.value )
+        {
+            g_symbols[ j ] = g_symbols[ j - 1 ];
+            j--;
+        }
+        g_symbols[ j ] = key;
+    }
+
+    tracer.Trace( "loaded %zu symbols from %s for instruction tracing\n", g_symbols.size(), pfile );
+} //load_symbol_file
+
+static void try_load_symbols_for( const char * com_path )
+{
+    char sym_path[ MAX_PATH ];
+    strcpy( sym_path, com_path );
+
+    char * dot = strrchr( sym_path, '.' );
+    if ( 0 == dot )
+        return;
+
+    strcpy( dot + 1, "SYM" );
+    if ( file_exists( sym_path ) )
+    {
+        load_symbol_file( sym_path );
+        return;
+    }
+
+    strcpy( dot + 1, "sym" );
+    if ( file_exists( sym_path ) )
+    {
+        load_symbol_file( sym_path );
+        return;
+    }
+
+    strcpy( sym_path, com_path );
+    dot = strrchr( sym_path, '.' );
+    char * slash = strrchr( sym_path, '/' );
+    char * backslash = strrchr( sym_path, '\\' );
+    if ( backslash && ( !slash || backslash > slash ) )
+        slash = backslash;
+    char * base = slash ? ( slash + 1 ) : sym_path;
+    while ( base < dot )
+    {
+        *base = (char) toupper( (unsigned char) *base );
+        base++;
+    }
+    strcpy( dot + 1, "SYM" );
+    if ( file_exists( sym_path ) )
+        load_symbol_file( sym_path );
+} //try_load_symbols_for
+
+const char * emulator_symbol_lookup( uint16_t address, uint16_t & offset )
+{
+    offset = 0;
+    if ( g_symbols.empty() )
+        return "";
+
+    int lo = 0, hi = (int) g_symbols.size() - 1, found = -1;
+    while ( lo <= hi )
+    {
+        int mid = ( lo + hi ) / 2;
+        if ( g_symbols[ mid ].value <= address )
+        {
+            found = mid;
+            lo = mid + 1;
+        }
+        else
+            hi = mid - 1;
+    }
+
+    if ( -1 == found )
+        return "";
+
+    offset = address - g_symbols[ found ].value;
+    return g_symbols[ found ].name;
+} //emulator_symbol_lookup
+
 #ifdef TARGET_BIG_ENDIAN
 static void setmword( uint16_t offset, uint16_t value ) { * (uint16_t *) & memory[ offset ] = flip_endian16( value ); }
 #else
@@ -6584,6 +6706,9 @@ int main( int argc, char * argv[] )
             printf( "unable to load command %s\n", acCOM );
             exit( 1 );
         }
+
+        if ( traceInstructions )
+            try_load_symbols_for( acCOM );
 
         // this old Chess app fails if H is set to 0 during BDOS calls. Apparently it only ever ran on eumulators.
 

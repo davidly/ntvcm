@@ -285,6 +285,7 @@ extern void x80_invoke_in( uint8_t x );  // called for the in instruction
 extern void x80_invoke_halt( void );     // called when the 8080 hlt (on Z80 halt) instruction is executed
 extern uint8_t x80_invoke_hook( void );  // called with the OPCODE_HOOK instruction is executed
 extern void x80_hard_exit( const char * pcerror, uint8_t arg1, uint8_t arg2 ); // called on failures to exit the app
+extern const char * emulator_symbol_lookup( uint16_t address, uint16_t & offset ); // best-guess symbol name + offset for address, or "" if none loaded/found
 
 // emulator API
 
