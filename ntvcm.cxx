@@ -6214,6 +6214,66 @@ struct SymbolEntry
 
 static vector<SymbolEntry> g_symbols; // sorted ascending by value once loaded
 
+static bool all_digits( const char * p )
+{
+    if ( 0 == *p )
+        return false;
+    while ( *p )
+    {
+        if ( ! isdigit( (unsigned char) *p ) )
+            return false;
+        p++;
+    }
+    return true;
+} //all_digits
+
+// dcc/dccpeep generate internal labels for if/loop/switch/comparison branch
+// targets (L%d via emit_label()) and peephole-pass helpers (Lskrl_%d,
+// Lincw_%d, Lginc_%d, Lsceq_%d, LI%d, LP%d, PCM%d), plus data labels for
+// string and compound literals (S%d, __clit%d). Real C functions are always
+// asm-named with a leading underscore, and hand-written runtime routines use
+// "_"/"__"-prefixed or multi-letter mnemonic names (PF_xxx, START, ...), so
+// neither collides with the bare L/S/PCM patterns below. Module-qualified
+// local names (from l80c, e.g. "TTT:L829") are checked past the last ':'.
+
+static bool is_generated_label( const char * name )
+{
+    const char * colon = strrchr( name, ':' );
+    const char * s = colon ? ( colon + 1 ) : name;
+
+    if ( 0 == strncmp( s, "__CLIT", 6 ) && all_digits( s + 6 ) )
+        return true;
+
+    if ( 0 == strncmp( s, "PCM", 3 ) && all_digits( s + 3 ) )
+        return true;
+
+    if ( 'S' == s[ 0 ] && all_digits( s + 1 ) )
+        return true;
+
+    if ( 'L' == s[ 0 ] )
+    {
+        if ( all_digits( s + 1 ) ) // L<digits>, e.g. L829
+            return true;
+
+        const char * p = s + 1;
+        int letters = 0;
+        while ( isupper( (unsigned char) *p ) && letters < 8 )
+        {
+            p++;
+            letters++;
+        }
+        if ( letters > 0 )
+        {
+            if ( '_' == *p && all_digits( p + 1 ) ) // L<letters>_<digits>, e.g. LINCW_395
+                return true;
+            if ( all_digits( p ) ) // L<letters><digits>, e.g. LI5, LP99
+                return true;
+        }
+    }
+
+    return false;
+} //is_generated_label
+
 static void load_symbol_file( const char * pfile )
 {
     FILE * fp = fopen( pfile, "r" );
@@ -6231,6 +6291,9 @@ static void load_symbol_file( const char * pfile )
         unsigned long value = strtoul( addr_token, &endptr, 16 );
         if ( 0 == endptr || addr_token == endptr || 0 != *endptr )
             continue; // not a 4-digit-hex token where one was expected; skip and keep scanning
+
+        if ( is_generated_label( name_token ) )
+            continue; // an address inside it will still show via the enclosing function + offset
 
         SymbolEntry entry;
         memset( entry.name, 0, sizeof( entry.name ) );
