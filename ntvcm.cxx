@@ -79,9 +79,10 @@
 #define COMMAND_TAIL_OFFSET        0x81
 #define DEFAULT_DMA_OFFSET         0x80 // read arguments before doing I/O because it's the same address
 
-// The BDOS invocation function that ships with M80 incorrectly assumes the BIOS_JUMP_TABLE low byte (minus 3) is 0.
+// The BIOS invocation function that ships with M80 libs incorrectly assumes the BIOS_JUMP_TABLE low byte (minus 3) is 0.
+// Other apps assume this as well.
 // The BDOS_ENTRY address must be one byte beyond free memory for the app.
-// So 260 bytes must be reserved: 256 for page-aligned BIOS and 4 bytes for the BDOS stub.
+// So 260 bytes must be reserved: 256 for page-aligned BIOS and 4 bytes below that for the BDOS stub.
 
 const uint8_t  BDOS_ENTRY_LO =       0xfc;
 const uint8_t  BDOS_ENTRY_HI =       0xfe;
@@ -3595,7 +3596,7 @@ const char * get_bdos_function( uint8_t id )
 
 const char * get_bios_function( uint16_t id )
 {
-    // the ids are shifted by 3 since I put code start at 0, not -3
+    // the ids are shifted by 3 since I put cold start at 0, not -3
 
     id *= 3;
 
@@ -4545,12 +4546,12 @@ char get_next_kbd_char()
     return (char) ConsoleConfiguration::portable_getch();
 } //get_next_kbd_char
 
-bool is_kbd_char_available()
+bool is_kbd_char_available( bool throttled = true )
 {
     if ( g_fileInputOffset < g_fileInputText.size() )
         return true;
 
-    if ( g_sleepOnKbdLoop )
+    if ( throttled && g_sleepOnKbdLoop )
         return g_consoleConfig.throttled_kbhit();
 
     return g_consoleConfig.portable_kbhit();
@@ -4889,7 +4890,7 @@ uint8_t x80_invoke_hook()
 
             if ( 0xff == reg.e )
             {
-                if ( is_kbd_char_available() )
+                if ( is_kbd_char_available( false ) )
                 {
                     kbd_poll_busyloops = 0;
                     uint8_t input = (uint8_t) get_next_kbd_char();
