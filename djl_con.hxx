@@ -6,6 +6,12 @@ extern "C" int clock_gettime( clockid_t id, struct timespec * res );
 
 static bool s_convert_redirected_LF_to_CR = false;
 
+// See portable_kbhit()/redirected_getch() below: a non-tty stdin peek has
+// to actually consume a byte at the fd level to know if one's really
+// there, so it's cached here for redirected_getch() to return next.
+static bool s_kbhitPeekAvailable = false;
+static char s_kbhitPeekByte = 0;
+
 #ifdef WATCOMDOS
 
 #include <conio.h>
@@ -619,7 +625,32 @@ class ConsoleConfiguration
         int portable_kbhit()
         {
             if ( !isatty( fileno( stdin ) ) )
-                return ( 0 == feof( stdin ) );
+            {
+                // feof(stdin) is a poor proxy for "is a character ready":
+                // it's a sticky flag only set AFTER a read attempt
+                // discovers end-of-stream, so it wrongly reports "ready"
+                // for a non-tty stdin nothing has read from yet (e.g.
+                // redirected from /dev/null or a closed pipe at process
+                // start). Seen in practice as a CP/M app's BDOS 11
+                // (buffered console status) correctly saying "not ready"
+                // while a subsequent BDOS 6 (direct console I/O) poll of
+                // that same never-yet-read stdin said "ready". Do a real
+                // read attempt instead, and cache any byte it finds -
+                // read() at the fd level is inherently destructive - so
+                // redirected_getch() returns exactly that byte next
+                // rather than a different (or no) one.
+                if ( s_kbhitPeekAvailable )
+                    return true;
+
+                char data;
+                if ( 1 == read( 0, &data, 1 ) )
+                {
+                    s_kbhitPeekByte = data;
+                    s_kbhitPeekAvailable = true;
+                    return true;
+                }
+                return false;
+            }
 
             #ifdef _WIN32
                 if ( 0 != aReady[ 0 ] )
@@ -647,7 +678,20 @@ class ConsoleConfiguration
             }
 
             char data;
-            if ( 1 == read( 0, &data, 1 ) )
+            int got_byte;
+            if ( s_kbhitPeekAvailable )
+            {
+                // portable_kbhit() already consumed this byte from the fd
+                // to answer a readiness check; return that exact byte
+                // instead of doing a second, separate read() here.
+                s_kbhitPeekAvailable = false;
+                data = s_kbhitPeekByte;
+                got_byte = 1;
+            }
+            else
+                got_byte = ( 1 == read( 0, &data, 1 ) );
+
+            if ( got_byte )
             {
                 // for files with CR/LF, skip the CR and turn the LF into a CR
                 // for files with LF, turn the LF into a CR
