@@ -1485,17 +1485,11 @@ uint32_t z80_emulate( uint8_t op )    // this is just for instructions that aren
                 reg.fParityEven_Overflow = ( 0 != reg.B() );
                 reg.fCarry = oldCarry; // carry is not affected
             }
-            else if ( 0x02 == ( op2 & 0x8f ) ) // sbc hl, rp AKA sbc hl, ss
+            else if ( 0x42 == ( op2 & 0xcf ) ) // sbc hl, rp AKA sbc hl, ss
             {
                 cycles = 15;
                 uint16_t val = * reg.rpAddressFromOp( op2 );
                 reg.SetH( z80_op_sub_16( reg.H(), val, reg.fCarry ) );
-            }
-            else if ( 0x04 == ( op2 & 0x8f ) ) // adc hl, rp AKA sbc hl, ss
-            {
-                cycles = 15;
-                uint16_t val = * reg.rpAddressFromOp( op2 );
-                reg.SetH( z80_op_adc_16( reg.H(), val ) );
             }
             else if ( 0x40 == ( op2 & 0xc7 ) ) // in r,(c); rm==6 is the undocumented flags-only variant
             {
