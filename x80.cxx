@@ -817,7 +817,7 @@ void z80_op_srl( uint8_t * pval )
     *pval = val;
 } //z80_op_srl
 
-uint32_t z80_emulate( uint8_t op )    // this is just for instructions that aren't shared with 8080
+always_inlined uint32_t z80_emulate( uint8_t op, uint16_t & pc, uint16_t & sp )    // this is just for instructions that aren't shared with 8080
 {
     // uint32_t, not uint16_t: BC can be up to 0xFFFF (0 counts as 0x10000 -
     // decrement-then-test wraps 0 to 0xFFFF before the loop condition sees
@@ -839,11 +839,11 @@ uint32_t z80_emulate( uint8_t op )    // this is just for instructions that aren
         }
         case 0x10: // djnz
         {
-            uint8_t offset = pcbyte();
+            uint8_t offset = pcbyte( pc );
             reg.b = reg.b - 1;
             if ( 0 != reg.b )
             {
-                reg.pc = reg.pc + (int16_t) (int8_t) offset;
+                pc = pc + (int16_t) (int8_t) offset;
                 cycles = 13;
             }
             else
@@ -852,17 +852,17 @@ uint32_t z80_emulate( uint8_t op )    // this is just for instructions that aren
         }
         case 0x18: // jr n
         {
-            uint8_t offset = pcbyte();
-            reg.pc = reg.pc + (int16_t) (int8_t) offset;
+            uint8_t offset = pcbyte( pc );
+            pc = pc + (int16_t) (int8_t) offset;
             cycles = 12;
             break;
         }
         case 0x20: // jr nz, n
         {
-            uint8_t offset = pcbyte();
+            uint8_t offset = pcbyte( pc );
             if ( !reg.fZero )
             {
-                reg.pc = reg.pc + (int16_t) (int8_t) offset;
+                pc = pc + (int16_t) (int8_t) offset;
                 cycles = 12;
             }
             else
@@ -871,10 +871,10 @@ uint32_t z80_emulate( uint8_t op )    // this is just for instructions that aren
         }
         case 0x28: // jr z, n
         {
-            uint8_t offset = pcbyte();
+            uint8_t offset = pcbyte( pc );
             if ( reg.fZero )
             {
-                reg.pc = reg.pc + (int16_t) (int8_t) offset;
+                pc = pc + (int16_t) (int8_t) offset;
                 cycles = 12;
             }
             else
@@ -883,10 +883,10 @@ uint32_t z80_emulate( uint8_t op )    // this is just for instructions that aren
         }
         case 0x30: // jr nc, n
         {
-            uint8_t offset = pcbyte();
+            uint8_t offset = pcbyte( pc );
             if ( !reg.fCarry )
             {
-                reg.pc = reg.pc + (int16_t) (int8_t) offset;
+                pc = pc + (int16_t) (int8_t) offset;
                 cycles = 12;
             }
             else
@@ -895,10 +895,10 @@ uint32_t z80_emulate( uint8_t op )    // this is just for instructions that aren
         }
         case 0x38: // jr c, n
         {
-            uint8_t offset = pcbyte();
+            uint8_t offset = pcbyte( pc );
             if ( reg.fCarry )
             {
-                reg.pc = reg.pc + (int16_t) (int8_t) offset;
+                pc = pc + (int16_t) (int8_t) offset;
                 cycles = 12;
             }
             else
@@ -907,7 +907,7 @@ uint32_t z80_emulate( uint8_t op )    // this is just for instructions that aren
         }
         case 0xcb: // rotate / bits
         {
-            uint8_t op2 = pcbyte(); // get past op2
+            uint8_t op2 = pcbyte( pc ); // get past op2
 
             if ( op2 <= 0x1f ) // rlc, rrc, rl, rr on rm
             {
@@ -992,7 +992,7 @@ uint32_t z80_emulate( uint8_t op )    // this is just for instructions that aren
         case 0xdd: case 0xfd: // ix & iy operations
         {
             reg.r++;
-            uint8_t op2 = pcbyte();
+            uint8_t op2 = pcbyte( pc );
 
             // "ld r, (i+#)" and "ld (i+#), r/#" are checked first because they are by far the most common
             // ix/iy sub-opcodes in practice -- compilers use ix/iy as a stack frame pointer for local variable
@@ -1003,19 +1003,19 @@ uint32_t z80_emulate( uint8_t op )    // this is just for instructions that aren
             if ( 0x46 == ( op2 & 0x47 ) ) // ld r, (i + #)
             {
                 cycles = 19;
-                uint8_t op3 = pcbyte(); // consume op3
+                uint8_t op3 = pcbyte( pc ); // consume op3
                 uint16_t address = reg.z80_getIndex( op ) + (uint16_t) (int16_t) (int8_t) op3;
                 * dst_address( op2 ) = memory[ address ];
             }
             else if ( 0x70 == ( op2 & 0xf8 ) )  // ld (i+#), r/#
             {
                 cycles = 19;
-                uint8_t op3 = pcbyte(); // consume op3
+                uint8_t op3 = pcbyte( pc ); // consume op3
 
                 // if 6, there is an op4 for the index (not hl-indexed memory); otherwise use a register value
 
                 uint8_t src = op2 & 0x7;
-                uint8_t val = ( 6 == src ) ? pcbyte() : src_value_rm( src );
+                uint8_t val = ( 6 == src ) ? pcbyte( pc ) : src_value_rm( src );
                 uint16_t i = reg.z80_getIndex( op );
                 i += (uint16_t) (int16_t) (int8_t) op3;
                 memory[ i ] = val;
@@ -1024,14 +1024,14 @@ uint32_t z80_emulate( uint8_t op )    // this is just for instructions that aren
             {
                 cycles = 14;
                 if ( 0xdd == op )
-                    reg.ix = pcword();
+                    reg.ix = pcword( pc );
                 else
-                    reg.iy = pcword();
+                    reg.iy = pcword( pc );
             }
             else if ( 0x22 == op2 ) // ld (address), ix/iy
             {
                 cycles = 20;
-                uint16_t address = pcword();
+                uint16_t address = pcword( pc );
                 setmword( address, reg.z80_getIndex( op ) );
             }
             else if ( 0x23 == op2 ) // inc ix/iy     no flags are affected
@@ -1046,12 +1046,12 @@ uint32_t z80_emulate( uint8_t op )    // this is just for instructions that aren
             {
                 cycles = 15;
                 uint16_t val = reg.z80_getIndex( op );
-                pushword( val );
+                pushword( sp, val );
             }
             else if ( 0xe1 == op2 ) // pop ix/iy
             {
                 cycles = 14;
-                uint16_t val = popword();
+                uint16_t val = popword( sp );
                 reg.z80_setIndex( op, val );
             }
             else if ( 0x09 == ( op2 & 0xcf ) ) // add ix/iy, rp
@@ -1061,8 +1061,8 @@ uint32_t z80_emulate( uint8_t op )    // this is just for instructions that aren
                 // for add ix, rp is 0..3 bc, de, ix, sp.
                 // for add iy, rp is 0..3 bc, de, iy, sp.
 
-                uint16_t rpval = * reg.rpAddressFromOp( op2 );
                 uint8_t rp = ( 0x3 & ( op2 >> 4 ) );
+                uint16_t rpval = ( 3 == rp ) ? sp : * reg.rpAddressFromOp( op2 );
                 if ( 2 == rp )
                     rpval = ( 0xdd == op ) ? reg.ix : reg.iy;
 
@@ -1073,12 +1073,12 @@ uint32_t z80_emulate( uint8_t op )    // this is just for instructions that aren
             else if ( 0x26 == op2 ) // ld ix/iy h. not documented
             {
                 cycles = 11;
-                * reg.z80_getIndexByteAddress( op, 0 ) = pcbyte();
+                * reg.z80_getIndexByteAddress( op, 0 ) = pcbyte( pc );
             }
             else if ( 0x2a == op2 )  // ld ix, (address)
             {
                 cycles = 20;
-                uint16_t address = pcword();
+                uint16_t address = pcword( pc );
                 reg.z80_setIndex( op, mword( address ) );
             }
             else if ( 0x2b == op2 ) // dec ix/iy   no flags are affected
@@ -1092,27 +1092,27 @@ uint32_t z80_emulate( uint8_t op )    // this is just for instructions that aren
             else if ( 0x2e == op2 ) // ld ix/iy l. not documented
             {
                 cycles = 11;
-                * reg.z80_getIndexByteAddress( op, 1 ) = pcbyte();
+                * reg.z80_getIndexByteAddress( op, 1 ) = pcbyte( pc );
             }
             else if ( 0x34 == op2 ) // inc (i + index)
             {
                 cycles = 23;
-                uint16_t i = reg.z80_getIndex( op ) + (int16_t) (int8_t) pcbyte();
+                uint16_t i = reg.z80_getIndex( op ) + (int16_t) (int8_t) pcbyte( pc );
                 uint8_t x = memory[ i ];
                 memory[i] = op_inc<true>( x );
             }
             else if ( 0x35 == op2 ) // dec (i + index)
             {
                 cycles = 23;
-                uint16_t i = reg.z80_getIndex( op ) + (int16_t) (int8_t) pcbyte();
+                uint16_t i = reg.z80_getIndex( op ) + (int16_t) (int8_t) pcbyte( pc );
                 uint8_t x = memory[ i ];
                 memory[ i ] = op_dec<true>( x );
             }
             else if ( 0x36 == op2 )  // ld (ix/iy + index), immediate byte
             {
                 cycles = 19;
-                uint16_t i = reg.z80_getIndex( op ) + (int16_t) (int8_t) pcbyte();
-                uint8_t val = pcbyte();
+                uint16_t i = reg.z80_getIndex( op ) + (int16_t) (int8_t) pcbyte( pc );
+                uint8_t val = pcbyte( pc );
                 memory[ i ] = val;
             }
             else if ( ( ( op2 >= 0x40 && op2 <= 0x6f ) || ( op2 >= 0x78 && op2 <= 0x7f ) ) && // ld [bcdeIhIla][bcdeIhIla]
@@ -1156,7 +1156,7 @@ uint32_t z80_emulate( uint8_t op )    // this is just for instructions that aren
             {
                 cycles = 19;
                 uint16_t x = reg.z80_getIndex( op );
-                x += (int16_t) (int8_t) pcbyte();
+                x += (int16_t) (int8_t) pcbyte( pc );
                 op_math<true>( op2, memory[ x ] );
             }
             else if ( 0x24 == ( op2 & 0xf6 ) ) // inc/dec ixh, ixl, iyh, iyl
@@ -1170,13 +1170,13 @@ uint32_t z80_emulate( uint8_t op )    // this is just for instructions that aren
             }
             else if ( 0xcb == op2 ) // bit operations
             {
-                uint8_t op4 = memory[ reg.pc + 1 ];
+                uint8_t op4 = memory[ pc + 1 ];
                 reg.r++;
                 if ( 0x26 == op4 || 0x2e == op4 || 0x3e == op4 ) // sla, sra, srl [ix/iy + offset]
                 {
                     cycles = 23;
-                    uint8_t offset = pcbyte(); // the op3
-                    pcbyte(); // the op4
+                    uint8_t offset = pcbyte( pc ); // the op3
+                    pcbyte( pc ); // the op4
                     uint16_t index = reg.z80_getIndex( op );
                     index += (int16_t) (int8_t) offset;
                     if ( 0x26 == op4 ) // sla
@@ -1189,8 +1189,8 @@ uint32_t z80_emulate( uint8_t op )    // this is just for instructions that aren
                 else if ( op4 <= 0x3f ) // bit shift on memory
                 {
                     cycles = 23;
-                    uint8_t offset = pcbyte();
-                    pcbyte();
+                    uint8_t offset = pcbyte( pc );
+                    pcbyte( pc );
                     uint16_t index = reg.z80_getIndex( op );
                     index += (int16_t) (int8_t) offset;
 
@@ -1217,8 +1217,8 @@ uint32_t z80_emulate( uint8_t op )    // this is just for instructions that aren
                 }
                 else if ( op4 >= 0x40 ) // bit/res/set b, (ix/iy + d), including undocumented register destinations
                 {
-                    uint8_t index = pcbyte();
-                    uint8_t mod = pcbyte();
+                    uint8_t index = pcbyte( pc );
+                    uint8_t mod = pcbyte( pc );
                     uint8_t rm = mod & 0x7;
                     uint8_t bit = ( mod >> 3 ) & 0x7;
                     uint8_t mask = 1 << bit;
@@ -1255,18 +1255,18 @@ uint32_t z80_emulate( uint8_t op )    // this is just for instructions that aren
             {
                 cycles = 23;
                 uint16_t val = reg.z80_getIndex( op );
-                reg.z80_setIndex( op, mword( reg.sp ) );
-                setmword( reg.sp, val );
+                reg.z80_setIndex( op, mword( sp ) );
+                setmword( sp, val );
             }
             else if ( 0xe9 == op2 ) // jp (ix/iy) // the Z80 name makes it look indirect. It's not.
             {
                 cycles = 8;
-                reg.pc = reg.z80_getIndex( op );
+                pc = reg.z80_getIndex( op );
             }
             else if ( 0xf9 == op2 ) // ld sp, ix/iy
             {
                 cycles = 10;
-                reg.sp = reg.z80_getIndex( op );
+                sp = reg.z80_getIndex( op );
             }
             else
                 z80_ni( op, op2 );
@@ -1275,19 +1275,24 @@ uint32_t z80_emulate( uint8_t op )    // this is just for instructions that aren
         case 0xed: // 16-bit load/store and i/o operations
         {
             reg.r++;
-            uint8_t op2 = pcbyte();  // consume op2
+            uint8_t op2 = pcbyte( pc );  // consume op2
 
             if ( 0x3 == ( op2 & 0xf ) ) // ld (mw), rp AKA ld (nn), dd
             {
                 cycles = 20;
-                uint16_t * prp = reg.rpAddressFromOp( op2 );
-                setmword( pcword(), *prp );
+                uint8_t rp = ( 0x3 & ( op2 >> 4 ) );
+                uint16_t val = ( 3 == rp ) ? sp : * reg.rpAddressFromOp( op2 );
+                setmword( pcword( pc ), val );
             }
             else if ( 0xb == ( op2 & 0xf ) )      // ld rp, (nn) AKA ld dd, (nn)
             {
                 cycles = 20;
-                uint16_t * prp = reg.rpAddressFromOp( op2 );
-                *prp = mword( pcword() );
+                uint8_t rp = ( 0x3 & ( op2 >> 4 ) );
+                uint16_t val = mword( pcword( pc ) );
+                if ( 3 == rp )
+                    sp = val;
+                else
+                    * reg.rpAddressFromOp( op2 ) = val;
             }
             else if ( 0x44 == op2 ) // neg
             {
@@ -1362,7 +1367,9 @@ uint32_t z80_emulate( uint8_t op )    // this is just for instructions that aren
             else if ( 0x4a == ( op2 & 0xcf ) ) // adc hl, rp
             {
                 cycles = 15;
-                uint16_t result = z80_op_adc_16( reg.H(), * reg.rpAddressFromOp( op2 ) );
+                uint8_t rp = ( 0x3 & ( op2 >> 4 ) );
+                uint16_t rpval = ( 3 == rp ) ? sp : * reg.rpAddressFromOp( op2 );
+                uint16_t result = z80_op_adc_16( reg.H(), rpval );
                 reg.SetH( result );
             }
             else if ( 0xa0 == op2 ) // ldi
@@ -1498,7 +1505,8 @@ uint32_t z80_emulate( uint8_t op )    // this is just for instructions that aren
             else if ( 0x42 == ( op2 & 0xcf ) ) // sbc hl, rp AKA sbc hl, ss
             {
                 cycles = 15;
-                uint16_t val = * reg.rpAddressFromOp( op2 );
+                uint8_t rp = ( 0x3 & ( op2 >> 4 ) );
+                uint16_t val = ( 3 == rp ) ? sp : * reg.rpAddressFromOp( op2 );
                 reg.SetH( z80_op_sub_16( reg.H(), val, reg.fCarry ) );
             }
             else if ( 0x40 == ( op2 & 0xc7 ) ) // in r,(c); rm==6 is the undocumented flags-only variant
@@ -1519,7 +1527,7 @@ uint32_t z80_emulate( uint8_t op )    // this is just for instructions that aren
             break;
         }
         default:
-            z80_ni( op, memory[ reg.pc ] );
+            z80_ni( op, memory[ pc ] );
     }
 
     return cycles;
@@ -2259,13 +2267,7 @@ template <bool Z80Mode> static uint32_t x80_emulate_impl( uint16_t maxcycles )
             default:
             {
                 if ( Z80Mode )
-                {
-                    reg.pc = pc;    // z80_emulate (CB/ED/DD/FD-prefixed instructions) still
-                    reg.sp = sp;    // reads/writes reg.pc/reg.sp directly - see its own comment
-                    cycles += z80_emulate( op );
-                    pc = reg.pc;
-                    sp = reg.sp;
-                }
+                    cycles += z80_emulate( op, pc, sp ); // pc/sp passed by reference - no reg.pc/reg.sp sync needed
                 else if ( 0x08 == op ) // Pascal MT++ generates 8080 apps that use 0x08. Treat it as a NOP just like an 8080.
                     break;
                 else
