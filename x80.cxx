@@ -1277,14 +1277,14 @@ always_inlined uint32_t z80_emulate( uint8_t op, uint16_t & pc, uint16_t & sp ) 
             reg.r++;
             uint8_t op2 = pcbyte( pc );  // consume op2
 
-            if ( 0x3 == ( op2 & 0xf ) ) // ld (mw), rp AKA ld (nn), dd
+            if ( 0x43 == ( op2 & 0xcf ) ) // ld (mw), rp AKA ld (nn), dd
             {
                 cycles = 20;
                 uint8_t rp = ( 0x3 & ( op2 >> 4 ) );
                 uint16_t val = ( 3 == rp ) ? sp : * reg.rpAddressFromOp( op2 );
                 setmword( pcword( pc ), val );
             }
-            else if ( 0xb == ( op2 & 0xf ) )      // ld rp, (nn) AKA ld dd, (nn)
+            else if ( 0x4b == ( op2 & 0xcf ) )      // ld rp, (nn) AKA ld dd, (nn)
             {
                 cycles = 20;
                 uint8_t rp = ( 0x3 & ( op2 >> 4 ) );
@@ -1294,7 +1294,7 @@ always_inlined uint32_t z80_emulate( uint8_t op, uint16_t & pc, uint16_t & sp ) 
                 else
                     * reg.rpAddressFromOp( op2 ) = val;
             }
-            else if ( 0x44 == op2 ) // neg
+            else if ( 0x44 == ( op2 & 0xc7 ) ) // neg; 0x4c/54/5c/64/6c/74/7c are undocumented duplicates
             {
                 cycles = 8;
                 uint8_t prior = reg.a;
@@ -1502,6 +1502,117 @@ always_inlined uint32_t z80_emulate( uint8_t op, uint16_t & pc, uint16_t & sp ) 
                 reg.fParityEven_Overflow = ( 0 != reg.B() );
                 reg.fCarry = oldCarry; // carry is not affected
             }
+            else if ( 0xa2 == op2 ) // ini; no real I/O device attached
+            {
+                // b (not bc) is the loop counter here - unlike ldi/ldir etc,
+                // where bc is a 16-bit counter, c is the fixed port number
+                // for the block I/O group and must not be touched.
+                cycles = 16;
+                memory[ reg.H() ] = 0xff; // matches in r,(c)'s floating-bus convention
+                reg.SetH( reg.H() + 1 );
+                reg.b = reg.b - 1;
+                reg.fZero = ( 0 == reg.b );
+                reg.fWasSubtract = true;
+            }
+            else if ( 0xaa == op2 ) // ind; no real I/O device attached
+            {
+                cycles = 16;
+                memory[ reg.H() ] = 0xff;
+                reg.SetH( reg.H() - 1 );
+                reg.b = reg.b - 1;
+                reg.fZero = ( 0 == reg.b );
+                reg.fWasSubtract = true;
+            }
+            else if ( 0xa3 == op2 ) // outi; no real I/O device attached
+            {
+                cycles = 16;
+                reg.SetH( reg.H() + 1 );
+                reg.b = reg.b - 1;
+                reg.fZero = ( 0 == reg.b );
+                reg.fWasSubtract = true;
+            }
+            else if ( 0xab == op2 ) // outd; no real I/O device attached
+            {
+                cycles = 16;
+                reg.SetH( reg.H() - 1 );
+                reg.b = reg.b - 1;
+                reg.fZero = ( 0 == reg.b );
+                reg.fWasSubtract = true;
+            }
+            else if ( 0xb2 == op2 ) // inir; no real I/O device attached
+            {
+                cycles = 0;
+                do
+                {
+                    cycles += 21;
+                    memory[ reg.H() ] = 0xff;
+                    reg.SetH( reg.H() + 1 );
+                    reg.b = reg.b - 1;
+                } while ( 0 != reg.b );
+
+                cycles -= 5; // the last iteration is 16T; repeated iterations are 21T
+                reg.fZero = true;
+                reg.fWasSubtract = true;
+            }
+            else if ( 0xba == op2 ) // indr; no real I/O device attached
+            {
+                cycles = 0;
+                do
+                {
+                    cycles += 21;
+                    memory[ reg.H() ] = 0xff;
+                    reg.SetH( reg.H() - 1 );
+                    reg.b = reg.b - 1;
+                } while ( 0 != reg.b );
+
+                cycles -= 5;
+                reg.fZero = true;
+                reg.fWasSubtract = true;
+            }
+            else if ( 0xb3 == op2 ) // otir; no real I/O device attached
+            {
+                cycles = 0;
+                do
+                {
+                    cycles += 21;
+                    reg.SetH( reg.H() + 1 );
+                    reg.b = reg.b - 1;
+                } while ( 0 != reg.b );
+
+                cycles -= 5;
+                reg.fZero = true;
+                reg.fWasSubtract = true;
+            }
+            else if ( 0xbb == op2 ) // otdr; no real I/O device attached
+            {
+                cycles = 0;
+                do
+                {
+                    cycles += 21;
+                    reg.SetH( reg.H() - 1 );
+                    reg.b = reg.b - 1;
+                } while ( 0 != reg.b );
+
+                cycles -= 5;
+                reg.fZero = true;
+                reg.fWasSubtract = true;
+            }
+            else if ( 0x45 == ( op2 & 0xcf ) ) // retn; 0x55/65/75 are undocumented duplicates
+            {
+                cycles = 14;
+                pc = popword( sp );
+            }
+            else if ( 0x4d == ( op2 & 0xcf ) ) // reti; 0x5d/6d/7d are undocumented duplicates
+            {
+                cycles = 14;
+                pc = popword( sp );
+            }
+            else if ( 0x46 == ( op2 & 0xd7 ) ) // im 0; 0x4e/66/6e are undocumented duplicates
+                cycles = 8;
+            else if ( 0x56 == ( op2 & 0xdf ) ) // im 1; 0x76 is an undocumented duplicate
+                cycles = 8;
+            else if ( 0x5e == ( op2 & 0xdf ) ) // im 2; 0x7e is an undocumented duplicate
+                cycles = 8;
             else if ( 0x42 == ( op2 & 0xcf ) ) // sbc hl, rp AKA sbc hl, ss
             {
                 cycles = 15;
@@ -1690,11 +1801,17 @@ void z80_render( char * ac, size_t bufferSize, uint8_t op, uint16_t address )
     }
     else if ( 0xed == op ) // load and compare operations
     {
-        if ( 0xb == ( op2 & 0xf ) )
-            snprintf( ac, bufferSize, "ld %s, (%04xh)", rp_strings[ ( ( op2 & 0xf0 ) >> 4 ) - 4 ], op34 );
-        else if ( 0x3 == ( op2 & 0xf ) )
-            snprintf( ac, bufferSize, "ld (%04xh), %s", op34, rp_strings[ ( ( op2 & 0xf0 ) >> 4 ) - 4 ] );
-        else if ( 0x44 == op2 )
+        if ( 0x4b == ( op2 & 0xcf ) )
+        {
+            uint8_t rp = ( ( op2 >> 4 ) & 3 );
+            snprintf( ac, bufferSize, "ld %s, (%04xh)", rp_strings[ rp ], op34 );
+        }
+        else if ( 0x43 == ( op2 & 0xcf ) )
+        {
+            uint8_t rp = ( ( op2 >> 4 ) & 3 );
+            snprintf( ac, bufferSize, "ld (%04xh), %s", op34, rp_strings[ rp ] );
+        }
+        else if ( 0x44 == ( op2 & 0xc7 ) ) // neg; 4c/54/5c/64/6c/74/7c are undocumented duplicates
             strcpy( ac, "neg" );
         else if ( 0x47 == op2 )
             snprintf( ac, bufferSize, "ld i, a" );
@@ -1734,6 +1851,48 @@ void z80_render( char * ac, size_t bufferSize, uint8_t op, uint16_t address )
             strcpy( ac, "cpir" );
         else if ( 0xb9 == op2 )
             strcpy( ac, "cpdr" );
+        else if ( 0xa2 == op2 )
+            strcpy( ac, "ini" );
+        else if ( 0xaa == op2 )
+            strcpy( ac, "ind" );
+        else if ( 0xa3 == op2 )
+            strcpy( ac, "outi" );
+        else if ( 0xab == op2 )
+            strcpy( ac, "outd" );
+        else if ( 0xb2 == op2 )
+            strcpy( ac, "inir" );
+        else if ( 0xba == op2 )
+            strcpy( ac, "indr" );
+        else if ( 0xb3 == op2 )
+            strcpy( ac, "otir" );
+        else if ( 0xbb == op2 )
+            strcpy( ac, "otdr" );
+        else if ( 0x45 == ( op2 & 0xcf ) ) // retn; 55/65/75 are undocumented duplicates
+            strcpy( ac, "retn" );
+        else if ( 0x4d == ( op2 & 0xcf ) ) // reti; 5d/6d/7d are undocumented duplicates
+            strcpy( ac, "reti" );
+        else if ( 0x46 == ( op2 & 0xd7 ) ) // im 0; 4e/66/6e are undocumented duplicates
+            strcpy( ac, "im 0" );
+        else if ( 0x56 == ( op2 & 0xdf ) ) // im 1; 76 is an undocumented duplicate
+            strcpy( ac, "im 1" );
+        else if ( 0x5e == ( op2 & 0xdf ) ) // im 2; 7e is an undocumented duplicate
+            strcpy( ac, "im 2" );
+        else if ( 0x40 == ( op2 & 0xc7 ) ) // in r,(c); rm==6 is the undocumented flags-only variant
+        {
+            uint8_t rm = 7 & ( op2 >> 3 );
+            if ( 6 == rm )
+                strcpy( ac, "in (c)" );
+            else
+                snprintf( ac, bufferSize, "in %s, (c)", reg_strings[ rm ] );
+        }
+        else if ( 0x41 == ( op2 & 0xc7 ) ) // out (c),r; rm==6 is the undocumented flags-only variant
+        {
+            uint8_t rm = 7 & ( op2 >> 3 );
+            if ( 6 == rm )
+                strcpy( ac, "out (c), 0" );
+            else
+                snprintf( ac, bufferSize, "out (c), %s", reg_strings[ rm ] );
+        }
     }
     else if ( 0xcb == op ) // rotate / bits. There is no sll in documented Z80
     {
