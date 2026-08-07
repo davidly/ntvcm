@@ -280,6 +280,16 @@ static uint16_t pcword() { uint16_t r = mword( reg.pc ); reg.pc += 2; return r; 
 static void pushword( uint16_t val ) { reg.sp -= 2; setmword( reg.sp, val ); }
 static uint16_t popword() {  uint16_t val = mword( reg.sp ); reg.sp += 2; return val; }
 
+// reference-taking overloads used only by x80_emulate_impl's main switch, where pc/sp are
+// kept in host-register-resident locals rather than the reg struct for the hot loop's
+// duration (avoids a memory round trip through reg.pc/reg.sp on every fetch/push/pop).
+// z80_emulate and everything else keep using the zero-arg versions above unchanged; the
+// call site into z80_emulate syncs reg.pc/reg.sp with the locals around the call instead.
+static inline uint8_t pcbyte( uint16_t & pc ) { return memory[ pc++ ]; }
+static inline uint16_t pcword( uint16_t & pc ) { uint16_t r = mword( pc ); pc += 2; return r; }
+static inline void pushword( uint16_t & sp, uint16_t val ) { sp -= 2; setmword( sp, val ); }
+static inline uint16_t popword( uint16_t & sp ) { uint16_t val = mword( sp ); sp += 2; return val; }
+
 void set_parity( uint8_t x ) { reg.fParityEven_Overflow = is_parity_even8( x ); }
 
 void set_sign_zero( uint8_t x )
@@ -2002,16 +2012,34 @@ template <bool Z80Mode> static uint32_t x80_emulate_impl( uint16_t maxcycles )
     uint16_t instructions = 0;
 #endif
 
+    // pc/sp are kept here as locals (rather than read/written through reg.pc/reg.sp on
+    // every touch) so the hot path can keep them in host registers instead of paying a
+    // memory round trip on every fetch/jump/call/push/pop - by far the most frequently
+    // touched pieces of CPU state. Anything called out of this loop that might read or
+    // write pc/sp (handle_state, x80_invoke_hook, z80_emulate) gets reg.pc/reg.sp synced
+    // immediately before and reloaded immediately after, so those calls always see - and
+    // any changes they make are always reflected in - accurate state. reg.pc/reg.sp is
+    // re-synced from the locals at every exit from this function (see _all_done below).
+    uint16_t pc = reg.pc;
+    uint16_t sp = reg.sp;
+
     // with the Watcom compiler for real-mode DOS, the cycle check, cycle addition, and trace check consume 17% of runtime
 
     while ( cycles < maxcycles )        // 4% of runtime checking if we're done
     {
         if ( 0 != g_State )
-            if ( handle_state<Z80Mode>( cycles ) )
+        {
+            reg.pc = pc;
+            reg.sp = sp;
+            bool stop = handle_state<Z80Mode>( cycles );
+            pc = reg.pc;
+            sp = reg.sp;
+            if ( stop )
                 break;
+        }
 
-        uint8_t op = memory[ reg.pc ];  // 1% of runtime
-        reg.pc++;                       // 7% of runtime
+        uint8_t op = memory[ pc ];      // 1% of runtime
+        pc++;                            // 7% of runtime
         cycles += Z80Mode ? z80_cycles[ op ] : i8080_cycles[ op ];
 #if RETURN_INSTRUCTION_COUNT
         instructions++;
@@ -2020,14 +2048,16 @@ template <bool Z80Mode> static uint32_t x80_emulate_impl( uint16_t maxcycles )
         switch ( op )                   // 50% of runtime is completing cycle addition & setting up for the jump table jump
         {
             case 0x00: break; // nop
-            case 0x01: case 0x11: case 0x21: case 0x31: { * reg.rpAddressFromLowOp( op ) = pcword(); break; } // lxi rp, d16
+            case 0x01: case 0x11: case 0x21: { * reg.rpAddressFromLowOp( op ) = pcword( pc ); break; } // lxi bc/de/hl, d16
+            case 0x31: { sp = pcword( pc ); break; } // lxi sp, d16
             case 0x02: { memory[ reg.B() ] = reg.a; break; } // stax b
-            case 0x03: case 0x13: case 0x23: case 0x33: // inx. no status flag updates
+            case 0x03: case 0x13: case 0x23: // inx bc/de/hl. no status flag updates
             {
                 uint16_t * pdst = reg.rpAddressFromLowOp( op );
                 *pdst = 1 + *pdst;
                 break;
             }
+            case 0x33: { sp = sp + 1; break; } // inx sp
             case 0x04: case 0x14: case 0x24: case 0x34: case 0x0c: case 0x1c: case 0x2c: case 0x3c: // inr rm. does not set carry
             {
                 uint8_t * pdst = dst_address( op );
@@ -2042,7 +2072,7 @@ template <bool Z80Mode> static uint32_t x80_emulate_impl( uint16_t maxcycles )
             }
             case 0x06: case 0x16: case 0x26: case 0x36: case 0x0e: case 0x1e: case 0x2e: case 0x3e: // mvi rm, d8
             {
-                * dst_address( op ) = pcbyte();
+                * dst_address( op ) = pcbyte( pc );
                 break;
             }
             case 0x07: // rlc
@@ -2058,14 +2088,16 @@ template <bool Z80Mode> static uint32_t x80_emulate_impl( uint16_t maxcycles )
                 }
                 break;
             }
-            case 0x09: case 0x19: case 0x29: case 0x39: { op_dad<Z80Mode>( * reg.rpAddressFromOp( op ) ); break; } // dad
+            case 0x09: case 0x19: case 0x29: { op_dad<Z80Mode>( * reg.rpAddressFromOp( op ) ); break; } // dad bc/de/hl
+            case 0x39: { op_dad<Z80Mode>( sp ); break; } // dad sp
             case 0x0a: { reg.a = memory[ reg.B() ]; break; } // ldax b
-            case 0x0b: case 0x1b: case 0x2b: case 0x3b: // dcx. no status flag updates
+            case 0x0b: case 0x1b: case 0x2b: // dcx bc/de/hl. no status flag updates
             {
                 uint16_t * pdst = reg.rpAddressFromOp( op );
                 *pdst = *pdst - 1;
                 break;
             }
+            case 0x3b: { sp = sp - 1; break; } // dcx sp
             case 0x0f: // rrc
             {
                 reg.fCarry = ( 0 != ( reg.a & 1 ) );
@@ -2109,11 +2141,11 @@ template <bool Z80Mode> static uint32_t x80_emulate_impl( uint16_t maxcycles )
                 }
                 break;
             }
-            case 0x22: { setmword( pcword(), reg.H() ); break; } // shld
+            case 0x22: { setmword( pcword( pc ), reg.H() ); break; } // shld
             case 0x27: { op_daa<Z80Mode>(); break; } // daa
-            case 0x2a: { reg.SetH( mword( pcword() ) ); break; } // lhld
+            case 0x2a: { reg.SetH( mword( pcword( pc ) ) ); break; } // lhld
             case 0x2f: { op_cma<Z80Mode>(); break; } // cma
-            case 0x32: { memory[ pcword() ] = reg.a; break; } // sta a16
+            case 0x32: { memory[ pcword( pc ) ] = reg.a; break; } // sta a16
             case 0x37: // stc
             {
                 reg.fCarry = 1;
@@ -2124,7 +2156,7 @@ template <bool Z80Mode> static uint32_t x80_emulate_impl( uint16_t maxcycles )
                 }
                 break;
             }
-            case 0x3a: { reg.a = memory[ pcword() ]; break; } // lda a16
+            case 0x3a: { reg.a = memory[ pcword( pc ) ]; break; } // lda a16
             case 0x3f: { op_cmc<Z80Mode>(); break; } // cmc
             case 0x40: case 0x41: case 0x42: case 0x43: case 0x44: case 0x45: case 0x46: case 0x47: // mov
             case 0x48: case 0x49: case 0x4a: case 0x4b: case 0x4c: case 0x4d: case 0x4e: case 0x4f:
@@ -2140,7 +2172,11 @@ template <bool Z80Mode> static uint32_t x80_emulate_impl( uint16_t maxcycles )
             }
             case 0x64: // hook
             {
+                reg.pc = pc;    // hook (BDOS/BIOS dispatch) may read and/or change pc/sp
+                reg.sp = sp;    // (e.g. warm boot, buffered console read ending the run)
                 op = x80_invoke_hook();
+                pc = reg.pc;
+                sp = reg.sp;
                 cycles += Z80Mode ? z80_cycles[ op ] : i8080_cycles[ op ];
                 if ( OPCODE_HLT == op ) // treat each possible return opcode separately to avoid a jump to restart for performance
                     goto _op_hlt;
@@ -2163,77 +2199,85 @@ template <bool Z80Mode> static uint32_t x80_emulate_impl( uint16_t maxcycles )
             case 0xc0: case 0xd0: case 0xe0: case 0xf0: case 0xc8: case 0xd8: case 0xe8: case 0xf8: // conditional return
             {
                 if ( check_conditional( op ) )
-                    reg.pc = popword();
+                    pc = popword( sp );
                 else
                     cycles -= cyclesnt;
                 break;
             }
-            case 0xc1: case 0xd1: case 0xe1: { * reg.rpAddressFromOp( op ) = popword(); break; } // pop rp
+            case 0xc1: case 0xd1: case 0xe1: { * reg.rpAddressFromOp( op ) = popword( sp ); break; } // pop rp
             case 0xc2: case 0xd2: case 0xe2: case 0xf2: case 0xca: case 0xda: case 0xea: case 0xfa: // conditional jmp
             {
-                uint16_t address = pcword(); // must be consumed regardless of whether jump is taken
+                uint16_t address = pcword( pc ); // must be consumed regardless of whether jump is taken
                 if ( check_conditional( op ) )
-                    reg.pc = address;
+                    pc = address;
                 // JP cc costs 10T whether or not the jump is taken -- no subtraction here
                 break;
             }
-            case 0xc3: { reg.pc = pcword(); break; } // jmp a16
+            case 0xc3: { pc = pcword( pc ); break; } // jmp a16
             case 0xc4: case 0xd4: case 0xe4: case 0xf4: case 0xcc: case 0xdc: case 0xec: case 0xfc: // conditional call
             {
-                uint16_t address = pcword(); // must be consumed regardless of whether call is taken
+                uint16_t address = pcword( pc ); // must be consumed regardless of whether call is taken
                 if ( check_conditional( op ) )
                 {
-                    pushword( reg.pc );
-                    reg.pc = address;
+                    pushword( sp, pc );
+                    pc = address;
                 }
                 else
                     cycles -= ( Z80Mode ? 7 : cyclesnt ); // not-taken CALL cc is 10T on Z80 (17-7), 11T on 8080 (17-6)
                 break;
             }
-            case 0xc5: case 0xd5: case 0xe5: { pushword( * reg.rpAddressFromOp( op ) ); break; } // push rp
-            case 0xc6: { op_add<Z80Mode>( pcbyte() ); break; } // adi
+            case 0xc5: case 0xd5: case 0xe5: { pushword( sp, * reg.rpAddressFromOp( op ) ); break; } // push rp
+            case 0xc6: { op_add<Z80Mode>( pcbyte( pc ) ); break; } // adi
             case 0xc7: case 0xd7: case 0xe7: case 0xf7: case 0xcf: case 0xdf: case 0xef: case 0xff: // rst
             {
                 // bits 5..3 are exp, which form an address 0000000000exp000 that is called.
                 // rst is generally invoked by DDT and hardware interrupts, which supply the one instruction rst.
 
-                pushword( reg.pc );
-                reg.pc = 0x38 & (uint16_t) op;
+                pushword( sp, pc );
+                pc = 0x38 & (uint16_t) op;
                 break;
             }
-            case 0xc9: { _op_ret: reg.pc = popword(); break; } // ret
-            case 0xcd: { uint16_t t = pcword(); pushword( reg.pc ); reg.pc = t; break; } // call a16
-            case 0xce: { op_adc<Z80Mode>( pcbyte() ); break; } // aci
-            case 0xd3: { x80_invoke_out( pcbyte() ); break; } // out d8
-            case 0xd6: { reg.a = op_sub<Z80Mode>( pcbyte() ); break; } // sui
-            case 0xdb: { x80_invoke_in( pcbyte() ); break; } // in d8
-            case 0xde: { op_sbb<Z80Mode>( pcbyte() ); break; } // sbi
-            case 0xe3: { uint16_t t = reg.H(); reg.SetH( mword( reg.sp ) ); setmword( reg.sp, t ); break; } // xthl
-            case 0xe6: { op_ana<Z80Mode>( pcbyte() ); break; } // ani
-            case 0xe9: { reg.pc = reg.H(); break; } // pchl
+            case 0xc9: { _op_ret: pc = popword( sp ); break; } // ret
+            case 0xcd: { uint16_t t = pcword( pc ); pushword( sp, pc ); pc = t; break; } // call a16
+            case 0xce: { op_adc<Z80Mode>( pcbyte( pc ) ); break; } // aci
+            case 0xd3: { x80_invoke_out( pcbyte( pc ) ); break; } // out d8
+            case 0xd6: { reg.a = op_sub<Z80Mode>( pcbyte( pc ) ); break; } // sui
+            case 0xdb: { x80_invoke_in( pcbyte( pc ) ); break; } // in d8
+            case 0xde: { op_sbb<Z80Mode>( pcbyte( pc ) ); break; } // sbi
+            case 0xe3: { uint16_t t = reg.H(); reg.SetH( mword( sp ) ); setmword( sp, t ); break; } // xthl
+            case 0xe6: { op_ana<Z80Mode>( pcbyte( pc ) ); break; } // ani
+            case 0xe9: { pc = reg.H(); break; } // pchl
             case 0xeb: { uint16_t t = reg.H(); reg.SetH( reg.D() ); reg.SetD( t ); break; } // xchg
-            case 0xee: { op_xra<Z80Mode>( pcbyte() ); break; } // xri
-            case 0xf1: { reg.SetPSW<Z80Mode>( popword() ); break; } // pop psw
+            case 0xee: { op_xra<Z80Mode>( pcbyte( pc ) ); break; } // xri
+            case 0xf1: { reg.SetPSW<Z80Mode>( popword( sp ) ); break; } // pop psw
             case 0xf3: { reg.fINTE = false; break; } // di
-            case 0xf5: { pushword( reg.PSW<Z80Mode>() ); break; } // push psw
-            case 0xf6: { op_ora<Z80Mode>( pcbyte() ); break; } // ori
-            case 0xf9: { reg.sp = reg.H(); break; } // sphl
+            case 0xf5: { pushword( sp, reg.PSW<Z80Mode>() ); break; } // push psw
+            case 0xf6: { op_ora<Z80Mode>( pcbyte( pc ) ); break; } // ori
+            case 0xf9: { sp = reg.H(); break; } // sphl
             case 0xfb: { reg.fINTE = true; break; } // ei
-            case 0xfe: { op_cmp<Z80Mode>( pcbyte() ); break; } // cpi
+            case 0xfe: { op_cmp<Z80Mode>( pcbyte( pc ) ); break; } // cpi
             default:
             {
                 if ( Z80Mode )
+                {
+                    reg.pc = pc;    // z80_emulate (CB/ED/DD/FD-prefixed instructions) still
+                    reg.sp = sp;    // reads/writes reg.pc/reg.sp directly - see its own comment
                     cycles += z80_emulate( op );
+                    pc = reg.pc;
+                    sp = reg.sp;
+                }
                 else if ( 0x08 == op ) // Pascal MT++ generates 8080 apps that use 0x08. Treat it as a NOP just like an 8080.
                     break;
                 else
-                    x80_hard_exit( "Error: 8080 undocumented instruction: %#x, next byte %#x\n", op, memory[ reg.pc + 1 ] );
+                    x80_hard_exit( "Error: 8080 undocumented instruction: %#x, next byte %#x\n", op, memory[ pc + 1 ] );
             } //default
         } //switch
 
         reg.z80_increment_r(); // do this for 8080 too to avoid the 'if' statement
     } //while
 _all_done:
+    reg.pc = pc; // every exit from this loop (normal maxcycles exit, hlt, hook end-of-emulation)
+    reg.sp = sp; // funnels through here - flush the locals back so callers see current state
     if ( ( g_State & stateProfile ) && ( cycles >= g_profileLastCycles ) )
         g_pcHits[ g_profileLastPC ] += ( cycles - g_profileLastCycles );
 #if RETURN_INSTRUCTION_COUNT
