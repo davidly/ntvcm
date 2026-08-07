@@ -266,8 +266,6 @@ static const acycles_t z80_cycles =
     /*f0*/ 11, 10, 10,  4, 17, 11,  7, 11,   11,  6, 10,  4, 17,  0,  7, 11,
 };
 
-static uint8_t pcbyte() { return memory[ reg.pc++ ]; }
-
 #ifdef TARGET_BIG_ENDIAN
 static uint16_t mword( uint16_t offset ) { return flip_endian16( * ( (uint16_t *) & memory[ offset ] ) ); }
 static void setmword( uint16_t offset, uint16_t value ) { * (uint16_t *) & memory[ offset ] = flip_endian16( value ); }
@@ -276,15 +274,10 @@ static uint16_t mword( uint16_t offset ) { return * ( (uint16_t *) & memory[ off
 static void setmword( uint16_t offset, uint16_t value ) { * (uint16_t *) & memory[ offset ] = value; }
 #endif
 
-static uint16_t pcword() { uint16_t r = mword( reg.pc ); reg.pc += 2; return r; }
-static void pushword( uint16_t val ) { reg.sp -= 2; setmword( reg.sp, val ); }
-static uint16_t popword() {  uint16_t val = mword( reg.sp ); reg.sp += 2; return val; }
-
-// reference-taking overloads used only by x80_emulate_impl's main switch, where pc/sp are
-// kept in host-register-resident locals rather than the reg struct for the hot loop's
-// duration (avoids a memory round trip through reg.pc/reg.sp on every fetch/push/pop).
-// z80_emulate and everything else keep using the zero-arg versions above unchanged; the
-// call site into z80_emulate syncs reg.pc/reg.sp with the locals around the call instead.
+// pc/sp are passed by reference rather than read/written through reg.pc/reg.sp: callers
+// (x80_emulate_impl's main switch, z80_emulate) keep them in host-register-resident locals
+// for their duration, avoiding a memory round trip through reg.pc/reg.sp on every fetch/
+// jump/call/push/pop - by far the most frequently touched pieces of CPU state.
 static inline uint8_t pcbyte( uint16_t & pc ) { return memory[ pc++ ]; }
 static inline uint16_t pcword( uint16_t & pc ) { uint16_t r = mword( pc ); pc += 2; return r; }
 static inline void pushword( uint16_t & sp, uint16_t val ) { sp -= 2; setmword( sp, val ); }
