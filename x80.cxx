@@ -2496,7 +2496,7 @@ template <bool Z80Mode> static uint32_t x80_emulate_impl( uint16_t maxcycles )
             } //default
         } //switch
 
-        reg.z80_increment_r(); // do this for 8080 too to avoid the 'if' statement
+        reg.z80_bump_r(); // do this for 8080 too to avoid the 'if' statement; see TRACK_Z80_R_REGISTER
     } //while
 _all_done:
     reg.pc = pc; // every exit from this loop (normal maxcycles exit, hlt, hook end-of-emulation)

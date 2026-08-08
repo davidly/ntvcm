@@ -117,13 +117,26 @@ struct registers
     void SetH( uint16_t x ) { * ( (uint16_t *) & l ) = x; }
 #endif
 
-    void z80_increment_r() { /* reg.r++; */ } // 4.6% of runtime when the increment is enabled
+    // set to 1 to accurately track the z80 r (memory refresh) register: every
+    // instruction fetch (including each cb/dd/fd/ed prefix byte) and every
+    // iteration of a block-repeat instruction (ldir/lddr/cpir/cpdr/inir/indr/
+    // otir/otdr) bumps it, matching real hardware. Set to 0 (the default) to
+    // skip all of that, since almost no real software reads r's exact value
+    // and tracking it costs ~4.6% of runtime. This one switch gates every r
+    // bump in the emulator - there's no other place r changes except an
+    // explicit ld r,a.
+#define TRACK_Z80_R_REGISTER 0
 
     // only the low 7 bits of r auto-increment (wrapping without touching bit 7);
-    // bit 7 is sticky and only ever changes via an explicit ld r,a. used by the
-    // explicit prefix-byte r bumps (cb/dd/fd/ed), which stay enabled regardless
-    // of whether the general per-instruction z80_increment_r() above is.
-    void z80_bump_r() { r = ( r & 0x80 ) | ( ( r + 1 ) & 0x7f ); }
+    // bit 7 is sticky and only ever changes via an explicit ld r,a. a no-op
+    // when TRACK_Z80_R_REGISTER is 0, so it's always correct to call this
+    // unconditionally regardless of the switch above.
+    void z80_bump_r()
+    {
+#if TRACK_Z80_R_REGISTER
+        r = ( r & 0x80 ) | ( ( r + 1 ) & 0x7f );
+#endif
+    }
 
     template <bool Z80Mode> void unmaterializeFlags()
     {
