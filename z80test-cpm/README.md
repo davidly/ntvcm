@@ -219,3 +219,37 @@ with a CP/M warm-boot jump, and print plain text instead of using the
 Spectrum ROM's `CHR$23`/`CHR$127` screen-positioning control codes. Every
 other byte of program logic is identical to upstream, verified by diffing
 against the official release's own `.tap` file.
+
+## Emulator comparison
+
+Results of running `doc.com` (160 tests total, 4 of which are always
+`Skipped` early on regardless of anything below — they're gated to only run
+after some earlier failure, and nothing fails that early) against every
+CP/M emulator this port has been validated against:
+
+| Emulator | OK | Failed | Skipped |
+|---|---|---|---|
+| tnylpo | 147 | 9 | 4 |
+| ntvcm (`TRACK_Z80_R_REGISTER` set to `1`, see below) | 147 | 9 | 4 |
+| ntvcm (default build) | 146 | 10 | 4 |
+| zxcc | 142 | 14 | 4 |
+| cpmemu | 141 | 15 | 4 |
+| iz-cpm | 141 | 15 | 4 |
+| RunCPM | 81 | 4 | 4 (halts at test 089 on an unimplemented opcode) |
+| z88dk (`cpm`) | 8 | 0 | 4 (crashes at test 012 on an unimplemented opcode) |
+| cpm.exe (Takeda Toshiya's CP/M Player) | 0 | 0 | — (crashes on the test's first unconditional `OUT`; can't run z80test at all) |
+
+Every failure beyond the 9 unavoidable `IN A,(0xFE)` ones is a real,
+specific gap in that emulator's Z80 core (see "Expected results" above for
+what's expected and why) — not noise. tnylpo and ntvcm (with the switch
+below flipped) are the only two that get everything else right.
+
+**Note on ntvcm**: it leaves the Z80 `R` (memory-refresh) register
+untracked by default, for performance — a deliberate, measured ~4.6%
+runtime cost across every instruction if fully tracked, and almost no real
+CP/M software ever reads `R`'s exact value. `LD A,R` (test 157) is the
+*only* test in the entire z80test suite this affects; with `R` frozen it
+fails, accounting for the whole 146-vs-147 difference above. To get it
+back, set `TRACK_Z80_R_REGISTER` to `1` near the top of the `registers`
+struct in `x80.hxx` and rebuild — every other result is already identical
+either way.
