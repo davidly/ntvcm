@@ -119,6 +119,12 @@ struct registers
 
     void z80_increment_r() { /* reg.r++; */ } // 4.6% of runtime when the increment is enabled
 
+    // only the low 7 bits of r auto-increment (wrapping without touching bit 7);
+    // bit 7 is sticky and only ever changes via an explicit ld r,a. used by the
+    // explicit prefix-byte r bumps (cb/dd/fd/ed), which stay enabled regardless
+    // of whether the general per-instruction z80_increment_r() above is.
+    void z80_bump_r() { r = ( r & 0x80 ) | ( ( r + 1 ) & 0x7f ); }
+
     template <bool Z80Mode> void unmaterializeFlags()
     {
         if ( Z80Mode )

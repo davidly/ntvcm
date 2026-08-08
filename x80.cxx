@@ -614,6 +614,19 @@ void z80_ni( uint8_t op, uint8_t op2 )
     x80_hard_exit( "bugbug: not-implemented z80 instruction: %#x, next byte is %#x\n", op, op2 );
 } //z80_ni
 
+// real hardware never advances pc during a block-repeat instruction; it just
+// re-fetches the same ed/op2 bytes from memory on every iteration. self-
+// modifying code that overwrites those bytes mid-repeat (z80test's
+// LDIR->NOP'/LDDR->NOP' deliberately do this) makes the *next* fetch see
+// different bytes and the instruction stops repeating. this checks whether
+// that's happened so the repeat loops below can detect it without having to
+// re-fetch on every single iteration in the overwhelmingly common case
+// where nothing self-modifies.
+bool z80_block_repeat_self_modified( uint16_t pc, uint8_t op2 )
+{
+    return ( 0xed != memory[ (uint16_t) ( pc - 2 ) ] ) || ( op2 != memory[ (uint16_t) ( pc - 1 ) ] );
+} //z80_block_repeat_self_modified
+
 void z80_op_bit( uint8_t val, uint8_t bit, z80_value_source vs )
 {
     assert( bit <= 7 );
@@ -984,7 +997,7 @@ always_inlined uint32_t z80_emulate( uint8_t op, uint16_t & pc, uint16_t & sp ) 
         }
         case 0xdd: case 0xfd: // ix & iy operations
         {
-            reg.r++;
+            reg.z80_bump_r();
             uint8_t op2 = pcbyte( pc );
 
             // "ld r, (i+#)" and "ld (i+#), r/#" are checked first because they are by far the most common
@@ -1164,7 +1177,7 @@ always_inlined uint32_t z80_emulate( uint8_t op, uint16_t & pc, uint16_t & sp ) 
             else if ( 0xcb == op2 ) // bit operations
             {
                 uint8_t op4 = memory[ pc + 1 ];
-                reg.r++;
+                reg.z80_bump_r();
                 if ( 0x26 == op4 || 0x2e == op4 || 0x3e == op4 ) // sla, sra, srl [ix/iy + offset]
                 {
                     cycles = 23;
@@ -1267,7 +1280,7 @@ always_inlined uint32_t z80_emulate( uint8_t op, uint16_t & pc, uint16_t & sp ) 
         }
         case 0xed: // 16-bit load/store and i/o operations
         {
-            reg.r++;
+            reg.z80_bump_r();
             uint8_t op2 = pcbyte( pc );  // consume op2
 
             if ( 0x43 == ( op2 & 0xcf ) ) // ld (mw), rp AKA ld (nn), dd
@@ -1322,7 +1335,7 @@ always_inlined uint32_t z80_emulate( uint8_t op, uint16_t & pc, uint16_t & sp ) 
             else if ( 0x5f == op2 ) // ld a,r
             {
                 cycles = 9;
-                reg.a = ( 0x7f & reg.r ); // the high bit is always 0 on Z80
+                reg.a = reg.r; // bit 7 is sticky from the last ld r,a; only bits 0-6 auto-increment
                 set_sign_zero( reg.a );
                 reg.fParityEven_Overflow = false; // no iff2
                 reg.fWasSubtract = false;
@@ -1421,6 +1434,7 @@ always_inlined uint32_t z80_emulate( uint8_t op, uint16_t & pc, uint16_t & sp ) 
             else if ( 0xb0 == op2 ) // ldir
             {
                 cycles = 0;
+                bool modified = false;
                 do
                 {
                     cycles += 21;
@@ -1430,10 +1444,16 @@ always_inlined uint32_t z80_emulate( uint8_t op, uint16_t & pc, uint16_t & sp ) 
                     reg.SetH( reg.H() + 1 );
                     reg.SetD( reg.D() + 1 );
                     reg.SetB( reg.B() - 1 );
-                } while ( 0 != reg.B() );
+                    reg.z80_bump_r(); reg.z80_bump_r(); // each repeat re-examines ed/op2; real hardware bumps r by 2 per iteration
+                    if ( 0 != reg.B() )
+                        modified = z80_block_repeat_self_modified( pc, op2 );
+                } while ( ( 0 != reg.B() ) && !modified );
+
+                if ( modified )
+                    pc -= 2; // it overwrote its own ed/op2 bytes; let the next fetch re-decode them
 
                 cycles -= 5; // the last iteration is 16T; repeated iterations are 21T
-                reg.fParityEven_Overflow = false;
+                reg.fParityEven_Overflow = ( 0 != reg.B() ); // false on normal completion; true if the repeat was interrupted by self-modification
                 reg.fAuxCarry = 0;
                 reg.fWasSubtract = 0;
             }
@@ -1441,6 +1461,7 @@ always_inlined uint32_t z80_emulate( uint8_t op, uint16_t & pc, uint16_t & sp ) 
             {
                 bool oldCarry = reg.fCarry;
                 cycles = 0;
+                bool modified = false;
                 do
                 {
                     cycles += 21;
@@ -1451,7 +1472,13 @@ always_inlined uint32_t z80_emulate( uint8_t op, uint16_t & pc, uint16_t & sp ) 
                     reg.fX = ( 0 != ( n & 0x08 ) );
                     reg.SetH( reg.H() + 1 );
                     reg.SetB( reg.B() - 1 );
-                } while ( !reg.fZero && ( 0 != reg.B() ) );
+                    reg.z80_bump_r(); reg.z80_bump_r(); // each repeat re-examines ed/op2; real hardware bumps r by 2 per iteration
+                    if ( !reg.fZero && ( 0 != reg.B() ) )
+                        modified = z80_block_repeat_self_modified( pc, op2 );
+                } while ( !reg.fZero && ( 0 != reg.B() ) && !modified );
+
+                if ( modified )
+                    pc -= 2; // it overwrote its own ed/op2 bytes; let the next fetch re-decode them
 
                 cycles -= 5; // the last iteration is 16T; repeated iterations are 21T
                 reg.fParityEven_Overflow = ( 0 != reg.B() ); // not what the Zilog doc says, but it's what works
@@ -1460,6 +1487,7 @@ always_inlined uint32_t z80_emulate( uint8_t op, uint16_t & pc, uint16_t & sp ) 
             else if ( 0xb8 == op2 ) // lddr
             {
                 cycles = 0;
+                bool modified = false;
                 do
                 {
                     cycles += 21;
@@ -1469,16 +1497,23 @@ always_inlined uint32_t z80_emulate( uint8_t op, uint16_t & pc, uint16_t & sp ) 
                     reg.SetH( reg.H() - 1 );
                     reg.SetD( reg.D() - 1 );
                     reg.SetB( reg.B() - 1 );
-                } while ( 0 != reg.B() );
+                    reg.z80_bump_r(); reg.z80_bump_r(); // each repeat re-examines ed/op2; real hardware bumps r by 2 per iteration
+                    if ( 0 != reg.B() )
+                        modified = z80_block_repeat_self_modified( pc, op2 );
+                } while ( ( 0 != reg.B() ) && !modified );
+
+                if ( modified )
+                    pc -= 2; // it overwrote its own ed/op2 bytes; let the next fetch re-decode them
 
                 cycles -= 5; // the last iteration is 16T; repeated iterations are 21T
-                reg.fParityEven_Overflow = false; // unlike similar functions
+                reg.fParityEven_Overflow = ( 0 != reg.B() ); // false on normal completion; true if the repeat was interrupted by self-modification
                 reg.clearHN();
             }
             else if ( 0xb9 == op2 ) // cpdr
             {
                 bool oldCarry = reg.fCarry;
                 cycles = 0;
+                bool modified = false;
                 do
                 {
                     cycles += 21;
@@ -1489,7 +1524,13 @@ always_inlined uint32_t z80_emulate( uint8_t op, uint16_t & pc, uint16_t & sp ) 
                     reg.fX = ( 0 != ( n & 0x08 ) );
                     reg.SetH( reg.H() - 1 );
                     reg.SetB( reg.B() - 1 );
-                } while ( !reg.fZero && ( 0 != reg.B() ) );
+                    reg.z80_bump_r(); reg.z80_bump_r(); // each repeat re-examines ed/op2; real hardware bumps r by 2 per iteration
+                    if ( !reg.fZero && ( 0 != reg.B() ) )
+                        modified = z80_block_repeat_self_modified( pc, op2 );
+                } while ( !reg.fZero && ( 0 != reg.B() ) && !modified );
+
+                if ( modified )
+                    pc -= 2; // it overwrote its own ed/op2 bytes; let the next fetch re-decode them
 
                 cycles -= 5; // the last iteration is 16T; repeated iterations are 21T
                 reg.fParityEven_Overflow = ( 0 != reg.B() );
@@ -1535,59 +1576,87 @@ always_inlined uint32_t z80_emulate( uint8_t op, uint16_t & pc, uint16_t & sp ) 
             else if ( 0xb2 == op2 ) // inir; no real I/O device attached
             {
                 cycles = 0;
+                bool modified = false;
                 do
                 {
                     cycles += 21;
                     memory[ reg.H() ] = 0xff;
                     reg.SetH( reg.H() + 1 );
                     reg.b = reg.b - 1;
-                } while ( 0 != reg.b );
+                    reg.z80_bump_r(); reg.z80_bump_r(); // each repeat re-examines ed/op2; real hardware bumps r by 2 per iteration
+                    if ( 0 != reg.b )
+                        modified = z80_block_repeat_self_modified( pc, op2 );
+                } while ( ( 0 != reg.b ) && !modified );
+
+                if ( modified )
+                    pc -= 2; // it overwrote its own ed/op2 bytes; let the next fetch re-decode them
 
                 cycles -= 5; // the last iteration is 16T; repeated iterations are 21T
-                reg.fZero = true;
+                reg.fZero = ( 0 == reg.b ); // true on normal completion; false if the repeat was interrupted by self-modification
                 reg.fWasSubtract = true;
             }
             else if ( 0xba == op2 ) // indr; no real I/O device attached
             {
                 cycles = 0;
+                bool modified = false;
                 do
                 {
                     cycles += 21;
                     memory[ reg.H() ] = 0xff;
                     reg.SetH( reg.H() - 1 );
                     reg.b = reg.b - 1;
-                } while ( 0 != reg.b );
+                    reg.z80_bump_r(); reg.z80_bump_r(); // each repeat re-examines ed/op2; real hardware bumps r by 2 per iteration
+                    if ( 0 != reg.b )
+                        modified = z80_block_repeat_self_modified( pc, op2 );
+                } while ( ( 0 != reg.b ) && !modified );
+
+                if ( modified )
+                    pc -= 2; // it overwrote its own ed/op2 bytes; let the next fetch re-decode them
 
                 cycles -= 5;
-                reg.fZero = true;
+                reg.fZero = ( 0 == reg.b ); // true on normal completion; false if the repeat was interrupted by self-modification
                 reg.fWasSubtract = true;
             }
             else if ( 0xb3 == op2 ) // otir; no real I/O device attached
             {
                 cycles = 0;
+                bool modified = false;
                 do
                 {
                     cycles += 21;
                     reg.SetH( reg.H() + 1 );
                     reg.b = reg.b - 1;
-                } while ( 0 != reg.b );
+                    reg.z80_bump_r(); reg.z80_bump_r(); // each repeat re-examines ed/op2; real hardware bumps r by 2 per iteration
+                    if ( 0 != reg.b )
+                        modified = z80_block_repeat_self_modified( pc, op2 );
+                } while ( ( 0 != reg.b ) && !modified );
+
+                if ( modified )
+                    pc -= 2; // it overwrote its own ed/op2 bytes; let the next fetch re-decode them
 
                 cycles -= 5;
-                reg.fZero = true;
+                reg.fZero = ( 0 == reg.b ); // true on normal completion; false if the repeat was interrupted by self-modification
                 reg.fWasSubtract = true;
             }
             else if ( 0xbb == op2 ) // otdr; no real I/O device attached
             {
                 cycles = 0;
+                bool modified = false;
                 do
                 {
                     cycles += 21;
                     reg.SetH( reg.H() - 1 );
                     reg.b = reg.b - 1;
-                } while ( 0 != reg.b );
+                    reg.z80_bump_r(); reg.z80_bump_r(); // each repeat re-examines ed/op2; real hardware bumps r by 2 per iteration
+                    if ( 0 != reg.b )
+                        modified = z80_block_repeat_self_modified( pc, op2 );
+                } while ( ( 0 != reg.b ) && !modified );
+
+                if ( modified )
+                    pc -= 2; // it overwrote its own ed/op2 bytes; let the next fetch re-decode them
 
                 cycles -= 5;
-                reg.fZero = true;
+                reg.fZero = ( 0 == reg.b ); // true on normal completion; false if the repeat was interrupted by self-modification
                 reg.fWasSubtract = true;
             }
             else if ( 0x45 == ( op2 & 0xcf ) ) // retn; 0x55/65/75 are undocumented duplicates
@@ -1626,8 +1695,8 @@ always_inlined uint32_t z80_emulate( uint8_t op, uint16_t & pc, uint16_t & sp ) 
             }
             else if ( 0x41 == ( op2 & 0xc7 ) ) // out (c),r; no real I/O device attached
                 cycles = 12;
-            else
-                z80_ni( op, op2 );
+            else // any other ed-prefixed byte is undefined and acts as two nops (r is already +2 for the prefix+op2 fetch)
+                cycles = 8;
             break;
         }
         default:

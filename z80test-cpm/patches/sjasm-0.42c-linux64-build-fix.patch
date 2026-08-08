@@ -1,0 +1,21 @@
+--- a/Sjasm/sjasm.h	2026-08-08 08:19:13.733180119 -0700
++++ b/Sjasm/sjasm.h	2026-08-07 13:53:59.718877366 -0700
+@@ -61,6 +61,7 @@
+ #endif
+ 
+ #include <time.h>
++#include <cstring>
+ #include <list>
+ #include <stack>
+ #include <vector>
+--- a/Sjasm/rawsource.cpp	2026-08-08 08:19:13.733180119 -0700
++++ b/Sjasm/rawsource.cpp	2026-08-07 13:58:36.482855554 -0700
+@@ -229,7 +229,7 @@
+ 
+ void RawSource::_CutLines(string &line) {
+   string res="";
+-  unsigned pos;
++  int pos;
+   while ('o') {
+     pos=(int)line.find_first_of("\\\"'");
+     if (pos) res+=line.substr(0,pos);
