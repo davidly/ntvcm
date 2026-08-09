@@ -44,6 +44,7 @@ struct registers
     uint16_t iy;
     uint8_t r;    // refresh
     uint8_t i;    // interrupt page
+    uint16_t memptr; // undocumented "WZ" register; see TRACK_Z80_MEMPTR below
 
     // these first four bool flags must remain in this order for getFlag() to work
 
@@ -135,6 +136,40 @@ struct registers
     {
 #if TRACK_Z80_R_REGISTER
         r = ( r & 0x80 ) | ( ( r + 1 ) & 0x7f );
+#endif
+    }
+
+    // set to 1 to accurately track the z80's undocumented internal "MEMPTR"
+    // (aka WZ) register: nearly every instruction that computes a 16-bit
+    // address (direct loads, 16-bit arithmetic, jp/call/ret/rst, indexed
+    // (ix+d)/(iy+d) addressing, block instructions, port i/o, interrupt
+    // acknowledge) updates it, matching real hardware. Only BIT n,(HL) and
+    // BIT n,(IX/IY+d) ever read it back (bits 5/3 of the result flags come
+    // from MEMPTR's bits 13/11 instead of the usual "copy from the operand"
+    // rule). Set to 0 (the default) to skip all of that: almost no real
+    // software depends on these two specific undocumented flag bits, and
+    // the writes touch a large fraction of common instructions. This one
+    // switch gates every place MEMPTR changes.
+#define TRACK_Z80_MEMPTR 0
+
+    // a no-op when TRACK_Z80_MEMPTR is 0, so it's always correct to call
+    // this unconditionally regardless of the switch above.
+    void z80_set_memptr( uint16_t value )
+    {
+#if TRACK_Z80_MEMPTR
+        memptr = value;
+#endif
+    }
+
+    // for BIT n,(HL) and BIT n,(IX/IY+d): Y/X come from MEMPTR bits 13/11
+    // instead of the usual "copy from the operand" rule. a no-op when
+    // TRACK_Z80_MEMPTR is 0, leaving Y/X untouched exactly as before this
+    // feature existed, so it's always correct to call unconditionally.
+    void z80_assignYX_from_memptr()
+    {
+#if TRACK_Z80_MEMPTR
+        fY = ( 0 != ( memptr & 0x2000 ) );
+        fX = ( 0 != ( memptr & 0x0800 ) );
 #endif
     }
 

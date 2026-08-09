@@ -188,12 +188,14 @@ are expected and are not a useful signal on their own.
 register's effect on `BIT n,(HL)`/`BIT n,(IX+d)`'s undocumented flags, by
 appending a `BIT 0,(HL)` probe after *every single instruction in the whole
 suite*. MEMPTR is one of the least-commonly-emulated pieces of Z80 internal
-state; most emulators (`ntvcm` currently included) don't implement it, and
-will fail this variant almost universally as a result. Upstream's own
-`readme.txt` calls this out directly: it exists specifically *"to discover
-major problems in the MEMPTR emulation."* A near-total failure here means
-"this emulator doesn't implement MEMPTR," which is a real and useful thing
-to know, but is a single, well-understood gap, not 89 independent bugs.
+state; most emulators fail this variant almost universally as a result.
+Upstream's own `readme.txt` calls this out directly: it exists specifically
+*"to discover major problems in the MEMPTR emulation."* A near-total failure
+here means "this emulator doesn't implement MEMPTR," which is a real and
+useful thing to know, but is a single, well-understood gap, not 89
+independent bugs. `ntvcm` implements MEMPTR tracking behind the
+`TRACK_Z80_MEMPTR` switch (off by default — see below), so it can score
+either end of this range depending on the build.
 
 ## Layout
 
@@ -253,3 +255,33 @@ fails, accounting for the whole 146-vs-147 difference above. To get it
 back, set `TRACK_Z80_R_REGISTER` to `1` near the top of the `registers`
 struct in `x80.hxx` and rebuild — every other result is already identical
 either way.
+
+**Note on ntvcm and MEMPTR**: the same applies to the undocumented internal
+`MEMPTR`/`WZ` register (see "Expected results" above), gated behind its own
+`TRACK_Z80_MEMPTR` switch, off by default. Nearly every instruction that
+computes a 16-bit address writes MEMPTR, so tracking it touches a much
+broader swath of the interpreter than `R` does; the measured cost is
+~5% runtime across `zexall`, noisier but roughly in the same range as the
+`R` cost above. Running `memptr.com` (160 tests) against each build:
+
+| ntvcm build | OK | Failed | Skipped |
+|---|---|---|---|
+| `TRACK_Z80_MEMPTR` set to `1` | 143 | 13 | 4 |
+| default build | 0 | 160 | 0 |
+
+With the switch off, MEMPTR never changes from its power-on value, so
+essentially every `BIT 0,(HL)` probe in the test disagrees with real
+hardware — the expected "doesn't implement MEMPTR" result described above.
+(Even test 000's `SELF TEST` fails in the default build, since it too ends
+in a MEMPTR-sensitive `BIT 0,(HL)` probe; that failure trips the SCF/CCF
+variant-detection gating that normally `Skip`s tests 003-006 in `doc.com`,
+so this build fails those 4 outright instead of skipping them — hence 0
+`Skipped` here versus 4 in every other table on this page.)
+With the switch on, the only 13 remaining failures are `IN A,(N)`, `IN
+R,(C)`, `IN (C)`, `INI`, `IND`, `INIR`, `INDR`, `INIR->NOP'`, `INDR->NOP'`,
+`OUTI`, `OUTD`, `OTIR`, and `OTDR` — the same pre-existing "no real I/O
+device attached" floating-bus gap that also accounts for 9 of `doc.com`'s
+10 default-build failures, not a MEMPTR bug. Set `TRACK_Z80_MEMPTR` to `1`
+near `TRACK_Z80_R_REGISTER` in `x80.hxx` and rebuild to get this back;
+`doc.com`, `zexall`, `zexdoc`, and `zexsup` results are unaffected either
+way.

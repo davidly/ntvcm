@@ -472,15 +472,17 @@ template <bool Z80Mode> force_inlined void op_dad( uint16_t x )
 {
     // add x to H and set Carry if warranted
 
-    uint32_t result = (uint32_t) reg.H() + (uint32_t) x;
+    uint16_t oldH = reg.H();
+    uint32_t result = (uint32_t) oldH + (uint32_t) x;
     reg.fCarry = ( 0 != ( 0x10000 & result ) );
 
     if ( Z80Mode )
     {
-        uint32_t auxResult = ( reg.H() & 0xfff ) + ( x & 0xfff );
+        uint32_t auxResult = ( oldH & 0xfff ) + ( x & 0xfff );
         reg.fAuxCarry = ( 0 != ( auxResult & 0xf000 ) );
         reg.fWasSubtract = false;
         reg.z80_assignYX( (uint8_t) ( result >> 8 ) );
+        reg.z80_set_memptr( oldH + 1 );
     }
 
     reg.SetH( (uint16_t) ( result & 0xffff ) );
@@ -643,6 +645,8 @@ void z80_op_bit( uint8_t val, uint8_t bit, z80_value_source vs )
 
     if ( vs_register == vs )
         reg.z80_assignYX( val );
+    else
+        reg.z80_assignYX_from_memptr();
 } //z80_op_bit
 
 void z80_op_rlc( uint8_t * pval )
@@ -851,6 +855,7 @@ always_inlined uint32_t z80_emulate( uint8_t op, uint16_t & pc, uint16_t & sp ) 
             {
                 pc = pc + (int16_t) (int8_t) offset;
                 cycles = 13;
+                reg.z80_set_memptr( pc );
             }
             else
                 cycles = 8;
@@ -861,6 +866,7 @@ always_inlined uint32_t z80_emulate( uint8_t op, uint16_t & pc, uint16_t & sp ) 
             uint8_t offset = pcbyte( pc );
             pc = pc + (int16_t) (int8_t) offset;
             cycles = 12;
+            reg.z80_set_memptr( pc );
             break;
         }
         case 0x20: // jr nz, n
@@ -870,6 +876,7 @@ always_inlined uint32_t z80_emulate( uint8_t op, uint16_t & pc, uint16_t & sp ) 
             {
                 pc = pc + (int16_t) (int8_t) offset;
                 cycles = 12;
+                reg.z80_set_memptr( pc );
             }
             else
                 cycles = 7;
@@ -882,6 +889,7 @@ always_inlined uint32_t z80_emulate( uint8_t op, uint16_t & pc, uint16_t & sp ) 
             {
                 pc = pc + (int16_t) (int8_t) offset;
                 cycles = 12;
+                reg.z80_set_memptr( pc );
             }
             else
                 cycles = 7;
@@ -894,6 +902,7 @@ always_inlined uint32_t z80_emulate( uint8_t op, uint16_t & pc, uint16_t & sp ) 
             {
                 pc = pc + (int16_t) (int8_t) offset;
                 cycles = 12;
+                reg.z80_set_memptr( pc );
             }
             else
                 cycles = 7;
@@ -906,6 +915,7 @@ always_inlined uint32_t z80_emulate( uint8_t op, uint16_t & pc, uint16_t & sp ) 
             {
                 pc = pc + (int16_t) (int8_t) offset;
                 cycles = 12;
+                reg.z80_set_memptr( pc );
             }
             else
                 cycles = 7;
@@ -1011,6 +1021,7 @@ always_inlined uint32_t z80_emulate( uint8_t op, uint16_t & pc, uint16_t & sp ) 
                 cycles = 19;
                 uint8_t op3 = pcbyte( pc ); // consume op3
                 uint16_t address = reg.z80_getIndex( op ) + (uint16_t) (int16_t) (int8_t) op3;
+                reg.z80_set_memptr( address );
                 * dst_address( op2 ) = memory[ address ];
             }
             else if ( 0x70 == ( op2 & 0xf8 ) )  // ld (i+#), r/#
@@ -1024,6 +1035,7 @@ always_inlined uint32_t z80_emulate( uint8_t op, uint16_t & pc, uint16_t & sp ) 
                 uint8_t val = ( 6 == src ) ? pcbyte( pc ) : src_value_rm( src );
                 uint16_t i = reg.z80_getIndex( op );
                 i += (uint16_t) (int16_t) (int8_t) op3;
+                reg.z80_set_memptr( i );
                 memory[ i ] = val;
             }
             else if ( 0x21 == op2 )  // ld ix/iy word
@@ -1039,6 +1051,7 @@ always_inlined uint32_t z80_emulate( uint8_t op, uint16_t & pc, uint16_t & sp ) 
                 cycles = 20;
                 uint16_t address = pcword( pc );
                 setmword( address, reg.z80_getIndex( op ) );
+                reg.z80_set_memptr( address + 1 );
             }
             else if ( 0x23 == op2 ) // inc ix/iy     no flags are affected
             {
@@ -1075,6 +1088,7 @@ always_inlined uint32_t z80_emulate( uint8_t op, uint16_t & pc, uint16_t & sp ) 
                 uint16_t oldval = reg.z80_getIndex( op );
                 uint16_t newval = z80_op_add_16( oldval, rpval );
                 reg.z80_setIndex( op, newval );
+                reg.z80_set_memptr( oldval + 1 );
             }
             else if ( 0x26 == op2 ) // ld ix/iy h. not documented
             {
@@ -1086,6 +1100,7 @@ always_inlined uint32_t z80_emulate( uint8_t op, uint16_t & pc, uint16_t & sp ) 
                 cycles = 20;
                 uint16_t address = pcword( pc );
                 reg.z80_setIndex( op, mword( address ) );
+                reg.z80_set_memptr( address + 1 );
             }
             else if ( 0x2b == op2 ) // dec ix/iy   no flags are affected
             {
@@ -1104,6 +1119,7 @@ always_inlined uint32_t z80_emulate( uint8_t op, uint16_t & pc, uint16_t & sp ) 
             {
                 cycles = 23;
                 uint16_t i = reg.z80_getIndex( op ) + (int16_t) (int8_t) pcbyte( pc );
+                reg.z80_set_memptr( i );
                 uint8_t x = memory[ i ];
                 memory[i] = op_inc<true>( x );
             }
@@ -1111,6 +1127,7 @@ always_inlined uint32_t z80_emulate( uint8_t op, uint16_t & pc, uint16_t & sp ) 
             {
                 cycles = 23;
                 uint16_t i = reg.z80_getIndex( op ) + (int16_t) (int8_t) pcbyte( pc );
+                reg.z80_set_memptr( i );
                 uint8_t x = memory[ i ];
                 memory[ i ] = op_dec<true>( x );
             }
@@ -1118,6 +1135,7 @@ always_inlined uint32_t z80_emulate( uint8_t op, uint16_t & pc, uint16_t & sp ) 
             {
                 cycles = 19;
                 uint16_t i = reg.z80_getIndex( op ) + (int16_t) (int8_t) pcbyte( pc );
+                reg.z80_set_memptr( i );
                 uint8_t val = pcbyte( pc );
                 memory[ i ] = val;
             }
@@ -1163,6 +1181,7 @@ always_inlined uint32_t z80_emulate( uint8_t op, uint16_t & pc, uint16_t & sp ) 
                 cycles = 19;
                 uint16_t x = reg.z80_getIndex( op );
                 x += (int16_t) (int8_t) pcbyte( pc );
+                reg.z80_set_memptr( x );
                 op_math<true>( op2, memory[ x ] );
             }
             else if ( 0x24 == ( op2 & 0xf6 ) ) // inc/dec ixh, ixl, iyh, iyl
@@ -1185,6 +1204,7 @@ always_inlined uint32_t z80_emulate( uint8_t op, uint16_t & pc, uint16_t & sp ) 
                     pcbyte( pc ); // the op4
                     uint16_t index = reg.z80_getIndex( op );
                     index += (int16_t) (int8_t) offset;
+                    reg.z80_set_memptr( index );
                     if ( 0x26 == op4 ) // sla
                         z80_op_sla( & memory[ index ] );
                     else if ( 0x2e == op4 ) // sra
@@ -1199,6 +1219,7 @@ always_inlined uint32_t z80_emulate( uint8_t op, uint16_t & pc, uint16_t & sp ) 
                     pcbyte( pc );
                     uint16_t index = reg.z80_getIndex( op );
                     index += (int16_t) (int8_t) offset;
+                    reg.z80_set_memptr( index );
 
                     if ( op4 <= 0x07 )
                         z80_op_rlc( & memory[ index ] );
@@ -1230,6 +1251,7 @@ always_inlined uint32_t z80_emulate( uint8_t op, uint16_t & pc, uint16_t & sp ) 
                     uint8_t mask = 1 << bit;
                     uint8_t top2bits = mod & 0xc0;
                     uint16_t offset = reg.z80_getIndex( op ) + (int16_t) (int8_t) index;
+                    reg.z80_set_memptr( offset );
                     uint8_t val = memory[ offset ];
 
                     if ( 0x40 == top2bits ) // bit
@@ -1263,6 +1285,7 @@ always_inlined uint32_t z80_emulate( uint8_t op, uint16_t & pc, uint16_t & sp ) 
                 uint16_t val = reg.z80_getIndex( op );
                 reg.z80_setIndex( op, mword( sp ) );
                 setmword( sp, val );
+                reg.z80_set_memptr( reg.z80_getIndex( op ) );
             }
             else if ( 0xe9 == op2 ) // jp (ix/iy) // the Z80 name makes it look indirect. It's not.
             {
@@ -1288,13 +1311,17 @@ always_inlined uint32_t z80_emulate( uint8_t op, uint16_t & pc, uint16_t & sp ) 
                 cycles = 20;
                 uint8_t rp = ( 0x3 & ( op2 >> 4 ) );
                 uint16_t val = ( 3 == rp ) ? sp : * reg.rpAddressFromOp( op2 );
-                setmword( pcword( pc ), val );
+                uint16_t addr = pcword( pc );
+                setmword( addr, val );
+                reg.z80_set_memptr( addr + 1 );
             }
             else if ( 0x4b == ( op2 & 0xcf ) )      // ld rp, (nn) AKA ld dd, (nn)
             {
                 cycles = 20;
                 uint8_t rp = ( 0x3 & ( op2 >> 4 ) );
-                uint16_t val = mword( pcword( pc ) );
+                uint16_t addr = pcword( pc );
+                uint16_t val = mword( addr );
+                reg.z80_set_memptr( addr + 1 );
                 if ( 3 == rp )
                     sp = val;
                 else
@@ -1355,6 +1382,7 @@ always_inlined uint32_t z80_emulate( uint8_t op, uint16_t & pc, uint16_t & sp ) 
                 set_sign_zero_parity( reg.a );
                 reg.clearHN();
                 reg.z80_assignYX( reg.a );
+                reg.z80_set_memptr( reg.H() + 1 );
             }
             else if ( 0x6f == op2 ) // rld
             {
@@ -1369,14 +1397,17 @@ always_inlined uint32_t z80_emulate( uint8_t op, uint16_t & pc, uint16_t & sp ) 
                 set_sign_zero_parity( reg.a );
                 reg.clearHN();
                 reg.z80_assignYX( reg.a );
+                reg.z80_set_memptr( reg.H() + 1 );
             }
             else if ( 0x4a == ( op2 & 0xcf ) ) // adc hl, rp
             {
                 cycles = 15;
                 uint8_t rp = ( 0x3 & ( op2 >> 4 ) );
                 uint16_t rpval = ( 3 == rp ) ? sp : * reg.rpAddressFromOp( op2 );
-                uint16_t result = z80_op_adc_16( reg.H(), rpval );
+                uint16_t oldH = reg.H();
+                uint16_t result = z80_op_adc_16( oldH, rpval );
                 reg.SetH( result );
+                reg.z80_set_memptr( oldH + 1 );
             }
             else if ( 0xa0 == op2 ) // ldi
             {
@@ -1404,6 +1435,7 @@ always_inlined uint32_t z80_emulate( uint8_t op, uint16_t & pc, uint16_t & sp ) 
                 reg.fY = ( 0 != ( n & 0x02 ) );
                 reg.fX = ( 0 != ( n & 0x08 ) );
                 reg.fCarry = oldCarry; // carry is not affected
+                reg.z80_set_memptr( reg.memptr + 1 );
             }
             else if ( 0xa8 == op2 ) // ldd
             {
@@ -1430,6 +1462,7 @@ always_inlined uint32_t z80_emulate( uint8_t op, uint16_t & pc, uint16_t & sp ) 
                 reg.fY = ( 0 != ( n & 0x02 ) );
                 reg.fX = ( 0 != ( n & 0x08 ) );
                 reg.fCarry = oldCarry; // carry is not affected
+                reg.z80_set_memptr( reg.memptr - 1 );
             }
             else if ( 0xb0 == op2 ) // ldir
             {
@@ -1441,6 +1474,8 @@ always_inlined uint32_t z80_emulate( uint8_t op, uint16_t & pc, uint16_t & sp ) 
                     memory[ reg.D() ] = memory[ reg.H() ];
                     reg.fY = ( 0 != ( ( memory[ reg.H() ] + reg.a ) & 0x02 ) );
                     reg.fX = ( 0 != ( ( memory[ reg.H() ] + reg.a ) & 0x08 ) );
+                    if ( 1 != reg.B() ) // when bc==1 (the terminating iteration), memptr is unchanged
+                        reg.z80_set_memptr( pc - 1 ); // pc still points past the ed/op2 bytes; pc-1 is instruction_address+1
                     reg.SetH( reg.H() + 1 );
                     reg.SetD( reg.D() + 1 );
                     reg.SetB( reg.B() - 1 );
@@ -1472,6 +1507,10 @@ always_inlined uint32_t z80_emulate( uint8_t op, uint16_t & pc, uint16_t & sp ) 
                     reg.fX = ( 0 != ( n & 0x08 ) );
                     reg.SetH( reg.H() + 1 );
                     reg.SetB( reg.B() - 1 );
+                    if ( reg.fZero || ( 0 == reg.B() ) ) // terminating iteration: same rule as cpi
+                        reg.z80_set_memptr( reg.memptr + 1 );
+                    else // pc still points past the ed/op2 bytes; pc-1 is instruction_address+1
+                        reg.z80_set_memptr( pc - 1 );
                     reg.z80_bump_r(); reg.z80_bump_r(); // each repeat re-examines ed/op2; real hardware bumps r by 2 per iteration
                     if ( !reg.fZero && ( 0 != reg.B() ) )
                         modified = z80_block_repeat_self_modified( pc, op2 );
@@ -1494,6 +1533,8 @@ always_inlined uint32_t z80_emulate( uint8_t op, uint16_t & pc, uint16_t & sp ) 
                     memory[ reg.D() ] = memory[ reg.H() ];
                     reg.fY = ( 0 != ( ( memory[ reg.H() ] + reg.a ) & 0x02 ) );
                     reg.fX = ( 0 != ( ( memory[ reg.H() ] + reg.a ) & 0x08 ) );
+                    if ( 1 != reg.B() ) // when bc==1 (the terminating iteration), memptr is unchanged
+                        reg.z80_set_memptr( pc - 1 ); // pc still points past the ed/op2 bytes; pc-1 is instruction_address+1
                     reg.SetH( reg.H() - 1 );
                     reg.SetD( reg.D() - 1 );
                     reg.SetB( reg.B() - 1 );
@@ -1524,6 +1565,10 @@ always_inlined uint32_t z80_emulate( uint8_t op, uint16_t & pc, uint16_t & sp ) 
                     reg.fX = ( 0 != ( n & 0x08 ) );
                     reg.SetH( reg.H() - 1 );
                     reg.SetB( reg.B() - 1 );
+                    if ( reg.fZero || ( 0 == reg.B() ) ) // terminating iteration: same rule as cpd
+                        reg.z80_set_memptr( reg.memptr - 1 );
+                    else // pc still points past the ed/op2 bytes; pc-1 is instruction_address+1
+                        reg.z80_set_memptr( pc - 1 );
                     reg.z80_bump_r(); reg.z80_bump_r(); // each repeat re-examines ed/op2; real hardware bumps r by 2 per iteration
                     if ( !reg.fZero && ( 0 != reg.B() ) )
                         modified = z80_block_repeat_self_modified( pc, op2 );
@@ -1543,6 +1588,7 @@ always_inlined uint32_t z80_emulate( uint8_t op, uint16_t & pc, uint16_t & sp ) 
                 // for the block I/O group and must not be touched.
                 cycles = 16;
                 memory[ reg.H() ] = 0xff; // matches in r,(c)'s floating-bus convention
+                reg.z80_set_memptr( reg.B() + 1 ); // uses bc before decrementing b
                 reg.SetH( reg.H() + 1 );
                 reg.b = reg.b - 1;
                 reg.fZero = ( 0 == reg.b );
@@ -1552,6 +1598,7 @@ always_inlined uint32_t z80_emulate( uint8_t op, uint16_t & pc, uint16_t & sp ) 
             {
                 cycles = 16;
                 memory[ reg.H() ] = 0xff;
+                reg.z80_set_memptr( reg.B() - 1 ); // uses bc before decrementing b
                 reg.SetH( reg.H() - 1 );
                 reg.b = reg.b - 1;
                 reg.fZero = ( 0 == reg.b );
@@ -1562,6 +1609,7 @@ always_inlined uint32_t z80_emulate( uint8_t op, uint16_t & pc, uint16_t & sp ) 
                 cycles = 16;
                 reg.SetH( reg.H() + 1 );
                 reg.b = reg.b - 1;
+                reg.z80_set_memptr( reg.B() + 1 ); // uses bc after decrementing b
                 reg.fZero = ( 0 == reg.b );
                 reg.fWasSubtract = true;
             }
@@ -1570,6 +1618,7 @@ always_inlined uint32_t z80_emulate( uint8_t op, uint16_t & pc, uint16_t & sp ) 
                 cycles = 16;
                 reg.SetH( reg.H() - 1 );
                 reg.b = reg.b - 1;
+                reg.z80_set_memptr( reg.B() - 1 ); // uses bc after decrementing b
                 reg.fZero = ( 0 == reg.b );
                 reg.fWasSubtract = true;
             }
@@ -1581,6 +1630,7 @@ always_inlined uint32_t z80_emulate( uint8_t op, uint16_t & pc, uint16_t & sp ) 
                 {
                     cycles += 21;
                     memory[ reg.H() ] = 0xff;
+                    reg.z80_set_memptr( reg.B() + 1 ); // exactly as ini: uses bc before decrementing b
                     reg.SetH( reg.H() + 1 );
                     reg.b = reg.b - 1;
                     reg.z80_bump_r(); reg.z80_bump_r(); // each repeat re-examines ed/op2; real hardware bumps r by 2 per iteration
@@ -1603,6 +1653,7 @@ always_inlined uint32_t z80_emulate( uint8_t op, uint16_t & pc, uint16_t & sp ) 
                 {
                     cycles += 21;
                     memory[ reg.H() ] = 0xff;
+                    reg.z80_set_memptr( reg.B() - 1 ); // exactly as ind: uses bc before decrementing b
                     reg.SetH( reg.H() - 1 );
                     reg.b = reg.b - 1;
                     reg.z80_bump_r(); reg.z80_bump_r(); // each repeat re-examines ed/op2; real hardware bumps r by 2 per iteration
@@ -1626,6 +1677,7 @@ always_inlined uint32_t z80_emulate( uint8_t op, uint16_t & pc, uint16_t & sp ) 
                     cycles += 21;
                     reg.SetH( reg.H() + 1 );
                     reg.b = reg.b - 1;
+                    reg.z80_set_memptr( reg.B() + 1 ); // exactly as outi: uses bc after decrementing b
                     reg.z80_bump_r(); reg.z80_bump_r(); // each repeat re-examines ed/op2; real hardware bumps r by 2 per iteration
                     if ( 0 != reg.b )
                         modified = z80_block_repeat_self_modified( pc, op2 );
@@ -1647,6 +1699,7 @@ always_inlined uint32_t z80_emulate( uint8_t op, uint16_t & pc, uint16_t & sp ) 
                     cycles += 21;
                     reg.SetH( reg.H() - 1 );
                     reg.b = reg.b - 1;
+                    reg.z80_set_memptr( reg.B() - 1 ); // exactly as outd: uses bc after decrementing b
                     reg.z80_bump_r(); reg.z80_bump_r(); // each repeat re-examines ed/op2; real hardware bumps r by 2 per iteration
                     if ( 0 != reg.b )
                         modified = z80_block_repeat_self_modified( pc, op2 );
@@ -1663,11 +1716,13 @@ always_inlined uint32_t z80_emulate( uint8_t op, uint16_t & pc, uint16_t & sp ) 
             {
                 cycles = 14;
                 pc = popword( sp );
+                reg.z80_set_memptr( pc );
             }
             else if ( 0x4d == ( op2 & 0xcf ) ) // reti; 0x5d/6d/7d are undocumented duplicates
             {
                 cycles = 14;
                 pc = popword( sp );
+                reg.z80_set_memptr( pc );
             }
             else if ( 0x46 == ( op2 & 0xd7 ) ) // im 0; 0x4e/66/6e are undocumented duplicates
                 cycles = 8;
@@ -1680,7 +1735,9 @@ always_inlined uint32_t z80_emulate( uint8_t op, uint16_t & pc, uint16_t & sp ) 
                 cycles = 15;
                 uint8_t rp = ( 0x3 & ( op2 >> 4 ) );
                 uint16_t val = ( 3 == rp ) ? sp : * reg.rpAddressFromOp( op2 );
-                reg.SetH( z80_op_sub_16( reg.H(), val, reg.fCarry ) );
+                uint16_t oldH = reg.H();
+                reg.SetH( z80_op_sub_16( oldH, val, reg.fCarry ) );
+                reg.z80_set_memptr( oldH + 1 );
             }
             else if ( 0x40 == ( op2 & 0xc7 ) ) // in r,(c); rm==6 is the undocumented flags-only variant
             {
@@ -1692,9 +1749,13 @@ always_inlined uint32_t z80_emulate( uint8_t op, uint16_t & pc, uint16_t & sp ) 
                 set_sign_zero_parity( val );
                 reg.clearHN();
                 reg.z80_assignYX( val );
+                reg.z80_set_memptr( reg.B() + 1 );
             }
             else if ( 0x41 == ( op2 & 0xc7 ) ) // out (c),r; no real I/O device attached
+            {
                 cycles = 12;
+                reg.z80_set_memptr( reg.B() + 1 );
+            }
             else // any other ed-prefixed byte is undefined and acts as two nops (r is already +2 for the prefix+op2 fetch)
                 cycles = 8;
             break;
@@ -2279,7 +2340,7 @@ template <bool Z80Mode> static uint32_t x80_emulate_impl( uint16_t maxcycles )
             case 0x00: break; // nop
             case 0x01: case 0x11: case 0x21: { * reg.rpAddressFromLowOp( op ) = pcword( pc ); break; } // lxi bc/de/hl, d16
             case 0x31: { sp = pcword( pc ); break; } // lxi sp, d16
-            case 0x02: { memory[ reg.B() ] = reg.a; break; } // stax b
+            case 0x02: { memory[ reg.B() ] = reg.a; reg.z80_set_memptr( ( (uint16_t) reg.a << 8 ) | ( ( reg.B() + 1 ) & 0xff ) ); break; } // stax b
             case 0x03: case 0x13: case 0x23: // inx bc/de/hl. no status flag updates
             {
                 uint16_t * pdst = reg.rpAddressFromLowOp( op );
@@ -2319,7 +2380,7 @@ template <bool Z80Mode> static uint32_t x80_emulate_impl( uint16_t maxcycles )
             }
             case 0x09: case 0x19: case 0x29: { op_dad<Z80Mode>( * reg.rpAddressFromOp( op ) ); break; } // dad bc/de/hl
             case 0x39: { op_dad<Z80Mode>( sp ); break; } // dad sp
-            case 0x0a: { reg.a = memory[ reg.B() ]; break; } // ldax b
+            case 0x0a: { reg.z80_set_memptr( reg.B() + 1 ); reg.a = memory[ reg.B() ]; break; } // ldax b
             case 0x0b: case 0x1b: case 0x2b: // dcx bc/de/hl. no status flag updates
             {
                 uint16_t * pdst = reg.rpAddressFromOp( op );
@@ -2340,7 +2401,7 @@ template <bool Z80Mode> static uint32_t x80_emulate_impl( uint16_t maxcycles )
                 }
                 break;
             }
-            case 0x12: { memory[ reg.D() ] = reg.a; break; } // stax d
+            case 0x12: { memory[ reg.D() ] = reg.a; reg.z80_set_memptr( ( (uint16_t) reg.a << 8 ) | ( ( reg.D() + 1 ) & 0xff ) ); break; } // stax d
             case 0x17: // ral
             {
                 bool c = reg.fCarry;
@@ -2355,7 +2416,7 @@ template <bool Z80Mode> static uint32_t x80_emulate_impl( uint16_t maxcycles )
                 }
                 break;
             }
-            case 0x1a: { reg.a = memory[ reg.D() ]; break; } // ldax d
+            case 0x1a: { reg.z80_set_memptr( reg.D() + 1 ); reg.a = memory[ reg.D() ]; break; } // ldax d
             case 0x1f: // rar
             {
                 bool c = reg.fCarry;
@@ -2370,11 +2431,11 @@ template <bool Z80Mode> static uint32_t x80_emulate_impl( uint16_t maxcycles )
                 }
                 break;
             }
-            case 0x22: { setmword( pcword( pc ), reg.H() ); break; } // shld
+            case 0x22: { uint16_t addr = pcword( pc ); setmword( addr, reg.H() ); reg.z80_set_memptr( addr + 1 ); break; } // shld
             case 0x27: { op_daa<Z80Mode>(); break; } // daa
-            case 0x2a: { reg.SetH( mword( pcword( pc ) ) ); break; } // lhld
+            case 0x2a: { uint16_t addr = pcword( pc ); reg.SetH( mword( addr ) ); reg.z80_set_memptr( addr + 1 ); break; } // lhld
             case 0x2f: { op_cma<Z80Mode>(); break; } // cma
-            case 0x32: { memory[ pcword( pc ) ] = reg.a; break; } // sta a16
+            case 0x32: { uint16_t addr = pcword( pc ); memory[ addr ] = reg.a; reg.z80_set_memptr( ( (uint16_t) reg.a << 8 ) | ( ( addr + 1 ) & 0xff ) ); break; } // sta a16
             case 0x37: // stc
             {
                 reg.fCarry = 1;
@@ -2385,7 +2446,7 @@ template <bool Z80Mode> static uint32_t x80_emulate_impl( uint16_t maxcycles )
                 }
                 break;
             }
-            case 0x3a: { reg.a = memory[ pcword( pc ) ]; break; } // lda a16
+            case 0x3a: { uint16_t addr = pcword( pc ); reg.a = memory[ addr ]; reg.z80_set_memptr( addr + 1 ); break; } // lda a16
             case 0x3f: { op_cmc<Z80Mode>(); break; } // cmc
             case 0x40: case 0x41: case 0x42: case 0x43: case 0x44: case 0x45: case 0x46: case 0x47: // mov
             case 0x48: case 0x49: case 0x4a: case 0x4b: case 0x4c: case 0x4d: case 0x4e: case 0x4f:
@@ -2428,7 +2489,10 @@ template <bool Z80Mode> static uint32_t x80_emulate_impl( uint16_t maxcycles )
             case 0xc0: case 0xd0: case 0xe0: case 0xf0: case 0xc8: case 0xd8: case 0xe8: case 0xf8: // conditional return
             {
                 if ( check_conditional( op ) )
+                {
                     pc = popword( sp );
+                    reg.z80_set_memptr( pc );
+                }
                 else
                     cycles -= cyclesnt;
                 break;
@@ -2437,15 +2501,17 @@ template <bool Z80Mode> static uint32_t x80_emulate_impl( uint16_t maxcycles )
             case 0xc2: case 0xd2: case 0xe2: case 0xf2: case 0xca: case 0xda: case 0xea: case 0xfa: // conditional jmp
             {
                 uint16_t address = pcword( pc ); // must be consumed regardless of whether jump is taken
+                reg.z80_set_memptr( address ); // set regardless of whether the jump is taken
                 if ( check_conditional( op ) )
                     pc = address;
                 // JP cc costs 10T whether or not the jump is taken -- no subtraction here
                 break;
             }
-            case 0xc3: { pc = pcword( pc ); break; } // jmp a16
+            case 0xc3: { uint16_t address = pcword( pc ); reg.z80_set_memptr( address ); pc = address; break; } // jmp a16
             case 0xc4: case 0xd4: case 0xe4: case 0xf4: case 0xcc: case 0xdc: case 0xec: case 0xfc: // conditional call
             {
                 uint16_t address = pcword( pc ); // must be consumed regardless of whether call is taken
+                reg.z80_set_memptr( address ); // set regardless of whether the call is taken
                 if ( check_conditional( op ) )
                 {
                     pushword( sp, pc );
@@ -2464,16 +2530,17 @@ template <bool Z80Mode> static uint32_t x80_emulate_impl( uint16_t maxcycles )
 
                 pushword( sp, pc );
                 pc = 0x38 & (uint16_t) op;
+                reg.z80_set_memptr( pc );
                 break;
             }
-            case 0xc9: { _op_ret: pc = popword( sp ); break; } // ret
-            case 0xcd: { uint16_t t = pcword( pc ); pushword( sp, pc ); pc = t; break; } // call a16
+            case 0xc9: { _op_ret: pc = popword( sp ); reg.z80_set_memptr( pc ); break; } // ret
+            case 0xcd: { uint16_t t = pcword( pc ); reg.z80_set_memptr( t ); pushword( sp, pc ); pc = t; break; } // call a16
             case 0xce: { op_adc<Z80Mode>( pcbyte( pc ) ); break; } // aci
-            case 0xd3: { x80_invoke_out( pcbyte( pc ) ); break; } // out d8
+            case 0xd3: { uint8_t port = pcbyte( pc ); x80_invoke_out( port ); reg.z80_set_memptr( ( (uint16_t) reg.a << 8 ) | ( ( port + 1 ) & 0xff ) ); break; } // out d8
             case 0xd6: { reg.a = op_sub<Z80Mode>( pcbyte( pc ) ); break; } // sui
-            case 0xdb: { x80_invoke_in( pcbyte( pc ) ); break; } // in d8
+            case 0xdb: { uint8_t port = pcbyte( pc ); reg.z80_set_memptr( ( (uint16_t) reg.a << 8 ) + port + 1 ); x80_invoke_in( port ); break; } // in d8
             case 0xde: { op_sbb<Z80Mode>( pcbyte( pc ) ); break; } // sbi
-            case 0xe3: { uint16_t t = reg.H(); reg.SetH( mword( sp ) ); setmword( sp, t ); break; } // xthl
+            case 0xe3: { uint16_t t = reg.H(); reg.SetH( mword( sp ) ); setmword( sp, t ); reg.z80_set_memptr( reg.H() ); break; } // xthl
             case 0xe6: { op_ana<Z80Mode>( pcbyte( pc ) ); break; } // ani
             case 0xe9: { pc = reg.H(); break; } // pchl
             case 0xeb: { uint16_t t = reg.H(); reg.SetH( reg.D() ); reg.SetD( t ); break; } // xchg
