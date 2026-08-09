@@ -77,7 +77,7 @@ void x80_debug_enable( bool enable )
         g_State |= stateDebug;
     else
         g_State &= ~stateDebug;
-}
+} //x80_debug_enable
 
 void x80_debug_continue()
 {
@@ -87,7 +87,7 @@ void x80_debug_continue()
     g_debugSkipBreakpoint = reg.pc;
     g_debugHaveSkipBreakpoint = g_debugBreakpoints && g_debugBreakpoints[ reg.pc ] != 0;
     g_debugStopReason = x80_debug_stop_none;
-}
+} //x80_debug_continue
 
 void x80_debug_step()
 {
@@ -103,7 +103,7 @@ void x80_debug_pause()
 {
     g_debugRunning = false;
     g_debugStopReason = x80_debug_stop_pause;
-}
+} //x80_debug_pause
 
 bool x80_debug_stopped() { return g_debugEnabled && !g_debugRunning; }
 x80_debug_stop_reason x80_debug_reason() { return g_debugStopReason; }
@@ -112,13 +112,13 @@ void x80_debug_set_breakpoint( uint16_t address, bool enable )
 {
     if ( g_debugBreakpoints )
         g_debugBreakpoints[ address ] = enable ? 1 : 0;
-}
+} //x80_debug_set_breakpoint
 
 void x80_debug_clear_breakpoints()
 {
     if ( g_debugBreakpoints )
         memset( g_debugBreakpoints, 0, 65536 );
-}
+} //x80_debug_clear_breakpoints
 
 #endif //!WATCOMDOS
 
@@ -143,7 +143,8 @@ void x80_profile_enable( bool enable )
     else
         g_State &= ~stateProfile;
 #endif
-}
+} //x80_profile_enable
+
 const uint64_t * x80_profile_counts( void ) { return ( g_State & stateProfile ) ? g_pcHits : 0; }
 
 enum z80_value_source { vs_register, vs_memory, vs_indexed }; // this impacts how Z80 undocumented Y and X flags are updated
@@ -583,7 +584,7 @@ template <bool Z80Mode> not_inlined void op_daa()
     }
 } //op_daa
 
-uint8_t * dst_address_rm( uint8_t rm )
+force_inlined uint8_t * dst_address_rm( uint8_t rm )
 {
     assert( rm <= 7 );
     if ( 6 != rm )
@@ -592,26 +593,26 @@ uint8_t * dst_address_rm( uint8_t rm )
     return & memory[ reg.H() ];
 } //dst_address_rm
 
-uint8_t * dst_address( uint8_t op )
+force_inlined uint8_t * dst_address( uint8_t op )
 {
     uint8_t rm = 7 & ( op >> 3 );
     return dst_address_rm( rm );
 } //dst_address
 
-uint8_t src_value_rm( uint8_t rm )
+force_inlined uint8_t src_value_rm( uint8_t rm )
 {
     if ( 6 != rm )
         return * ( reg.regOffset( rm ) );
     return memory[ reg.H() ];
 } //src_value_rm
 
-uint8_t src_value( uint8_t op )
+force_inlined uint8_t src_value( uint8_t op )
 {
     uint8_t rm = 0x7 & op;
     return src_value_rm( rm );
 } //src_value
 
-void z80_ni( uint8_t op, uint8_t op2 )
+not_inlined void z80_ni( uint8_t op, uint8_t op2 )
 {
     x80_hard_exit( "bugbug: not-implemented z80 instruction: %#x, next byte is %#x\n", op, op2 );
 } //z80_ni

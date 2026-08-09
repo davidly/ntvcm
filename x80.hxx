@@ -158,6 +158,8 @@ struct registers
     {
 #if TRACK_Z80_MEMPTR
         memptr = value;
+#else
+        (void) value;
 #endif
     }
 
