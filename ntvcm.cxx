@@ -3375,6 +3375,96 @@ bool ValidCPMFilename( char * pc )
 
 #endif
 
+FILE * FindFileEntry( char * name );
+FILE * RemoveFileEntry( char * name );
+
+// Deletes every file matching an FCB pattern (which may contain '?'
+// wildcards - see IsCPMPatternMatch). Real CP/M BDOS fn 19 deletes every
+// directory entry an ambiguous FCB matches in one call, not just the
+// first; ntvcm's fn 19 handler used to hand the pattern straight to the
+// host's own unlink(), which only ever matches a literal filename byte
+// for byte, so a wildcard pattern simply never matched anything and the
+// call failed outright - the one CP/M-documented behavior every other
+// tested emulator (tnylpo, zxcc, iz-cpm, z88dk's cpm, RunCPM, Windows'
+// cpm.exe) actually implements. Uses its own local find-handle/state
+// rather than the shared g_hFindFirst/g_FindFirst/g_FindActive fn 17/18
+// search-first/search-next state, so a delete mid-search doesn't
+// interfere with whatever directory listing a program might have open.
+// Returns the number of files actually deleted.
+int DeleteMatchingFiles( const char * pattern )
+{
+    int deleted = 0;
+
+#ifdef _MSC_VER
+    WIN32_FIND_DATAA fd = {0};
+    HANDLE hFind = FindFirstFileA( pattern, &fd );
+    if ( INVALID_HANDLE_VALUE != hFind )
+    {
+        do
+        {
+            if ( ValidCPMFilename( fd.cFileName ) && ! IsAFolder( fd.cFileName ) )
+            {
+                if ( FindFileEntry( fd.cFileName ) )
+                {
+                    FILE * fp = RemoveFileEntry( fd.cFileName );
+                    if ( fp )
+                        fclose( fp );
+                }
+
+                if ( 0 == unlink( fd.cFileName ) )
+                    deleted++;
+                else
+                    tracer.Trace( "  wildcard delete: unlink '%s' failed, error %d\n", fd.cFileName, errno );
+            }
+        } while ( FindNextFileA( hFind, &fd ) );
+        FindClose( hFind );
+    }
+#elif defined(WATCOMDOS)
+    struct find_t fb = {0};
+    unsigned result = _dos_findfirst( pattern, _A_NORMAL, &fb );
+    while ( 0 == result )
+    {
+        if ( FindFileEntry( fb.name ) )
+        {
+            FILE * fp = RemoveFileEntry( fb.name );
+            if ( fp )
+                fclose( fp );
+        }
+
+        if ( 0 == unlink( fb.name ) )
+            deleted++;
+        else
+            tracer.Trace( "  wildcard delete: unlink '%s' failed, error %d\n", fb.name, errno );
+
+        result = _dos_findnext( &fb );
+    }
+#else
+    LINUX_FIND_DATA fd = {0};
+    DIR * pdir = FindFirstFileLinux( pattern, fd );
+    while ( 0 != pdir )
+    {
+        if ( FindFileEntry( fd.cFileName ) )
+        {
+            FILE * fp = RemoveFileEntry( fd.cFileName );
+            if ( fp )
+                fclose( fp );
+        }
+
+        if ( 0 == unlink( fd.cFileName ) )
+            deleted++;
+        else
+            tracer.Trace( "  wildcard delete: unlink '%s' failed, error %d = %s\n", fd.cFileName, errno, strerror( errno ) );
+
+        if ( !FindNextFileLinux( pattern, pdir, fd ) )
+            break;
+    }
+    if ( 0 != pdir )
+        closedir( pdir );
+#endif
+
+    return deleted;
+} //DeleteMatchingFiles
+
 void ParseFoundFile( char * pfile )
 {
     tracer.Trace( "  ParseFoundFile '%s'\n", pfile );
@@ -5312,7 +5402,9 @@ uint8_t x80_invoke_hook()
         }
         case 19:
         {
-            // delete file. return 255 if file not found and 0..3 directory code otherwise
+            // delete file. return 255 if file not found and 0..3 directory code otherwise.
+            // An ambiguous (wildcard) FCB deletes every file it matches, not just one -
+            // see DeleteMatchingFiles' comment.
 
             FCB * pfcb = (FCB *) ( memory + reg.D() );
             pfcb->Trace();
@@ -5320,21 +5412,31 @@ uint8_t x80_invoke_hook()
             bool ok = parse_FCB_Filename( pfcb, acFilename );
             if ( ok )
             {
-                // if deleting an open file, close it first. CalcStar does this on file save.
-
-                if ( FindFileEntry( acFilename ) )
+                if ( 0 != strchr( acFilename, '?' ) )
                 {
-                    FILE * fp = RemoveFileEntry( acFilename );
-                    if ( fp )
-                        fclose( fp );
+                    int deletedCount = DeleteMatchingFiles( acFilename );
+                    tracer.Trace( "  wildcard delete of '%s' removed %d file(s)\n", acFilename, deletedCount );
+                    if ( deletedCount > 0 )
+                        reg.a = 0;
                 }
-
-                int removeok = ( 0 == unlink( acFilename ) );
-                tracer.Trace( "  attempt to remove/delete/unlink file '%s' result ok: %d\n", acFilename, removeok );
-                if ( removeok )
-                    reg.a = 0;
                 else
-                    tracer.Trace( "  error %d = %s\n", errno, strerror( errno ) );
+                {
+                    // if deleting an open file, close it first. CalcStar does this on file save.
+
+                    if ( FindFileEntry( acFilename ) )
+                    {
+                        FILE * fp = RemoveFileEntry( acFilename );
+                        if ( fp )
+                            fclose( fp );
+                    }
+
+                    int removeok = ( 0 == unlink( acFilename ) );
+                    tracer.Trace( "  attempt to remove/delete/unlink file '%s' result ok: %d\n", acFilename, removeok );
+                    if ( removeok )
+                        reg.a = 0;
+                    else
+                        tracer.Trace( "  error %d = %s\n", errno, strerror( errno ) );
+                }
             }
             else
                 tracer.Trace( "ERROR: can't parse filename for delete file\n" );
