@@ -5608,6 +5608,28 @@ uint8_t x80_invoke_hook()
                 {
                     tracer.Trace( "  rename from '%s' to '%s'\n", acOldName, acNewName );
 
+                    // Real CP/M BDOS doesn't check whether a directory entry
+                    // already has the destination name; it just renames,
+                    // leaving two entries sharing one name on real hardware -
+                    // something no host filesystem can represent (POSIX and
+                    // Windows both refuse two directory entries with the same
+                    // name), so any emulator mapping CP/M files onto real
+                    // host files is forced to collapse this into a single
+                    // winner regardless of platform. Make that choice
+                    // explicit and host-independent - overwrite the
+                    // destination - rather than leaving it to whatever the
+                    // host C library's own rename() happens to do: POSIX
+                    // rename() already overwrites atomically (so this is a
+                    // no-op there), but the Windows CRT's rename() fails
+                    // outright if the destination exists, which would
+                    // otherwise make the exact same ntvcm source silently
+                    // behave differently depending only on which OS it was
+                    // built for.
+                    if ( FindFileEntry( acNewName ) )
+                        fclose( RemoveFileEntry( acNewName ) );
+                    if ( file_exists( acNewName ) )
+                        remove( acNewName );
+
                     if ( !rename( acOldName, acNewName ) )
                         reg.a = 0;
                     else
