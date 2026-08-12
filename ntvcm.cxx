@@ -6900,8 +6900,7 @@ int main( int argc, char * argv[] )
         }
 
 #ifndef WATCOMDOS
-        if ( traceInstructions )
-            try_load_symbols_for( acCOM );
+        try_load_symbols_for( acCOM ); // always load symbols
 #endif
 
         // this old Chess app fails if H is set to 0 during BDOS calls. Apparently it only ever ran on eumulators.
