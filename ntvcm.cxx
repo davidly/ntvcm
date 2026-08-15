@@ -5907,7 +5907,14 @@ uint8_t x80_invoke_hook()
         }
         case 48: // called by various apps
         {
-            // non - CP/M 2.2: drv_flush - empty disk buffers
+            // non - CP/M 2.2: drv_flush - empty disk buffers. Guest files are
+            // backed by stdio FILE* opened without any unbuffering (see the
+            // fopen() calls above), so a write not yet followed by a close
+            // can genuinely still be sitting in this process's own buffer
+            // rather than on the host disk; fflush(0) pushes every open
+            // stream out to the host OS, matching what a real CP/M 3 BDOS
+            // flush is meant to guarantee.
+            fflush( 0 );
             reg.a = 0;
             set_bdos_status();
             break;
