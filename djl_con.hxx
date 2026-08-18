@@ -355,6 +355,9 @@ class ConsoleConfiguration
                                      setWidth( 0 ), oldOutputCP( 0 ),
                                      inputEstablished( false ), outputEstablished( false )
             {
+                _setmode( _fileno( stdin ), _O_BINARY ); // stop the CRT from treating 0x1A as EOF
+                                                         // and CRLF as LF on redirected stdin reads
+
                 oldWindowPlacement = {0};
                 oldScreenInfo = {0};
                 oldCursorInfo = {0};
@@ -696,7 +699,6 @@ class ConsoleConfiguration
                 // for files with CR/LF, skip the CR and turn the LF into a CR
                 // for files with LF, turn the LF into a CR
 
-#ifndef _WIN32
                 if ( ( 13 == data ) && ( !feof( stdin ) ) )
                 {
                     if ( 0 == read( 0, &look_ahead, 1 ) ) // make gcc not complain by checking return code
@@ -707,7 +709,6 @@ class ConsoleConfiguration
                     else
                         look_ahead_available = true;
                 }
-#endif
 
                 if ( s_convert_redirected_LF_to_CR && ( 10 == data ) )
                     data = 13;
