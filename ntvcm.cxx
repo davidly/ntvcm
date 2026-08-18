@@ -5035,6 +5035,13 @@ uint8_t x80_invoke_hook()
             set_bdos_status();
             break;
         }
+        case 8:
+        {
+            // set I/O byte
+            reg.a = memory[ 3 ] = reg.c;
+            set_bdos_status();
+            break;
+        }
         case 9:
         {
             // print string terminated by a dollar sign $. string is pointed to by DE
