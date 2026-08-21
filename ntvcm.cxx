@@ -282,6 +282,7 @@ static bool g_clearHOnBDOSReturn = true;
 #ifndef WATCOMDOS
 
 static bool g_miMode = false;
+static bool g_miWaitingForInput = false;
 static char g_miProgram[ MAX_PATH ] = {0};
 static char g_miArguments[ 128 ] = {0};
 
@@ -468,6 +469,10 @@ static bool mi_path_suffix_equal( const char * requested, const char * recorded 
         char b = shorter[ index ];
         if ( a == '\\' ) a = '/';
         if ( b == '\\' ) b = '/';
+#if defined( _WIN32 ) || defined( __APPLE__ )
+        a = (char) tolower( (unsigned char) a );
+        b = (char) tolower( (unsigned char) b );
+#endif
         if ( a != b )
             return false;
     }
@@ -902,12 +907,21 @@ static const char * mi_type_name( int type, bool isArray, const int * dimensions
     if ( isFunctionPointer )
         strcat( typeName, " (*)()" );
     else
+    {
         for ( index = 0; index < pointerDepth && strlen( typeName ) + 3 < sizeof( typeName ); index++ )
             strcat( typeName, " *" );
+    }
     if ( isArray )
+    {
         for ( index = 0; index < dimensionCount && strlen( typeName ) + 16 < sizeof( typeName ); index++ )
-            snprintf( typeName + strlen( typeName ), sizeof( typeName ) - strlen( typeName ),
-                      "[%d]", dimensions[ index ] );
+        {
+            if ( dimensions[ index ] > 0 )
+                snprintf( typeName + strlen( typeName ), sizeof( typeName ) - strlen( typeName ),
+                          "[%d]", dimensions[ index ] );
+            else
+                strcat( typeName, "[]" );
+        }
+    }
     return typeName;
 }
 
@@ -990,7 +1004,8 @@ static bool mi_resolve_debug_value( const char * expression, MIDebugValue * valu
             expression = cursor + 1;
             if ( value->isArray && value->dimensionCount > 0 )
             {
-                if ( element >= (unsigned long) value->dimensions[ 0 ] ) return false;
+                if ( value->dimensions[ 0 ] > 0 &&
+                     element >= (unsigned long) value->dimensions[ 0 ] ) return false;
                 stride = value->dimensions[ 0 ] ? value->size / value->dimensions[ 0 ] : value->elementSize;
                 value->address = (uint16_t) ( value->address + element * stride );
                 value->size = stride;
@@ -2033,14 +2048,24 @@ static MIDebugLine * mi_find_address_line( uint16_t address )
 {
     MIDebugLine * best = NULL;
     MIDebugFunction * function = mi_find_debug_function( address );
+    bool sharedFunctionBoundary = false;
     int index;
     if ( g_miDebugFunctionCount && !function )
         return NULL;
+    if ( function )
+        for ( index = 0; index < g_miDebugFunctionCount; index++ )
+            if ( &g_miDebugFunctions[ index ] != function &&
+                 g_miDebugFunctions[ index ].end == function->start )
+            {
+                sharedFunctionBoundary = true;
+                break;
+            }
     for ( index = 0; index < g_miDebugLineCount; index++ )
     {
         MIDebugLine * candidate = &g_miDebugLines[ index ];
         if ( candidate->address > address ||
-             ( function && candidate->address < function->start ) )
+             ( function && candidate->address < function->start ) ||
+             ( sharedFunctionBoundary && candidate->address == function->start ) )
             continue;
         if ( !best || candidate->address >= best->address )
             best = candidate;
@@ -2227,8 +2252,56 @@ static void mi_escape_text( const char * text, char * escaped, size_t escaped_si
 static void mi_emit_source_location( const char * file, int line )
 {
     char escapedFile[ MAX_PATH * 2 ];
+    char sourcePath[ MAX_PATH ];
+    char fullPath[ MAX_PATH ];
+    char escapedFullPath[ MAX_PATH * 2 ];
+    const char * slash;
+    const char * backslash;
+    size_t directoryLength;
+    bool sourcePathAbsolute;
+
+    sourcePathAbsolute = file[ 0 ] == '/' || file[ 0 ] == '\\' ||
+        ( isalpha( (unsigned char) file[ 0 ] ) && file[ 1 ] == ':' );
+    if ( sourcePathAbsolute )
+        strncpy( sourcePath, file, sizeof( sourcePath ) - 1 );
+    else
+    {
+        slash = strrchr( g_miProgram, '/' );
+        backslash = strrchr( g_miProgram, '\\' );
+        if ( !slash || ( backslash && backslash > slash ) ) slash = backslash;
+        directoryLength = slash ? (size_t) ( slash - g_miProgram + 1 ) : 0;
+        if ( directoryLength + strlen( file ) < sizeof( sourcePath ) )
+        {
+            memcpy( sourcePath, g_miProgram, directoryLength );
+            strcpy( sourcePath + directoryLength, file );
+        }
+        else
+            strncpy( sourcePath, file, sizeof( sourcePath ) - 1 );
+    }
+    sourcePath[ sizeof( sourcePath ) - 1 ] = 0;
+    sourcePathAbsolute = sourcePath[ 0 ] == '/' || sourcePath[ 0 ] == '\\' ||
+        ( isalpha( (unsigned char) sourcePath[ 0 ] ) && sourcePath[ 1 ] == ':' );
+    if ( sourcePathAbsolute )
+        strncpy( fullPath, sourcePath, sizeof( fullPath ) - 1 );
+#if defined( _WIN32 )
+    else if ( !_fullpath( fullPath, sourcePath, sizeof( fullPath ) ) )
+        strncpy( fullPath, sourcePath, sizeof( fullPath ) - 1 );
+#else
+    else
+    {
+        char currentDirectory[ MAX_PATH ];
+        if ( getcwd( currentDirectory, sizeof( currentDirectory ) ) &&
+             strlen( currentDirectory ) + strlen( sourcePath ) + 2 <= sizeof( fullPath ) )
+            snprintf( fullPath, sizeof( fullPath ), "%s/%s", currentDirectory, sourcePath );
+        else
+            strncpy( fullPath, sourcePath, sizeof( fullPath ) - 1 );
+    }
+#endif
+    fullPath[ sizeof( fullPath ) - 1 ] = 0;
     mi_escape_text( file, escapedFile, sizeof( escapedFile ) );
-    printf( ",file=\"%s\",fullname=\"%s\",line=\"%d\"", escapedFile, escapedFile, line );
+    mi_escape_text( fullPath, escapedFullPath, sizeof( escapedFullPath ) );
+    printf( ",file=\"%s\",fullname=\"%s\",line=\"%d\"",
+            escapedFile, escapedFullPath, line );
 }
 
 static void mi_target_character( uint8_t c )
@@ -2281,6 +2354,32 @@ static void mi_copy_quoted_argument( const char * argument, char * output, size_
         output[ length++ ] = *argument++;
     }
     output[ length ] = 0;
+}
+
+static bool mi_queue_target_input( const char * command )
+{
+    const char * argument = mi_find_argument( command );
+    char consoleCommand[ 4096 ];
+    const char * text;
+
+    if ( strncmp( argument, "console", 7 ) || !isspace( (unsigned char) argument[ 7 ] ) )
+        return false;
+    argument += 7;
+    while ( isspace( (unsigned char) *argument ) ) argument++;
+    mi_copy_quoted_argument( argument, consoleCommand, sizeof( consoleCommand ) );
+    if ( strncmp( consoleCommand, "input", 5 ) ||
+         ( consoleCommand[ 5 ] && !isspace( (unsigned char) consoleCommand[ 5 ] ) ) )
+        return false;
+    text = consoleCommand + 5;
+    while ( *text == ' ' || *text == '\t' ) text++;
+    if ( g_fileInputOffset >= g_fileInputText.size() )
+    {
+        g_fileInputText.clear();
+        g_fileInputOffset = 0;
+    }
+    while ( *text ) g_fileInputText.push_back( *text++ );
+    g_fileInputText.push_back( '\r' );
+    return true;
 }
 
 static void mi_copy_last_argument( const char * command, char * output, size_t output_size )
@@ -2386,7 +2485,7 @@ static void mi_emit_stop()
     else if ( x80_debug_reason() == x80_debug_stop_entry )
         reason = "entry-point-hit";
     else if ( x80_debug_reason() == x80_debug_stop_pause )
-        reason = "signal-received";
+        reason = g_miWaitingForInput ? "end-stepping-range" : "signal-received";
     printf( "*stopped,reason=\"%s\"", reason );
     if ( breakpointNumber )
         printf( ",bkptno=\"%d\"", breakpointNumber );
@@ -2466,6 +2565,16 @@ static MIAction mi_handle_command_impl( const char * input )
         strncpy( g_miArguments, mi_find_argument( command ), sizeof( g_miArguments ) - 1 );
         g_miArguments[ sizeof( g_miArguments ) - 1 ] = 0;
         mi_result( token, "^done" );
+    }
+    else if ( !strncmp( command, "-interpreter-exec", 17 ) &&
+              mi_queue_target_input( command ) )
+    {
+        g_miWaitingForInput = false;
+        x80_debug_continue();
+        mi_result( token, "^running" );
+        printf( "*running,thread-id=\"all\"\n" );
+        fflush( stdout );
+        return mi_action_run;
     }
     else if ( !strncmp( command, "-environment-cd", 15 ) )
     {
@@ -4628,10 +4737,38 @@ uint8_t map_input( uint8_t input )
     return output;
 } //map_input
 
+#ifndef WATCOMDOS
+static bool mi_wait_for_target_input()
+{
+    MIAction action = mi_action_none;
+    while ( g_fileInputOffset >= g_fileInputText.size() || x80_debug_stopped() )
+    {
+        if ( !x80_debug_stopped() )
+        {
+            g_miWaitingForInput = true;
+            x80_debug_pause();
+            mi_emit_stop();
+        }
+        if ( !mi_read_command( true, &action ) || action == mi_action_exit )
+        {
+            x80_end_emulation();
+            g_emulationEnded = true;
+            return false;
+        }
+    }
+    return true;
+}
+#endif
+
 char get_next_kbd_char()
 {
     if ( g_fileInputOffset < g_fileInputText.size() )
         return g_fileInputText[ g_fileInputOffset++ ];
+
+#ifndef WATCOMDOS
+    if ( g_miMode )
+        return mi_wait_for_target_input() ? g_fileInputText[ g_fileInputOffset++ ] : 3;
+#endif
 
     return (char) ConsoleConfiguration::portable_getch();
 } //get_next_kbd_char
@@ -4640,6 +4777,11 @@ bool is_kbd_char_available( bool throttled = true )
 {
     if ( g_fileInputOffset < g_fileInputText.size() )
         return true;
+
+#ifndef WATCOMDOS
+    if ( g_miMode )
+        return mi_wait_for_target_input();
+#endif
 
     if ( throttled && g_sleepOnKbdLoop )
         return g_consoleConfig.throttled_kbhit();
@@ -6551,7 +6693,7 @@ int main( int argc, char * argv[] )
 
 #ifndef WATCOMDOS
         for ( int i = 1; i < argc; i++ )
-            if ( !strncmp( argv[ i ], "--interpreter=mi", 16 ) || !strncmp( argv[ i ], "-interpreter=mi", 15 ) )
+            if ( !strcmp( argv[ i ], "--interpreter=mi" ) || !strcmp( argv[ i ], "-interpreter=mi" ) )
                 g_miMode = true;
 
         if ( g_miMode )

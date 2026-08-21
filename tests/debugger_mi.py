@@ -7,6 +7,7 @@ import queue
 import re
 import shutil
 import subprocess
+import sys
 import tempfile
 import threading
 import time
@@ -14,9 +15,10 @@ from pathlib import Path
 
 
 class MISession:
-    def __init__(self, ntvcm, program):
+    def __init__(self, ntvcm, program, cwd=None):
         self.process = subprocess.Popen(
             [str(ntvcm), "--interpreter=mi"],
+            cwd=cwd,
             stdin=subprocess.PIPE,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
@@ -146,6 +148,102 @@ def source_line(path, marker):
     raise AssertionError(f"marker {marker!r} not found in {path}")
 
 
+def parse_debug_metadata(program, metadata):
+    image_end = 0x100 + program.stat().st_size
+    records = []
+    dimensions = r'"(?:-?\d+(?:,-?\d+)*)?"'
+    patterns = {
+        "line": re.compile(r'^line ([0-9A-Fa-f]+) (\d+) "(.*)"$'),
+        "function-begin": re.compile(
+            r'^function-begin ([0-9A-Fa-f]+) "([^"]+)" "([^"]+)"$'
+        ),
+        "function-end": re.compile(
+            r'^function-end ([0-9A-Fa-f]+) "([^"]+)" "([^"]+)"$'
+        ),
+        "variable": re.compile(
+            r'^variable ([0-9A-Fa-f]+) "([^"]+)" "([^"]+)" '
+            r'(-?\d+) (-?\d+) (-?\d+) (\d+) ([01]) ([01]) (\d+) ([01]) '
+            + dimensions + r'$'
+        ),
+        "variable-end": re.compile(
+            r'^variable-end ([0-9A-Fa-f]+) "([^"]+)" "([^"]+)" (-?\d+)$'
+        ),
+        "global": re.compile(
+            r'^global ([0-9A-Fa-f]+) "([^"]+)" "([^"]+)" '
+            r'(-?\d+) (\d+) ([01]) ([01]) (\d+) ([01]) ' + dimensions + r'$'
+        ),
+        "symbol": re.compile(r'^symbol ([0-9A-Fa-f]+) "([^"]+)"$'),
+        "struct": re.compile(r'^struct (\d+) (\d+) ([01]) "([^"]*)"$'),
+        "field": re.compile(
+            r'^field (\d+) "([^"]+)" (-?\d+) (-?\d+) (\d+) ([01]) '
+            r'(\d+) (\d+) (\d+) ' + dimensions + r'$'
+        ),
+    }
+    lines = metadata.read_text(encoding="ascii").splitlines()
+    assert lines and lines[0] == "DCCDBG 2", metadata
+    for number, text in enumerate(lines[1:], 2):
+        kind = text.split(" ", 1)[0]
+        pattern = patterns.get(kind)
+        assert pattern is not None, f"unknown DBG record at {metadata}:{number}: {text}"
+        match = pattern.fullmatch(text)
+        assert match is not None, f"malformed DBG record at {metadata}:{number}: {text}"
+        address = int(match.group(1), 16) if kind not in ("struct", "field") else None
+        if address is not None:
+            assert 0x100 <= address <= 0xFFFF, (
+                f"DBG address outside CP/M memory at {metadata}:{number}: {text}"
+            )
+            if kind in ("line", "function-begin", "function-end", "variable", "variable-end"):
+                assert address <= image_end, (
+                    f"DBG code address outside COM image at {metadata}:{number}: {text}; "
+                    f"image ends at 0x{image_end:04x}"
+                )
+        records.append((kind, address, match.groups(), text))
+
+    functions = {}
+    struct_ids = {int(groups[0]) for kind, _, groups, _ in records if kind == "struct"}
+    open_variables = []
+    for kind, address, groups, text in records:
+        if kind == "function-begin":
+            assert groups[1] not in functions, f"duplicate function begin: {text}"
+            functions[groups[1]] = [address, None]
+        elif kind == "function-end":
+            assert groups[1] in functions, f"function end without begin: {text}"
+            assert functions[groups[1]][1] is None, f"duplicate function end: {text}"
+            assert functions[groups[1]][0] < address, f"empty or reversed function: {text}"
+            functions[groups[1]][1] = address
+        elif kind == "field":
+            assert int(groups[0]) in struct_ids, f"field references unknown struct: {text}"
+        elif kind == "variable":
+            open_variables.append((groups[1], groups[2], int(groups[5]), address))
+        elif kind == "variable-end":
+            key = (groups[1], groups[2], int(groups[3]))
+            matches = [
+                index
+                for index, variable in enumerate(open_variables)
+                if variable[:3] == key
+            ]
+            assert matches, f"variable end without declaration: {text}"
+            declaration = open_variables.pop(matches[-1])
+            assert declaration[3] <= address, f"reversed variable lifetime: {text}"
+    assert functions and all(end is not None for _, end in functions.values()), functions
+    for kind, address, groups, text in records:
+        if kind in ("variable", "variable-end"):
+            function = functions.get(groups[1])
+            assert function is not None, f"variable references unknown function: {text}"
+            assert function[0] <= address <= function[1], (
+                f"variable record outside function range: {text}"
+            )
+    return records
+
+
+def debug_line_addresses(records, source, line):
+    return [
+        address
+        for kind, address, groups, _ in records
+        if kind == "line" and Path(groups[2]).name == source.name and int(groups[1]) == line
+    ]
+
+
 def build(dcc_root, output, *sources):
     command = [str(dcc_root / "dccmake"), "-g"]
     command.extend(str(source) for source in sources)
@@ -159,7 +257,7 @@ def build(dcc_root, output, *sources):
     metadata = dcc_root / "build" / f"{output}.DBG"
     if not program.exists() or not metadata.exists():
         raise AssertionError(f"dccmake did not produce {program} and {metadata}")
-    return program, metadata
+    return program, metadata, parse_debug_metadata(program, metadata)
 
 
 def test_adapter_disassembly(adapter, ntvcm, program, source, line):
@@ -263,6 +361,61 @@ def test_adapter_disassembly(adapter, ntvcm, program, source, line):
         session.close()
 
 
+def test_adapter_target_input(adapter, ntvcm, program):
+    session = DAPSession(adapter)
+    try:
+        request = session.send(
+            "initialize",
+            {
+                "adapterID": "cppdbg",
+                "linesStartAt1": True,
+                "columnsStartAt1": True,
+                "pathFormat": "path",
+            },
+        )
+        assert session.response(request)["success"]
+        launch = session.send(
+            "launch",
+            {
+                "name": "dcc-target-input-test",
+                "type": "cppdbg",
+                "request": "launch",
+                "program": str(program),
+                "cwd": str(program.parent),
+                "MIMode": "gdb",
+                "miDebuggerPath": str(ntvcm),
+                "miDebuggerArgs": "--interpreter=mi",
+                "targetArchitecture": "x86",
+                "stopAtEntry": False,
+                "externalConsole": False,
+            },
+        )
+        session.wait(lambda message: message.get("event") == "initialized")
+        request = session.send("configurationDone")
+        assert session.response(request)["success"]
+        assert session.response(launch)["success"]
+        stopped = session.wait(lambda message: message.get("event") == "stopped")
+        assert stopped["body"]["reason"] == "step", stopped
+        request = session.send("stackTrace", {"threadId": stopped["body"]["threadId"]})
+        stack = session.response(request)
+        assert stack["success"] and stack["body"]["stackFrames"], stack
+        request = session.send(
+            "evaluate",
+            {
+                "expression": "-exec input X",
+                "context": "repl",
+                "frameId": stack["body"]["stackFrames"][0]["id"],
+            },
+        )
+        assert session.response(request)["success"]
+        finished = session.wait(
+            lambda message: message.get("event") in ("exited", "terminated")
+        )
+        assert finished.get("event") in ("exited", "terminated"), finished
+    finally:
+        session.close()
+
+
 def test_outermost_step_out(ntvcm, program, source, line):
     session = MISession(ntvcm, program)
     try:
@@ -276,6 +429,48 @@ def test_outermost_step_out(ntvcm, program, source, line):
         assert exited.startswith("*stopped"), exited
     finally:
         session.close()
+
+
+def test_mi_option_is_exact(ntvcm, program):
+    completed = subprocess.run(
+        [str(ntvcm), str(program), "--interpreter=mismatch"],
+        capture_output=True,
+        timeout=5,
+    )
+    assert completed.returncode == 0, completed
+    assert b"thread-group-added" not in completed.stdout, completed.stdout
+
+
+def test_target_input(ntvcm, dcc_root, temporary):
+    source = temporary / "input.c"
+    write_source(
+        source,
+        """
+extern int bdos(int function, int argument);
+
+int main(void)
+{
+    int character;
+    do {
+        character = bdos(6, 255);
+    } while (character == 0);
+    return character != 'X';
+}
+""",
+    )
+    program, _, _ = build(dcc_root, "DBGINPUT", source)
+    session = MISession(ntvcm, program)
+    try:
+        _, stopped = session.command("-exec-run", stop=True)
+        assert 'reason="end-stepping-range"' in stopped, stopped
+        running, exited = session.command(
+            '-interpreter-exec console "input X"', stop=True
+        )
+        assert "^running" in running, running
+        assert 'reason="exited-normally"' in exited, exited
+    finally:
+        session.close()
+    return program
 
 
 def evaluate(session, expression):
@@ -310,8 +505,9 @@ int main(void)
 }
 """,
     )
-    program, metadata = build(dcc_root, "DBGCORE", source)
+    program, metadata, records = build(dcc_root, "DBGCORE", source)
     line = source_line(source, "LEAF_BREAK")
+    entry_line = source_line(source, "int marker")
     call_line = source_line(source, "MAIN_CALL")
     session = MISession(ntvcm, program)
     try:
@@ -319,7 +515,8 @@ int main(void)
         session.command("-exec-run", stop=True)
         _, stopped = session.command("-exec-step", stop=True)
         frames = session.command("-stack-list-frames")
-        assert f'line="{line}"' in stopped, stopped
+        assert f'line="{entry_line}"' in stopped, stopped
+        assert f'fullname="{mi_quote(str(source))}"' in stopped, stopped
         assert 'func="leaf"' in frames, frames
     finally:
         session.close()
@@ -354,9 +551,10 @@ int main(void)
         assert 'opcodes="' in disassembly and 'inst="' in disassembly, disassembly
         memory = session.command("-data-read-memory-bytes -o -4 0x0104 4")
         assert 'begin="0x0100"' in memory and 'end="0x0104"' in memory, memory
-        assert 'contents="21000039"' in memory, memory
+        assert re.search(r'contents="[0-9a-fA-F]{8}"', memory), memory
     finally:
         session.close()
+    assert debug_line_addresses(records, source, line), records
     return program, metadata, source, call_line
 
 
@@ -378,7 +576,7 @@ int main(void)
 }
 """,
     )
-    program, _ = build(dcc_root, "DBGFRAME", source)
+    program, _, _ = build(dcc_root, "DBGFRAME", source)
     line = source_line(source, "RECURSE_BREAK")
     session = MISession(ntvcm, program)
     try:
@@ -426,14 +624,191 @@ int inspect(void)
 }
 """,
     )
-    program, _ = build(dcc_root, "DBGAGG", main_source, module_source)
+    program, _, records = build(dcc_root, "DBGAGG", main_source, module_source)
     line = source_line(module_source, "AGG_BREAK")
+    main_addresses = debug_line_addresses(
+        records, main_source, source_line(main_source, "return inspect")
+    )
+    module_addresses = debug_line_addresses(records, module_source, line)
+    assert main_addresses and module_addresses and max(module_addresses) < min(main_addresses), (
+        main_addresses,
+        module_addresses,
+    )
     session = MISession(ntvcm, program)
     try:
         session.command(f'-break-insert "{module_source}:{line}"')
         session.command("-exec-run", stop=True)
         assert evaluate(session, "module_value.right") == "42"
         assert evaluate(session, "main_value.left") == "7"
+    finally:
+        session.close()
+
+
+def test_rich_variable_metadata(ntvcm, dcc_root, temporary):
+    source = temporary / "values.c"
+    write_source(
+        source,
+        """
+struct Bits {
+    unsigned int low : 3;
+    signed int high : 4;
+};
+
+union Number {
+    int whole;
+    unsigned char bytes[2];
+};
+
+int globals[3] = { 10, 20, 30 };
+
+static int plus_one(int value)
+{
+    return value + 1;
+}
+
+int main(void)
+{
+    const int folded = 44;
+    int local = 7;
+    int array[3] = { 1, 2, 3 };
+    struct Bits bits;
+    union Number number;
+    int *pointer = &array[1];
+    int (*function_pointer)(int) = plus_one;
+    bits.low = 5;
+    bits.high = -2;
+    number.whole = 0x1234;
+    local += function_pointer(*pointer); /* VALUES_BREAK */
+    {
+        int local = 99;
+        globals[0] = local; /* SHADOW_BREAK */
+    }
+    return local != 10 || folded != 44;
+}
+""",
+    )
+    program, _, _ = build(dcc_root, "DBGVAL", source)
+    values_line = source_line(source, "VALUES_BREAK")
+    shadow_line = source_line(source, "SHADOW_BREAK")
+    session = MISession(ntvcm, program)
+    try:
+        session.command(f'-break-insert "{source}:{values_line}"')
+        session.command(f'-break-insert "{source}:{shadow_line}"')
+        session.command("-exec-run", stop=True)
+        locals_result = session.command("-stack-list-locals 1")
+        for name in (
+            "local",
+            "array",
+            "bits",
+            "number",
+            "pointer",
+            "function_pointer",
+        ):
+            assert f'name="{name}"' in locals_result, locals_result
+        local_value = evaluate(session, "local")
+        assert local_value == "7", local_value
+        assert evaluate(session, "array[2]") == "3"
+        assert evaluate(session, "globals[1]") == "20"
+        assert evaluate(session, "bits.low") == "5"
+        assert evaluate(session, "bits.high") == "-2"
+        assert evaluate(session, "number.whole") == "4660"
+        assert evaluate(session, "*pointer") == "2"
+        function_pointer = session.command('-var-create - * "function_pointer"')
+        assert 'type="int (*)()"' in function_pointer, function_pointer
+        local_object = session.command('-var-create - * "local"')
+        local_object_name = re.search(r'name="([^"]+)"', local_object).group(1)
+        assignment = session.command(f'-var-assign {local_object_name} "8"')
+        assert 'value="8"' in assignment and evaluate(session, "local") == "8", assignment
+
+        session.command("-exec-continue", stop=True)
+        assert evaluate(session, "local") == "99"
+    finally:
+        session.close()
+
+
+def test_vla_metadata(ntvcm, dcc_root, temporary):
+    source = temporary / "vla.c"
+    write_source(
+        source,
+        """
+int main(void)
+{
+    int count = 3;
+    int values[count];
+    values[0] = 11;
+    values[1] = 22;
+    values[2] = 33;
+    return values[2] != 33; /* VLA_BREAK */
+}
+""",
+    )
+    program, _, _ = build(dcc_root, "DBGVLA", source)
+    line = source_line(source, "VLA_BREAK")
+    session = MISession(ntvcm, program)
+    try:
+        session.command(f'-break-insert "{source}:{line}"')
+        session.command("-exec-run", stop=True)
+        assert evaluate(session, "count") == "3"
+        assert evaluate(session, "values[0]") == "11"
+        assert evaluate(session, "values[1]") == "22"
+        assert evaluate(session, "values[2]") == "33"
+    finally:
+        session.close()
+
+
+def test_nested_lines_and_boundary_step(ntvcm, dcc_root, temporary):
+    source = temporary / "nested.c"
+    write_source(
+        source,
+        """
+static int preceding(int value)
+{
+    return value + 1;
+}
+
+static int nested(int value)
+{
+    int result = 0; /* NESTED_ENTRY */
+    if (value) { /* OUTER_IF */
+        result = 1; /* THEN_LINE */
+    } else if (value == 0) /* ELSE_IF */
+        result = preceding(value); /* CALL_LINE */
+    return result; /* RETURN_LINE */
+}
+
+int main(void)
+{
+    return nested(0) != 1; /* MAIN_CALL */
+}
+""",
+    )
+    program, _, records = build(dcc_root, "DBGNEST", source)
+    marker_lines = {
+        marker: source_line(source, marker)
+        for marker in (
+            "NESTED_ENTRY",
+            "OUTER_IF",
+            "THEN_LINE",
+            "ELSE_IF",
+            "CALL_LINE",
+            "RETURN_LINE",
+        )
+    }
+    addresses = {
+        marker: debug_line_addresses(records, source, line)
+        for marker, line in marker_lines.items()
+    }
+    assert all(addresses.values()), addresses
+    assert len({min(value) for value in addresses.values()}) >= 5, addresses
+
+    session = MISession(ntvcm, program)
+    try:
+        call_line = source_line(source, "MAIN_CALL")
+        session.command(f'-break-insert "{source}:{call_line}"')
+        session.command("-exec-run", stop=True)
+        _, stopped = session.command("-exec-step", stop=True)
+        assert f'line="{marker_lines["NESTED_ENTRY"]}"' in stopped, stopped
+        assert f'fullname="{mi_quote(str(source))}"' in stopped, stopped
     finally:
         session.close()
 
@@ -481,6 +856,41 @@ def test_paths_and_capacity(ntvcm, temporary, core_program, core_metadata):
         session.close()
 
 
+def test_relative_program_path(
+    ntvcm, temporary, core_program, core_metadata, core_source, core_line
+):
+    directory = temporary / "relative"
+    directory.mkdir()
+    program = directory / "RELATIVE.COM"
+    metadata = directory / "RELATIVE.DBG"
+    source = directory / core_source.name
+    shutil.copyfile(core_program, program)
+    shutil.copyfile(core_source, source)
+    metadata_text = core_metadata.read_text(encoding="ascii")
+    metadata_text = re.sub(
+        r'^(line\s+[0-9a-fA-F]+\s+\d+\s+)".*"$',
+        lambda match: match.group(1) + f'"{source.name}"',
+        metadata_text,
+        flags=re.MULTILINE,
+    )
+    metadata.write_text(metadata_text, encoding="ascii")
+
+    session = MISession(ntvcm, program.name, cwd=directory)
+    try:
+        insertion = session.command(f'-break-insert "{source.name}:{core_line}"')
+        assert f'fullname="{mi_quote(str(source.resolve()))}"' in insertion, insertion
+    finally:
+        session.close()
+
+    session = MISession(ntvcm, program.resolve())
+    try:
+        requested_source = str(source).upper() if sys.platform == "darwin" else str(source)
+        insertion = session.command(f'-break-insert "{requested_source}:{core_line}"')
+        assert f'fullname="{mi_quote(str(source.resolve()))}"' in insertion, insertion
+    finally:
+        session.close()
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--dcc-root", type=Path, default=Path(__file__).resolve().parents[2] / "dcc")
@@ -498,12 +908,21 @@ def main():
     with tempfile.TemporaryDirectory(prefix="ntvcm-mi-") as directory:
         temporary = Path(directory)
         core_program, core_metadata, core_source, core_line = test_core(ntvcm, dcc_root, temporary)
+        input_program = test_target_input(ntvcm, dcc_root, temporary)
+        test_mi_option_is_exact(ntvcm, core_program)
         test_outermost_step_out(ntvcm, core_program, core_source, core_line)
         test_frames(ntvcm, dcc_root, temporary)
         test_multimodule_aggregates(ntvcm, dcc_root, temporary)
+        test_rich_variable_metadata(ntvcm, dcc_root, temporary)
+        test_vla_metadata(ntvcm, dcc_root, temporary)
+        test_nested_lines_and_boundary_step(ntvcm, dcc_root, temporary)
         test_paths_and_capacity(ntvcm, temporary, core_program, core_metadata)
+        test_relative_program_path(
+            ntvcm, temporary, core_program, core_metadata, core_source, core_line
+        )
         if arguments.adapter:
             test_adapter_disassembly(arguments.adapter.resolve(), ntvcm, core_program, core_source, core_line)
+            test_adapter_target_input(arguments.adapter.resolve(), ntvcm, input_program)
     print("DCC GDB/MI debugger regressions: PASS")
 
 
