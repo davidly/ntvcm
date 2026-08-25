@@ -40,87 +40,8 @@ static uint8_t g_State = 0;
 const uint8_t stateTraceInstructions = 1;
 const uint8_t stateEndEmulation = 2;
 const uint8_t stateProfile = 4;
-const uint8_t stateDebug = 8;
 void x80_trace_instructions( bool t ) { if ( t ) g_State |= stateTraceInstructions; else g_State &= ~stateTraceInstructions; }
 void x80_end_emulation() { g_State |= stateEndEmulation; }
-
-// The gdb/MI debugger backend (breakpoints, step, continue) is not needed
-// for Watcom's real-mode DOS build - there's no host to attach a debugger
-// from, the 64K breakpoint table is a poor use of DOS's scarce memory, and
-// the caller in ntvcm.cxx never invokes any of this under WATCOMDOS - so
-// it's excluded entirely rather than patched to silence its truncation
-// warnings (the 65536-byte calloc/memset below don't fit a 16-bit int).
-#ifndef WATCOMDOS
-
-static uint8_t * g_debugBreakpoints = 0;
-static bool g_debugEnabled = false;
-static bool g_debugRunning = false;
-static bool g_debugSingleStep = false;
-static bool g_debugStepStarted = false;
-static uint16_t g_debugSkipBreakpoint = 0;
-static bool g_debugHaveSkipBreakpoint = false;
-static x80_debug_stop_reason g_debugStopReason = x80_debug_stop_none;
-
-void x80_debug_enable( bool enable )
-{
-    if ( enable && 0 == g_debugBreakpoints )
-        g_debugBreakpoints = (uint8_t *) calloc( 65536, sizeof( uint8_t ) );
-    if ( enable && 0 == g_debugBreakpoints )
-        enable = false;
-    g_debugEnabled = enable;
-    g_debugRunning = false;
-    g_debugSingleStep = false;
-    g_debugStepStarted = false;
-    g_debugHaveSkipBreakpoint = false;
-    g_debugStopReason = enable ? x80_debug_stop_entry : x80_debug_stop_none;
-    if ( enable )
-        g_State |= stateDebug;
-    else
-        g_State &= ~stateDebug;
-} //x80_debug_enable
-
-void x80_debug_continue()
-{
-    g_debugRunning = true;
-    g_debugSingleStep = false;
-    g_debugStepStarted = false;
-    g_debugSkipBreakpoint = reg.pc;
-    g_debugHaveSkipBreakpoint = g_debugBreakpoints && g_debugBreakpoints[ reg.pc ] != 0;
-    g_debugStopReason = x80_debug_stop_none;
-} //x80_debug_continue
-
-void x80_debug_step()
-{
-    g_debugRunning = true;
-    g_debugSingleStep = true;
-    g_debugStepStarted = false;
-    g_debugSkipBreakpoint = reg.pc;
-    g_debugHaveSkipBreakpoint = g_debugBreakpoints && g_debugBreakpoints[ reg.pc ] != 0;
-    g_debugStopReason = x80_debug_stop_none;
-}
-
-void x80_debug_pause()
-{
-    g_debugRunning = false;
-    g_debugStopReason = x80_debug_stop_pause;
-} //x80_debug_pause
-
-bool x80_debug_stopped() { return g_debugEnabled && !g_debugRunning; }
-x80_debug_stop_reason x80_debug_reason() { return g_debugStopReason; }
-
-void x80_debug_set_breakpoint( uint16_t address, bool enable )
-{
-    if ( g_debugBreakpoints )
-        g_debugBreakpoints[ address ] = enable ? 1 : 0;
-} //x80_debug_set_breakpoint
-
-void x80_debug_clear_breakpoints()
-{
-    if ( g_debugBreakpoints )
-        memset( g_debugBreakpoints, 0, 65536 );
-} //x80_debug_clear_breakpoints
-
-#endif //!WATCOMDOS
 
 // Optional per-PC execution profiler. Kept behind the existing g_State gate so
 // the instruction loop still has one check for all optional per-instruction work.
@@ -2252,33 +2173,6 @@ template <bool Z80Mode> not_inlined bool handle_state( uint32_t cycles ) // this
 {
     if ( g_State & stateEndEmulation )
         return true;
-
-#ifndef WATCOMDOS
-    if ( g_State & stateDebug )
-    {
-        if ( !g_debugRunning )
-            return true;
-
-        if ( g_debugSingleStep && g_debugStepStarted )
-        {
-            g_debugRunning = false;
-            g_debugStopReason = x80_debug_stop_step;
-            return true;
-        }
-
-        if ( g_debugHaveSkipBreakpoint && reg.pc == g_debugSkipBreakpoint )
-            g_debugHaveSkipBreakpoint = false;
-        else if ( g_debugBreakpoints && g_debugBreakpoints[ reg.pc ] )
-        {
-            g_debugRunning = false;
-            g_debugStopReason = x80_debug_stop_breakpoint;
-            return true;
-        }
-
-        if ( g_debugSingleStep )
-            g_debugStepStarted = true;
-    }
-#endif //!WATCOMDOS
 
     if ( g_State & stateTraceInstructions )
         x80_trace_state_impl<Z80Mode>();
