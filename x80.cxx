@@ -541,6 +541,8 @@ not_inlined void z80_ni( uint8_t op, uint8_t op2 )
 bool check_conditional( uint8_t op ); // defined below; needed by z80_execute_unprefixed
 uint32_t z80_emulate( uint8_t op, uint16_t & pc, uint16_t & sp ); // defined below; needed by z80_execute_unprefixed
 
+#ifndef WATCOMDOS // this is above-and-beyond emulation no app or widely-used test suite verifies and it's too big for WATCOMDOS
+
 // On real Z80 hardware, a DD/FD prefix has no effect on the operands or
 // semantics of any instruction that doesn't reference H, L, or (HL): the
 // following opcode executes with its normal instruction semantics. The
@@ -674,6 +676,8 @@ uint32_t z80_execute_unprefixed( uint8_t op, uint8_t op2, uint16_t & pc, uint16_
     }
     return cycles;
 } //z80_execute_unprefixed
+
+#endif // WATCOMDOS
 
 // real hardware never advances pc during a block-repeat instruction; it just
 // re-fetches the same ed/op2 bytes from memory on every iteration. self-
@@ -1387,9 +1391,11 @@ always_inlined uint32_t z80_emulate( uint8_t op, uint16_t & pc, uint16_t & sp ) 
                 sp = reg.z80_getIndex( op );
             }
             else
-                // 0x76 is already excluded above, before any of the masks in
-                // this chain could misclassify it.
+#ifdef WATCOMDOS
+                z80_ni( op, op2 );
+#else
                 cycles = z80_execute_unprefixed( op, op2, pc, sp );
+#endif
             break;
         }
         case 0xed: // 16-bit load/store and i/o operations
