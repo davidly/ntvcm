@@ -1,0 +1,189 @@
+; zexusup.mac - targeted regression tests for the DD/FD-prefix dispatch
+; correctness fixes ported into x80.cxx from dcc PR #175
+; (github.com/davidly/dcc, "Fix DD/FD-prefix Z80 instruction decoding
+; correctness in x80.cxx").
+;
+; M80/L80 Z80 assembly. Assemble and link with the real CP/M M80.COM/L80.COM
+; (found in the dcc project: ~/github/dcc/m80.com, l80.com), under ntvcm.
+;
+; Real M80.COM (unlike dcc's native m80c reimplementation) requires CRLF
+; line endings - convert this file first (e.g. `unix2dos` or
+; `awk '{sub(/\r$/,""); printf "%s\r\n",$0}'`) into a working copy alongside
+; m80.com/l80.com, then:
+;
+;   ntvcm m80.com "=ZEXUSUP.MAC" /X /O /Z /L
+;   ntvcm l80.com "/P:100,ZEXUSUP,ZEXUSUP/N/E/Y"
+;   ntvcm ZEXUSUP.COM
+;
+; Quote the "=..." and "/P:..." arguments if invoking from zsh: an
+; unquoted leading "=" triggers zsh's own equals-expansion (looks up
+; "=word" as a $PATH executable) before M80.COM ever sees the argument,
+; producing a misleading "(eval): ZEXUSUP.MAC not found" shell error.
+;
+; zexall/zexdoc don't exercise the bugs below: real assemblers only ever
+; emit a DD/FD prefix directly before an H/L-referencing opcode, so an
+; exerciser built around well-formed instruction encodings never generates
+; a "prefix coincidentally in front of an unrelated opcode" sequence. All
+; four bugs here were found by tracing a genuine CP/M 2.2 PIP.COM binary,
+; where such a sequence arises from ordinary timing-padding.
+;
+; Bugs covered (see dcc PR #175 for the full writeup):
+;
+;   1. DD/FD-prefixed opcodes that don't reference H, L, or (HL) were
+;      entirely unimplemented and aborted the emulator. On real Z80
+;      hardware the prefix has no effect on such an opcode's semantics -
+;      only its own M1/prefix cycle is consumed. Test 1 covers this with
+;      the exact real-world case that surfaced it: a timing-padded DEC D.
+;
+;   2. Two opcode-mask bugs in the already-implemented H/L-redirection
+;      cases let them incorrectly also match opcodes that don't reference
+;      H/L at all:
+;        - the "ld r,(ix+d)" mask omitted bit 7, misinterpreting the
+;          ALU-immediate opcodes (adi/aci/sui/sbi/ani/xri/ori/cpi) as
+;          index-relative loads. Test 2 covers this with ADD A,n.
+;        - the "math on ixh/ixl" mask omitted bit 2, misinterpreting
+;          plain register B/C ALU forms (add a,b, add a,c, etc.) the same
+;          way. Test 3 covers this with ADD A,B.
+;
+;   3. A dispatch-ordering bug: DD 76 (prefixed HALT) incidentally
+;      satisfies the (corrected) "ld r,(ix+d)" mask by bit-pattern
+;      coincidence and was silently misdecoded as a memory-corrupting
+;      load instead of reaching the disclosed not-implemented path. Test
+;      5 covers this.
+;
+; Test 4 (DD 64) is a regression guard, not a bug fix verification: on
+; real hardware, prefixed 0x64 is the genuine, if undocumented,
+; self-assignment LD IXH,IXH / LD IYH,IYH, and was already handled
+; correctly by pre-existing register-substitution logic before this fix -
+; nothing in the fix touches that code path. Test 4 just confirms the
+; other changes didn't disturb it.
+;
+        org     100h
+;
+start:
+        ld      sp,stack
+;
+; ---- test 1: general "prefix wasted" fallback (FD 15 = DEC D) ----
+;
+        ld      de,msg1
+        call    prstr
+        ld      d,5
+        db      0fdh,015h               ; FD 15: DEC D (prefix wasted)
+        ld      a,d
+        cp      4
+        jr      nz,t1fail
+        ld      de,msgpass
+        call    prstr
+        jr      t2
+t1fail:
+        ld      de,msgfail
+        call    prstr
+;
+; ---- test 2: DD C6 xx (ADD A,n - alu-immediate, no H/L reference) ----
+;
+t2:
+        ld      de,msg2
+        call    prstr
+        ld      a,010h
+        db      0ddh,0c6h,005h          ; DD C6 05: ADD A,5 (prefix wasted)
+        cp      015h
+        jr      nz,t2fail
+        ld      de,msgpass
+        call    prstr
+        jr      t3
+t2fail:
+        ld      de,msgfail
+        call    prstr
+;
+; ---- test 3: DD 80 (ADD A,B - alu-register, no H/L reference) ----
+;
+t3:
+        ld      de,msg3
+        call    prstr
+        ld      a,010h
+        ld      b,007h
+        db      0ddh,080h               ; DD 80: ADD A,B (prefix wasted)
+        cp      017h
+        jr      nz,t3fail
+        ld      de,msgpass
+        call    prstr
+        jr      t4
+t3fail:
+        ld      de,msgfail
+        call    prstr
+;
+; ---- test 4: DD 64 (LD IXH,IXH - genuinely H-referencing; regression guard) ----
+;
+t4:
+        ld      de,msg4
+        call    prstr
+        ld      ix,01234h
+        db      0ddh,064h               ; DD 64: LD IXH,IXH (M80 has no native
+                                         ; mnemonic for this undocumented form)
+        push    ix
+        pop     bc
+        ld      a,c
+        cp      034h
+        jr      nz,t4fail
+        ld      a,b
+        cp      012h
+        jr      nz,t4fail
+        ld      de,msgpass
+        call    prstr
+        jr      t5
+t4fail:
+        ld      de,msgfail
+        call    prstr
+;
+; ---- test 5: DD 76 (prefixed HALT) dispatch-ordering ----
+;
+; Real hardware executes this as plain, undisturbed HALT; this emulator
+; deliberately leaves it as a disclosed not-implemented limitation instead
+; (see the fix's own comments in x80.cxx for why - stopping the emulator's
+; instruction-fetch loop from inside z80_emulate has no signaling path back
+; to the caller). The correctness property under test here is narrower:
+; does it correctly and safely reach that not-implemented path, or does it
+; silently misdecode as a memory write instead (the actual bug: it
+; incidentally satisfies the same "ld r,(ix+d)" mask fixed in test 2,
+; decoding as a write into (HL))?
+;
+; On a FIXED emulator, executing the DD 76 05 below makes the emulator
+; print its own "not-implemented" diagnostic and exit - so nothing after
+; that point ever runs. If you see "DID NOT ABORT" printed, the fix is
+; NOT present or NOT working: the emulator silently ran the wrong
+; instruction instead of safely stopping.
+;
+t5:
+        ld      de,msg5
+        call    prstr
+        ld      hl,sentinel
+        ld      (hl),0aah
+        db      0ddh,076h,005h          ; DD 76 05
+        ld      de,msg5bad
+        call    prstr
+;
+; ---- exit (only reached if test 5 did not abort, i.e. always on a fixed build) ----
+;
+        jp      0000h
+;
+; prstr: print the $-terminated string pointed to by DE via BDOS fn 9.
+;
+prstr:
+        ld      c,9
+        call    5
+        ret
+;
+msg1:      db   'test 1 (FD 15 DEC D, general prefix-wasted fallback): $'
+msg2:      db   'test 2 (DD C6 ADD A,n alu-immediate mask): $'
+msg3:      db   'test 3 (DD 80 ADD A,B alu-register mask): $'
+msg4:      db   'test 4 (DD 64 LD IXH,IXH, regression guard): $'
+msg5:      db   13,10,'test 5 (DD 76 dispatch order) - emulator should halt/abort now...',13,10,'$'
+msg5bad:   db   'test 5: DID NOT ABORT - fix missing or broken!',13,10,'$'
+msgpass:   db   'PASS',13,10,'$'
+msgfail:   db   'FAIL',13,10,'$'
+;
+        ds      64
+stack:
+sentinel:  ds   1
+;
+        end     start
