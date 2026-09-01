@@ -1072,6 +1072,19 @@ always_inlined uint32_t z80_emulate( uint8_t op, uint16_t & pc, uint16_t & sp ) 
         {
             reg.z80_bump_r();
             uint8_t op2 = pcbyte( pc );
+            uint32_t repeated_prefix_cycles = 0;
+
+            // DD and FD prefixes may be repeated or mixed.  Real Z80s keep
+            // consuming them until a non-DD/FD opcode arrives, with the last
+            // prefix selecting IX or IY.  Every additional prefix is another
+            // 4T M1 cycle and increments R just like the first prefix fetch.
+            while ( 0xdd == op2 || 0xfd == op2 )
+            {
+                op = op2;
+                repeated_prefix_cycles += 4;
+                reg.z80_bump_r();
+                op2 = pcbyte( pc );
+            }
 
             // Prefixed HALT (DD 76 / FD 76) executes as plain HALT with the
             // DD/FD prefix ignored: opcode 0x76 occupies the otherwise
@@ -1394,8 +1407,11 @@ always_inlined uint32_t z80_emulate( uint8_t op, uint16_t & pc, uint16_t & sp ) 
 #ifdef WATCOMDOS
                 z80_ni( op, op2 );
 #else
-                cycles = z80_execute_unprefixed( op, op2, pc, sp );
+                // The unprefixed handler returns the following instruction's
+                // own cycle count, so retain the final ignored DD/FD prefix.
+                cycles = 4 + z80_execute_unprefixed( op, op2, pc, sp );
 #endif
+            cycles += repeated_prefix_cycles;
             break;
         }
         case 0xed: // 16-bit load/store and i/o operations
@@ -1879,6 +1895,21 @@ void z80_renderByteReg( char * acfrom, uint8_t op, uint8_t fromval )
 
 void z80_render( char * ac, size_t bufferSize, uint8_t op, uint16_t address )
 {
+    // Keep the renderer aligned with the execution decoder: repeated or
+    // mixed DD/FD prefixes are one instruction and the last prefix selects
+    // IX or IY.  Leave address pointing at that final effective prefix so
+    // the existing op2/op3/op4 offsets remain valid.
+    if ( 0xdd == op || 0xfd == op )
+    {
+        uint8_t next = memory[ (uint16_t) ( address + 1 ) ];
+        while ( 0xdd == next || 0xfd == next )
+        {
+            address++;
+            op = next;
+            next = memory[ (uint16_t) ( address + 1 ) ];
+        }
+    }
+
     uint8_t op2 = memory[ address + 1 ];
     uint8_t op3 = memory[ address + 2 ];
     uint8_t op4 = memory[ address + 3 ];
@@ -2259,14 +2290,21 @@ uint8_t x80_instruction_length( uint16_t address )
     }
     if ( op == 0xdd || op == 0xfd )
     {
+        uint8_t extra_prefixes = 0;
         uint8_t op2 = memory[ (uint16_t) ( address + 1 ) ];
+        while ( op2 == 0xdd || op2 == 0xfd )
+        {
+            extra_prefixes++;
+            address++;
+            op2 = memory[ (uint16_t) ( address + 1 ) ];
+        }
         if ( op2 == 0xcb || op2 == 0x21 || op2 == 0x22 || op2 == 0x2a || op2 == 0x36 )
-            return 4;
+            return 4 + extra_prefixes;
         if ( ( op2 & 0x47 ) == 0x46 || ( op2 & 0xf8 ) == 0x70 ||
              ( op2 & 0xc7 ) == 0x86 || op2 == 0x34 || op2 == 0x35 ||
              op2 == 0x26 || op2 == 0x2e )
-            return 3;
-        return 2;
+            return 3 + extra_prefixes;
+        return 2 + extra_prefixes;
     }
 
     instruction = z80_instructions[ op ];
