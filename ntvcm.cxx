@@ -3588,6 +3588,7 @@ int main( int argc, char * argv[] )
 #endif //NTVCM_RSS_SUPPORT
 
     fflush( stdout );
+    fprintf(stdout,"\n");  // Print a new line when program terminates t match CP/M 2.2 behaviour
     tracer.Shutdown();
     return g_haltExecuted ? -1 : g_exitCodeSet ? (int) g_exitCode : 0;
 } //main
