@@ -1987,6 +1987,18 @@ uint16_t daysSince1978( struct dosdate_t & date )
 
 #endif
 
+FILE * OpenRWorR( const char * filename )
+{
+    FILE * fp = fopen( filename, "r+b" );
+    if ( 0 == fp )
+    {
+        fp = fopen( filename, "rb" ); // perhaps the file is marked as read-only.
+        if ( 0 != fp )
+            tracer.Trace( "  file opened as read-only because opening for read-write failed\n" );
+    }
+    return fp;        
+} //OpenRWorR
+
 // must return one of OPCODE_NOP or OPCODE_RET
 
 uint8_t x80_invoke_hook()
@@ -2328,7 +2340,7 @@ uint8_t x80_invoke_hook()
                 {
                     // the cp/m 2.2 spec says that filenames may contain question marks. I haven't found an app that uses that.
 
-                    fp = fopen( acFilename, "r+b" );
+                    fp = OpenRWorR( acFilename );
                     if ( fp )
                     {
                         FileEntry fe;
@@ -2902,7 +2914,7 @@ uint8_t x80_invoke_hook()
                 {
                     // dxforth 4.56 relies on this cp/m 2.2 behavior: open / close / read should work.
                     tracer.Trace( "  in random read but the file isn't opened. trying to open it now\n" );
-                    fp = fopen( acFilename, "r+b" );
+                    fp = OpenRWorR( acFilename );
                     if ( fp )
                     {
                         FileEntry fe;
@@ -2996,7 +3008,7 @@ uint8_t x80_invoke_hook()
                 if ( fp )
                     found = true;
                 else
-                    fp = fopen( acFilename, "r+b" );
+                    fp = OpenRWorR( acFilename );
 
                 if ( fp )
                 {
