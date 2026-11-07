@@ -1,0 +1,40 @@
+/* Decimal spigot: byte remainders, 16-bit intermediate arithmetic. */
+100H:
+/* CP/M BDOS ENTRY: FUNCTION IN C, PARAMETER IN DE. */
+MON1: PROCEDURE(F,A);
+    DECLARE F BYTE, A ADDRESS;
+    GO TO 5;
+END MON1;
+PUTC: PROCEDURE(C);
+    DECLARE C BYTE;
+    CALL MON1(2,C);
+END PUTC;
+CRLF: PROCEDURE;
+    CALL PUTC(13); CALL PUTC(10);
+END CRLF;
+DECLARE DIGITS LITERALLY '200';
+DECLARE A(DIGITS) BYTE;
+DECLARE (HIGH,N) BYTE, (X,Q,T) ADDRESS;
+X=0;
+DO N=2 TO DIGITS-1;
+    A(N)=1;
+END;
+A(0)=0; A(1)=2;
+HIGH=DIGITS;
+DO WHILE HIGH>9;
+    HIGH=HIGH-1; N=HIGH;
+    DO WHILE N<>0;
+        /* Share the division; the remainder is less than N (<=199). */
+        Q=X/N; A(N)=X-Q*N;
+        /* Widen before multiplying so byte arithmetic cannot wrap. */
+        T=A(N-1); X=10*T+Q;
+        N=N-1;
+    END;
+    Q=X/10;
+    IF Q<>0 THEN CALL PUTC(Q+'0');
+    CALL PUTC(X-Q*10+'0');
+END;
+CALL CRLF;
+CALL PUTC('D'); CALL PUTC('O'); CALL PUTC('N'); CALL PUTC('E');
+CALL CRLF;
+CALL MON1(0,0);

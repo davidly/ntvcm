@@ -1,0 +1,22 @@
+Intel PL/M-80 compiler, passes PLM81 and PLM82, version 4.1.
+Original software: Intel Corporation; PDP-10 Fortran/Tymshare runtime authors.
+These historical third-party executables are not newly authored project code.
+No new license or public-domain status is asserted for them, and they are not
+distributed with this repository.
+
+Source archive:
+https://vtda.org/bits/software/DEC/PDP-10/tymshare/169278.tape.bz2
+Catalog:
+https://vtda.org/bits/software/DEC/PDP-10/tymshare/169278.txt
+Directory: (UPL), files PLM81.SAV and PLM82.SAV.
+Runtime banners: 8080 PLM1 VERS 4.1; 8080 PLM2 VERS 4.1.
+
+Recovered with plm80/recover.py. Each original 36-bit word is represented
+as an unsigned eight-byte little-endian integer. No original word values
+were patched in these files. The host runner's separate, documented
+in-memory compatibility change omits discontinued Tymshare accounting.
+
+SHA-256:
+efc4e6661dc5033f3c95c399a491608bd3aace1ab665ecf9ab2922f620410315  169278.tape.bz2
+3c3b416a18ad1e47aec178ab5cc415ffd7a23c306d4f94ebbf68996d5c0cf6cb  plm81.sav
+35e1f1b0bf25f15a29f89a206551e69aad5fb8322b5e5dc420e51caab4c76409  plm82.sav

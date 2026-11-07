@@ -1,0 +1,49 @@
+/* The classic 8191 odd-candidate sieve, repeated ten times. */
+100H:
+/* CP/M BDOS ENTRY: FUNCTION IN C, PARAMETER IN DE. */
+MON1: PROCEDURE(F,A);
+    DECLARE F BYTE, A ADDRESS;
+    GO TO 5;
+END MON1;
+PUTC: PROCEDURE(C);
+    DECLARE C BYTE;
+    CALL MON1(2,C);
+END PUTC;
+CRLF: PROCEDURE;
+    CALL PUTC(13); CALL PUTC(10);
+END CRLF;
+PRINT: PROCEDURE(N);
+    DECLARE (N,D) ADDRESS, (DIGIT,STARTED) BYTE;
+    D=10000; STARTED=0;
+    DO WHILE D<>0;
+        DIGIT=N/D; N=N-D*DIGIT;
+        IF (DIGIT<>0) OR STARTED OR (D=1) THEN DO;
+            CALL PUTC(DIGIT+'0'); STARTED=1;
+        END;
+        D=D/10;
+    END;
+END PRINT;
+DECLARE FLAGS(8191) BYTE;
+DECLARE (I,J,PRIME,COUNT,LIMIT,P) ADDRESS, ITERATION BYTE;
+DECLARE MARK BASED J BYTE, FLAG BASED P BYTE;
+/* P and J follow BYTE's candidate indices and starting multiples. */
+LIMIT=.FLAGS+LAST(FLAGS);
+DO ITERATION=1 TO 10;
+    DO P=.FLAGS TO LIMIT;
+        FLAG=1;
+    END;
+    COUNT=0;
+    DO P=.FLAGS TO LIMIT;
+        IF FLAG THEN DO;
+            I=P-.FLAGS;
+            PRIME=I+I+3; J=P+PRIME;
+            DO WHILE J<=LIMIT;
+                MARK=0; J=J+PRIME;
+            END;
+            COUNT=COUNT+1;
+        END;
+    END;
+END;
+CALL PRINT(COUNT);
+CALL CRLF;
+CALL MON1(0,0);

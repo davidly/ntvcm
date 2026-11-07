@@ -1,2 +1,9 @@
 __pycache__/
 ntvcm.dSYM/
+# PL/M-80: local compiler images, native runner and generated programs.
+/plm80/upstream/*.sav
+/plm80/pdp10
+/plm80/pdp10.exe
+/plm80/*.obj
+/plm80/examples/*.com
+/plm80/examples/*.hex

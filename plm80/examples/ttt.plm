@@ -1,0 +1,186 @@
+/* DOS PL/M alpha-beta benchmark, ported from ntv8008's PL/M-8 version.
+   Explicit RAM frames replace recursion because PL/M locals are static.
+   Ten iterations with corner, edge, and center opening positions. */
+100H:
+/* CP/M BDOS ENTRY: FUNCTION IN C, PARAMETER IN DE. */
+MON1: PROCEDURE(F,A);
+    DECLARE F BYTE, A ADDRESS;
+    GO TO 5;
+END MON1;
+PUTC: PROCEDURE(C);
+    DECLARE C BYTE;
+    CALL MON1(2,C);
+END PUTC;
+CRLF: PROCEDURE;
+    CALL PUTC(13); CALL PUTC(10);
+END CRLF;
+PRINT: PROCEDURE(N);
+    DECLARE (N,D) ADDRESS, (DIGIT,STARTED) BYTE;
+    D=10000; STARTED=0;
+    DO WHILE D<>0;
+        DIGIT=N/D; N=N-D*DIGIT;
+        IF (DIGIT<>0) OR STARTED OR (D=1) THEN DO;
+            CALL PUTC(DIGIT+'0'); STARTED=1;
+        END;
+        D=D/10;
+    END;
+END PRINT;
+DECLARE BOARD(9) BYTE;
+
+DECLARE (ALPHA,BETA,VALUE,POS)(9) BYTE;
+DECLARE (DEPTH,MOVE,SCORE,PIECE,ROOT,I,ITERATION) BYTE;
+DECLARE COUNT ADDRESS;
+/* Active bounds/value stay scalar; arrays save them across descent. */
+DECLARE (AV,BV,V) BYTE;
+DO I=0 TO 8;
+    BOARD(I)=0;
+END;
+DO ITERATION=1 TO 10;
+    COUNT=0;
+    DO ROOT=0 TO 2;
+        DO CASE ROOT;
+            MOVE=0;
+            MOVE=1;
+            MOVE=4;
+        END;
+        BOARD(MOVE)=1;
+        DEPTH=0; AV=2; BV=9;
+        /* Root setup skips the shared winning-score handler. */
+        GO TO ENTER;
+WINFOUND:
+        SCORE=4;
+        IF PIECE=1 THEN SCORE=6;
+        GO TO RETURNING;
+ENTER:
+        COUNT=COUNT+1;
+        IF DEPTH>=4 THEN DO;
+            /* Inline the last-move winner dispatch. */
+            PIECE=BOARD(MOVE);
+            DO CASE MOVE;
+                DO; /* 0 */
+                    IF PIECE=BOARD(1) THEN
+                        IF PIECE=BOARD(2) THEN GO TO WINFOUND;
+                    IF PIECE=BOARD(3) THEN
+                        IF PIECE=BOARD(6) THEN GO TO WINFOUND;
+                    IF PIECE=BOARD(4) THEN
+                        IF PIECE=BOARD(8) THEN GO TO WINFOUND;
+                END;
+                DO; /* 1 */
+                    IF PIECE=BOARD(0) THEN
+                        IF PIECE=BOARD(2) THEN GO TO WINFOUND;
+                    IF PIECE=BOARD(4) THEN
+                        IF PIECE=BOARD(7) THEN GO TO WINFOUND;
+                END;
+                DO; /* 2 */
+                    IF PIECE=BOARD(0) THEN
+                        IF PIECE=BOARD(1) THEN GO TO WINFOUND;
+                    IF PIECE=BOARD(5) THEN
+                        IF PIECE=BOARD(8) THEN GO TO WINFOUND;
+                    IF PIECE=BOARD(4) THEN
+                        IF PIECE=BOARD(6) THEN GO TO WINFOUND;
+                END;
+                DO; /* 3 */
+                    IF PIECE=BOARD(4) THEN
+                        IF PIECE=BOARD(5) THEN GO TO WINFOUND;
+                    IF PIECE=BOARD(0) THEN
+                        IF PIECE=BOARD(6) THEN GO TO WINFOUND;
+                END;
+                DO; /* 4 */
+                    IF PIECE=BOARD(0) THEN
+                        IF PIECE=BOARD(8) THEN GO TO WINFOUND;
+                    IF PIECE=BOARD(2) THEN
+                        IF PIECE=BOARD(6) THEN GO TO WINFOUND;
+                    IF PIECE=BOARD(1) THEN
+                        IF PIECE=BOARD(7) THEN GO TO WINFOUND;
+                    IF PIECE=BOARD(3) THEN
+                        IF PIECE=BOARD(5) THEN GO TO WINFOUND;
+                END;
+                DO; /* 5 */
+                    IF PIECE=BOARD(3) THEN
+                        IF PIECE=BOARD(4) THEN GO TO WINFOUND;
+                    IF PIECE=BOARD(2) THEN
+                        IF PIECE=BOARD(8) THEN GO TO WINFOUND;
+                END;
+                DO; /* 6 */
+                    IF PIECE=BOARD(7) THEN
+                        IF PIECE=BOARD(8) THEN GO TO WINFOUND;
+                    IF PIECE=BOARD(0) THEN
+                        IF PIECE=BOARD(3) THEN GO TO WINFOUND;
+                    IF PIECE=BOARD(4) THEN
+                        IF PIECE=BOARD(2) THEN GO TO WINFOUND;
+                END;
+                DO; /* 7 */
+                    IF PIECE=BOARD(6) THEN
+                        IF PIECE=BOARD(8) THEN GO TO WINFOUND;
+                    IF PIECE=BOARD(1) THEN
+                        IF PIECE=BOARD(4) THEN GO TO WINFOUND;
+                END;
+                DO; /* 8 */
+                    IF PIECE=BOARD(6) THEN
+                        IF PIECE=BOARD(7) THEN GO TO WINFOUND;
+                    IF PIECE=BOARD(2) THEN
+                        IF PIECE=BOARD(5) THEN GO TO WINFOUND;
+                    IF PIECE=BOARD(0) THEN
+                        IF PIECE=BOARD(4) THEN GO TO WINFOUND;
+                END;
+            END;
+            IF DEPTH=8 THEN DO;
+                SCORE=5; GO TO RETURNING;
+            END;
+        END;
+        V=9;
+        IF DEPTH AND 1 THEN V=2;
+        POS(DEPTH)=0;
+NEXTMOVE:
+        I=POS(DEPTH);
+        IF BOARD(I)=0 THEN DO;
+            PIECE=2;
+            IF DEPTH AND 1 THEN PIECE=1;
+            BOARD(I)=PIECE; MOVE=I;
+            ALPHA(DEPTH)=AV; BETA(DEPTH)=BV; VALUE(DEPTH)=V;
+            /* The child inherits AV and BV, then initializes its V. */
+            DEPTH=DEPTH+1;
+            GO TO ENTER;
+        END;
+ADVANCE:
+        POS(DEPTH)=POS(DEPTH)+1;
+        IF POS(DEPTH)<9 THEN GO TO NEXTMOVE;
+FINISH:
+        SCORE=V;
+RETURNING:
+        IF DEPTH=0 THEN GO TO FINISHED;
+        DEPTH=DEPTH-1;
+        AV=ALPHA(DEPTH); BV=BETA(DEPTH); V=VALUE(DEPTH);
+        BOARD(POS(DEPTH))=0;
+        IF DEPTH AND 1 THEN DO;
+            IF SCORE>V THEN DO;
+                V=SCORE;
+                IF (SCORE=6) OR (SCORE>=BV) THEN
+                    GO TO FINISH;
+                IF SCORE>AV THEN AV=SCORE;
+            END;
+        END;
+        ELSE DO;
+            IF SCORE<V THEN DO;
+                V=SCORE;
+                IF (SCORE=4) OR (SCORE<=AV) THEN
+                    GO TO FINISH;
+                IF SCORE<BV THEN BV=SCORE;
+            END;
+        END;
+        GO TO ADVANCE;
+FINISHED:
+        IF SCORE<>5 THEN DO;
+            CALL PUTC('F'); CALL CRLF; CALL MON1(0,0);
+        END;
+        DO CASE ROOT;
+            BOARD(0)=0;
+            BOARD(1)=0;
+            BOARD(4)=0;
+        END;
+    END;
+END;
+CALL PRINT(COUNT);
+CALL PUTC(' '); CALL PUTC('M'); CALL PUTC('O');
+CALL PUTC('V'); CALL PUTC('E'); CALL PUTC('S'); CALL CRLF;
+CALL MON1(0,0);
