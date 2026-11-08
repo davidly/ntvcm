@@ -164,7 +164,7 @@ static const acycles_t i8080_cycles =
     /*b0*/  4,  4,  4,  4,  4,  4,  7,  4,    4,  4,  4,  4,  4,  4,  7,  4,
     /*c0*/ 11, 10, 10, 10, 17, 11,  7, 11,   11, 10, 10, 10, 17, 17,  7, 11,
     /*d0*/ 11, 10, 10, 10, 17, 11,  7, 11,   11, 10, 10, 10, 17, 17,  7, 11,
-    /*e0*/ 11, 10, 10, 18, 17, 11,  7, 11,   11,  5, 10,  5, 17, 17,  7, 11,
+    /*e0*/ 11, 10, 10, 18, 17, 11,  7, 11,   11,  5, 10,  4, 17, 17,  7, 11,
     /*f0*/ 11, 10, 10,  4, 17, 11,  7, 11,   11,  5, 10,  4, 17, 17,  7, 11,
 };
 
@@ -2582,6 +2582,11 @@ template <bool Z80Mode> static uint32_t x80_emulate_impl( uint16_t maxcycles )
                     break;
                 else if ( OPCODE_RET == op )
                     goto _op_ret;
+                else if ( OPCODE_HOOK == op ) // not a BDOS or BIOS hook: a real mov h, h
+                {
+                    cycles += Z80Mode ? 4 : 5;
+                    break;
+                }
                 else
                     assert( false );
             }

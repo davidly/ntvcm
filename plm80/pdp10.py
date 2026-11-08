@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""PDP-10 integer/Fortran runtime subset for the recovered PL/M-80 4.1 passes.
+"""PDP-10 integer/Fortran runtime subset for the recovered PL/M-80 4.1, MAC80 and INT80.
 
 Adapted from ntv8008's plm8/pdp10.py, which runs Intel's 8008 tools from the
 same tape.
@@ -37,7 +37,24 @@ class Finished(Exception):
     pass
 
 
+# SHA-256 of each accepted image, and whether it was built for the KI10.
+IMAGES = {
+    '3c3b416a18ad1e47aec178ab5cc415ffd7a23c306d4f94ebbf68996d5c0cf6cb': False,  # PLM81
+    '35e1f1b0bf25f15a29f89a206551e69aad5fb8322b5e5dc420e51caab4c76409': False,  # PLM82
+    'c08a664dec521cbda5622a67668405084f2f1196d5562c8fe56fc37a9e6d095d': False,  # MAC80
+    '5b703a57e771e3dbe0588955fd4fc1c0d415de15decdb2fda97a17e56ed0f546': True,   # MAC80E
+    '8da64ca5b89b256556e08f52e311069dce06920bc54b32799e4acde84f79c279': False,  # INT80
+    '77f7c0aab8f743b96a67a626c7a451682576705e71574c376b444292ac598419': True,   # INT80E
+}
+# Disk buffers, one 0o1000-word area per channel, sit above every image's
+# code and data (INT80E's reaches 0o101032).
+OUT_BUFFERS = 0o700000
+IN_BUFFERS = 0o740000
+
+
 class PDP10:
+    ki = False  # KA10 unless the image was built for the KI10
+
     def __init__(self, image, source, directory):
         self.m = [0] * (1 << 18)
         self.channels = {}
@@ -45,10 +62,13 @@ class PDP10:
         self.input = io.StringIO(source)
         self.output = io.StringIO()
         raw = Path(image).read_bytes()
-        if hashlib.sha256(raw).hexdigest() not in (
-                '3c3b416a18ad1e47aec178ab5cc415ffd7a23c306d4f94ebbf68996d5c0cf6cb',  # PLM81
-                '35e1f1b0bf25f15a29f89a206551e69aad5fb8322b5e5dc420e51caab4c76409'):  # PLM82
+        digest = hashlib.sha256(raw).hexdigest()
+        if digest not in IMAGES:
             raise ValueError('compiler image checksum mismatch')
+        # MAC80E and INT80E were built for the KI10, whose stack and AOBJ
+        # instructions count the two halves separately; their runtime refuses
+        # to run on a KA10.
+        self.ki = IMAGES[digest]
         if len(raw) % 8:
             raise ValueError('truncated compiler image')
         words = struct.unpack('<' + 'Q' * (len(raw) // 8), raw)
@@ -75,12 +95,12 @@ class PDP10:
         # The original wrapper logs usage to the discontinued Tymshare RTYACT
         # service. Return from that wrapper only; compiler code is unchanged.
         # Verify the surrounding instructions so another image cannot be
-        # mistaken for one of the recovered executables. (ntv8008's MAC8
-        # wrapper has one more instruction before its return.)
+        # mistaken for one of the recovered executables. MAC80's wrapper has
+        # one more instruction (MOVNI 2,1) before its return, MAC80E's one fewer.
         matches = [a for a in range(len(self.m) - 11)
                    if self.m[a + 3] == 0o200076000000
                    and self.m[a + 4] == 0o200136000001
-                   and 0o267716000002 in (self.m[a + 9], self.m[a + 10])]
+                   and 0o267716000002 in (self.m[a + 8], self.m[a + 9], self.m[a + 10])]
         if len(matches) != 1:
             raise ValueError('unrecognized Tymshare accounting wrapper')
         self.m[matches[0]] = 0o267716000002  # JRA 16,2(16)
@@ -111,7 +131,7 @@ class PDP10:
                                               ('memory.bin', 'input.txt', 'output.txt', 'final.bin'))
             memory.write_bytes(struct.pack('<%dQ' % len(self.m), *self.m))
             source.write_bytes(self.input.getvalue().encode('ascii'))
-            command = [str(NATIVE), str(memory), str(self.pc), str(source),
+            command = [str(NATIVE), *(['--ki'] if self.ki else []), str(memory), str(self.pc), str(source),
                        str(self.directory), str(listing), str(budget)]
             result = subprocess.run(command + ([str(final)] if state else []), capture_output=True)
             text = listing.read_bytes().decode('ascii') if listing.exists() else ''
@@ -125,6 +145,12 @@ class PDP10:
             raise RuntimeError(result.stderr.decode('ascii', 'replace').strip() or
                                f'native PDP-10 runner failed ({result.returncode})')
         return text
+
+    def step(self, word, delta):
+        """Add delta to both halves: carrying across them on a KA10, not on a KI10."""
+        if self.ki:
+            return ((word >> 18) + delta & RH) << 18 | (word + delta & RH)
+        return (word + delta * 0o1000001) & MASK
 
     def ea(self, ir):
         for _ in range(30):
@@ -144,7 +170,7 @@ class PDP10:
         c = self.channels.get(ac, {})
         if c.get('ready'):
             h = c['out']
-            base = 0o100000 + ac * 0o1000
+            base = OUT_BUFFERS + ac * 0o1000
             n = c.get('written', 0)
             text = ''.join((chr(self.m[base + i // 5] >> 29 - 7 * (i % 5) & 127) for i in range(c.get('flushed', 0), min(640, n))))
             if 'file' in c:
@@ -287,18 +313,18 @@ class PDP10:
         elif op == 0o255:
             pass
         elif op == 0o260:
-            m[ac] = (av + 0o1000001) & MASK
+            m[ac] = self.step(av, 1)
             m[m[ac] & RH] = self.pc
             self.pc = e
         elif op == 0o261:
-            m[ac] = (av + 0o1000001) & MASK
+            m[ac] = self.step(av, 1)
             m[m[ac] & RH] = v
         elif op == 0o262:
             m[e] = m[av & RH]
-            m[ac] = (av - 0o1000001) & MASK
+            m[ac] = self.step(av, -1)
         elif op == 0o263:
             self.pc = m[av & RH] & RH
-            m[ac] = (av - 0o1000001) & MASK
+            m[ac] = self.step(av, -1)
         elif op == 0o264:
             m[e] = self.pc
             self.pc = e + 1 & RH
@@ -341,7 +367,7 @@ class PDP10:
             m[ac] = val >> 36 & MASK
             m[ac + 1 & 15] = val & MASK
         elif op in (0o252, 0o253):
-            m[ac] = (av + 0o1000001) & MASK
+            m[ac] = self.step(av, 1)
             if (signed(m[ac]) < 0) == (op == 0o253):
                 self.pc = e
         elif 0o133 <= op <= 0o137:  # IBP, ILDB, LDB, IDPB, DPB
@@ -364,7 +390,7 @@ class PDP10:
                     m[a] = m[a] & ~(mask << pos) | (av & mask) << pos
                     if sz == 7:
                         for (ch, c) in self.channels.items():
-                            base = 0o100000 + ch * 0o1000
+                            base = OUT_BUFFERS + ch * 0o1000
                             if c.get('ready') and base <= a < base + 128:
                                 c['written'] = max(c.get('written', 0), (a - base) * 5 + (29 - pos) // 7 + 1)
         elif op < 0o40:  # Fortran local UUOs, dispatched through the saved vector
@@ -378,8 +404,9 @@ class PDP10:
         elif op == 0o47 and e in (0o23, 0o27, 0o30, 0o24):  # timing/job queries
             m[ac] = 0
         elif op == 0o47 and 0o777736 <= e <= 0o777745:
-            # Tymshare software-interrupt setup (CALLI -42 to -33). The
-            # runtime halts unless these succeed; no interrupt is ever raised.
+            # Tymshare software-interrupt setup (CALLI -42 to -33) in newer
+            # runtimes such as PLM81's. They halt unless these succeed; no
+            # interrupt is ever raised.
             self.pc += 1
         elif op == 0o47 and e >= 0o400000:
             pass
@@ -445,7 +472,7 @@ class PDP10:
         elif op in (0o57, 0o67):  # OUT, OUTPUT
             c = self.channels[ac]
             h = c['out']
-            base = 0o100000 + ac * 0o1000
+            base = OUT_BUFFERS + ac * 0o1000
             self.flush_channel(ac)
             c['written'] = 0
             c['flushed'] = 0
@@ -459,7 +486,7 @@ class PDP10:
         elif op in (0o56, 0o66):  # IN, INPUT
             c = self.channels[ac]
             h = c['in']
-            base = 0o140000 + ac * 0o1000
+            base = IN_BUFFERS + ac * 0o1000
             if 'lines' in c:
                 line = next(c['lines'], None)
                 if line is None:

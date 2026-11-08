@@ -1,0 +1,24 @@
+Intel MAC80 8080 macro cross-assembler, version 2.4 (MAC80.SAV), and the
+expanded version 2.3 (MAC80E.SAV, "EXPANDED VERSION OF MAC80 7/20/75").
+Original software: Intel Corporation; PDP-10 Fortran/Tymshare runtime authors.
+These historical third-party executables are not newly authored project code.
+No new license or public-domain status is asserted for them, and they are not
+distributed with this repository.
+
+Source archive:
+https://vtda.org/bits/software/DEC/PDP-10/tymshare/169278.tape.bz2
+Catalog:
+https://vtda.org/bits/software/DEC/PDP-10/tymshare/169278.txt
+Directory: (UPL), files MAC80.SAV and MAC80E.SAV.
+Runtime banners: 8080 MACRO ASSEMBLER, VER 2.4; EXPANDED VERSION OF MAC80
+7/20/75 and 8080 MACRO ASSEMBLER, VER 2.3.
+
+Recovered with mac80/recover.py. Each original 36-bit word is represented
+as an unsigned eight-byte little-endian integer. No original word values
+were patched in these files. The host runner's separate, documented
+in-memory compatibility change omits discontinued Tymshare accounting.
+
+SHA-256:
+efc4e6661dc5033f3c95c399a491608bd3aace1ab665ecf9ab2922f620410315  169278.tape.bz2
+c08a664dec521cbda5622a67668405084f2f1196d5562c8fe56fc37a9e6d095d  mac80.sav
+5b703a57e771e3dbe0588955fd4fc1c0d415de15decdb2fda97a17e56ed0f546  mac80e.sav

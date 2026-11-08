@@ -46,14 +46,15 @@ def records(stream):
         yield data
 
 
-def recover(tape, destination):
+def recover(tape, destination, wanted=IMAGES):
+    """Extract the files named in wanted, {name: SHA-256}, from (UPL) on the tape."""
     digest = hashlib.sha256()
     with tape.open('rb') as stream:
         for block in iter(lambda: stream.read(1024 * 1024), b''):
             digest.update(block)
     if digest.hexdigest() != TAPE_SHA256:
         raise ValueError('tape checksum mismatch (expected 169278.tape.bz2)')
-    images = {}
+    found = {}
     current = None
     with bz2.open(tape, 'rb') as stream:
         for record in records(stream):
@@ -63,9 +64,9 @@ def recover(tape, destination):
                 name = sixbit(word(record, 4)).lower()
                 ext = sixbit(word(record, 5) & (0o777777 << 18)).lower()
                 filename = name + '.' + ext
-                current = filename if directory == 'UPL' and filename in IMAGES else None
+                current = filename if directory == 'UPL' and filename in wanted else None
                 if current:
-                    images[current] = bytearray()
+                    found[current] = bytearray()
                 offset = 0o101
             elif tag == 0:  # continuation record; word zero is its length
                 offset = 1
@@ -76,15 +77,15 @@ def recover(tape, destination):
                 # Include the last word of the first record. The old tito
                 # extractor's size-offset expression drops that word.
                 for index in range(offset, len(record) // 5):
-                    images[current].extend(struct.pack('<Q', word(record, index)))
-                if len(images) == len(IMAGES) and all(hashlib.sha256(images[name]).hexdigest() == digest
-                                            for name, digest in IMAGES.items()):
+                    found[current].extend(struct.pack('<Q', word(record, index)))
+                if len(found) == len(wanted) and all(hashlib.sha256(found[name]).hexdigest() == digest
+                                          for name, digest in wanted.items()):
                     break
-    for name, expected in IMAGES.items():
-        if name not in images or hashlib.sha256(images[name]).hexdigest() != expected:
+    for name, expected in wanted.items():
+        if name not in found or hashlib.sha256(found[name]).hexdigest() != expected:
             raise ValueError(f'{name}: recovered image checksum mismatch')
     destination.mkdir(parents=True, exist_ok=True)
-    for name, image in images.items():
+    for name, image in found.items():
         (destination / name).write_bytes(image)
         print(f'recovered {name}: {len(image)} bytes; SHA-256 verified')
 

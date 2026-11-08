@@ -7,3 +7,8 @@ ntvcm.dSYM/
 /plm80/*.obj
 /plm80/examples/*.com
 /plm80/examples/*.hex
+# MAC80 and INTERP/80: local images and assembled programs.
+/mac80/upstream/*.sav
+/mac80/examples/*.com
+/mac80/examples/*.hex
+/int80/upstream/*.sav

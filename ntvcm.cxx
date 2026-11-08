@@ -2070,7 +2070,7 @@ uint8_t x80_invoke_hook()
     if ( ( BDOS_ENTRY + 3 ) != address )
     {
         tracer.Trace( "hook call, but not bios or bdos. likely just a mov h, h. address: %04x\n", address );
-        return OPCODE_NOP;
+        return OPCODE_HOOK; // execute it as mov h, h
     }
 
     uint8_t function = reg.c;

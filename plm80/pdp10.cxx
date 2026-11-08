@@ -1,11 +1,12 @@
-// Native PDP-10 runner for the recovered PL/M-80 4.1 passes, adapted from
-// ntv8008's plm8/pdp10.cxx.
+// Native PDP-10 runner for the recovered PL/M-80 4.1, MAC80 and INT80 programs,
+// adapted from ntv8008's plm8/pdp10.cxx.
 //
 // A direct translation of pdp10.py's PDP10.execute and its monitor calls; the
 // Python runner remains the reference. pdp10.py validates and loads the
 // compiler image, then passes the loaded memory and entry point here.
 //
-// usage: pdp10 memory.bin entry input.txt directory output.txt budget [final.bin]
+// usage: pdp10 [--ki] memory.bin entry input.txt directory output.txt budget [final.bin]
+// --ki selects KI10 stack and AOBJ arithmetic, which counts the halves separately.
 // Exit 0 when the program EXITs; otherwise 2 with the error on stderr. The
 // console output produced so far is written to output.txt either way, and the
 // optional final.bin receives the final memory followed by the PC (for tests).
@@ -29,6 +30,20 @@ static std::string output;
 static std::string input;
 static size_t inputAt = 0;
 static std::string directory;
+// Disk buffers, one 01000-word area per channel, sit above every image's
+// code and data (INT80E's reaches 0101032).
+static const uint32_t OUT_BUFFERS = 0700000;
+static const uint32_t IN_BUFFERS = 0740000;
+
+static bool ki10 = false;
+
+// Add delta to both halves: carrying across them on a KA10, not on a KI10.
+static Word step( Word word, int delta )
+{
+    if ( ki10 )
+        return ( ( ( word >> 18 ) + delta ) & RH ) << 18 | ( ( word + delta ) & RH );
+    return ( word + (Word) ( delta * 01000001LL ) ) & MASK;
+}
 
 struct Finished {};
 
@@ -122,7 +137,7 @@ static void flush_channel( int ac )
     Channel * c = find( ac );
     if ( !c || !c->ready )
         return;
-    uint32_t base = 0100000 + ac * 01000;
+    uint32_t base = OUT_BUFFERS + ac * 01000;
     long long n = c->written;
     std::string text;
     for ( long long i = c->flushed; i < ( n < 640 ? n : 640 ); i++ )
@@ -356,24 +371,24 @@ static void execute( Word ir, uint32_t at )
         ;
     else if ( op == 0260 )
     {
-        m[ ac ] = ( av + 01000001 ) & MASK;
+        m[ ac ] = step( av, 1 );
         m[ m[ ac ] & RH ] = pc;
         pc = e;
     }
     else if ( op == 0261 )
     {
-        m[ ac ] = ( av + 01000001 ) & MASK;
+        m[ ac ] = step( av, 1 );
         m[ m[ ac ] & RH ] = v;
     }
     else if ( op == 0262 )
     {
         m[ e ] = m[ av & RH ];
-        m[ ac ] = ( av - 01000001 ) & MASK;
+        m[ ac ] = step( av, -1 );
     }
     else if ( op == 0263 )
     {
         pc = (uint32_t) ( m[ av & RH ] & RH );
-        m[ ac ] = ( av - 01000001 ) & MASK;
+        m[ ac ] = step( av, -1 );
     }
     else if ( op == 0264 )
     {
@@ -460,7 +475,7 @@ static void execute( Word ir, uint32_t at )
     }
     else if ( op == 0252 || op == 0253 )
     {
-        m[ ac ] = ( av + 01000001 ) & MASK;
+        m[ ac ] = step( av, 1 );
         if ( ( sgn( m[ ac ] ) < 0 ) == ( op == 0253 ) )
             pc = e;
     }
@@ -493,7 +508,7 @@ static void execute( Word ir, uint32_t at )
                     for ( int ch : channelOrder )
                     {
                         Channel & c = channels[ ch ];
-                        uint32_t base = 0100000 + ch * 01000;
+                        uint32_t base = OUT_BUFFERS + ch * 01000;
                         if ( c.ready && base <= a && a < base + 128 )
                         {
                             long long count = (long long) ( a - base ) * 5 + floordiv( 29 - (long long) pos, 7 ) + 1;
@@ -520,8 +535,9 @@ static void execute( Word ir, uint32_t at )
         m[ ac ] = 0;
     else if ( op == 047 && e >= 0777736 && e <= 0777745 )
     {
-        // Tymshare software-interrupt setup (CALLI -42 to -33). The runtime
-        // halts unless these succeed; no interrupt is ever raised.
+        // Tymshare software-interrupt setup (CALLI -42 to -33) in newer
+        // runtimes such as PLM81's. They halt unless these succeed; no
+        // interrupt is ever raised.
         pc = ( pc + 1 ) & RH;
     }
     else if ( op == 047 && e >= 0400000 )
@@ -628,7 +644,7 @@ static void execute( Word ir, uint32_t at )
         Channel & c = require( ac );
         uint32_t h = c.out;
         check_memory( h, 3 );
-        uint32_t base = 0100000 + ac * 01000;
+        uint32_t base = OUT_BUFFERS + ac * 01000;
         flush_channel( ac );
         c.written = 0;
         c.flushed = 0;
@@ -645,7 +661,7 @@ static void execute( Word ir, uint32_t at )
         Channel & c = require( ac );
         uint32_t h = c.in;
         check_memory( h, 3 );
-        uint32_t base = 0140000 + ac * 01000;
+        uint32_t base = IN_BUFFERS + ac * 01000;
         std::string line;
         if ( c.hasLines )
         {
@@ -708,9 +724,15 @@ static bool read_file( const char * path, std::string & text )
 
 int main( int argc, char ** argv )
 {
+    if ( argc > 1 && !strcmp( argv[ 1 ], "--ki" ) )
+    {
+        ki10 = true;
+        argc--;
+        argv++;
+    }
     if ( argc != 7 && argc != 8 )
     {
-        fprintf( stderr, "usage: pdp10 memory.bin entry input.txt directory output.txt budget [final.bin]\n" );
+        fprintf( stderr, "usage: pdp10 [--ki] memory.bin entry input.txt directory output.txt budget [final.bin]\n" );
         return 2;
     }
     std::string image;

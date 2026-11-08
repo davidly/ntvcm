@@ -65,6 +65,8 @@ Helper scripts live in the `scripts` directory. They use only the Python standar
 
 The `plm80` directory runs Intel's original 1976 PL/M-80 4.1 cross-compiler, a PDP-10 Fortran program, to build CP/M .COM files that run in ntvcm. The compiler images are not included; see [plm80/README.md](plm80/README.md) for recovering them from an archived Tymshare tape, the examples, and tests.
 
+From the same tape, `mac80` runs Intel's MAC80 8080 macro cross-assembler, and `int80` runs Intel's INTERP/80 8080 simulator on CP/M programs and compares it with ntvcm. See [mac80/README.md](mac80/README.md) and [int80/README.md](int80/README.md).
+
 I've done some testing on Linux and MacOS with the same set of test apps as Windows. It all seems to work, most importantly the CPU tests. CP/M apps expect cr/lf in text files, so you may need to use a tool like unix2dos to convert .asm and .bas files so they work properly in the emulator in those environments. The -l flag in ntvcm is useful if you want to use lowercase filenames instead of CP/M's default of uppercase.
 
 Performance of the CPU emulator is in the ballpark of other emulators I looked at. I wrote the code to be more readable than other emulators, whose use of lookup tables and macros I found to be nearly inscrutable (though I'm sure that's just me). I also wanted both 8080 and Z80

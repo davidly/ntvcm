@@ -24,7 +24,8 @@ by Git.
 
 The compiler is 1970s Fortran for a PDP-10. `pdp10.py` and `pdp10.cxx` run
 it; they are adapted from the runner that ntv8008 uses for Intel's 8008
-PL/M-8, MAC8 and INTERP/8 from the same tape. Build the native runner for
+PL/M-8, MAC8 and INTERP/8 from the same tape. [MAC80](../mac80/README.md) and
+[INTERP/80](../int80/README.md) use them too. Build the native runner for
 speed (about 0.1 second per compile instead of 1–10 seconds in Python):
 
 ```sh
@@ -46,10 +47,10 @@ listings, including PLM82's symbol map and code listing. `plm80/rebuild.sh` or
 | Example | Output | Z80 cycles | 8080 cycles (`-8`) |
 | --- | --- | ---: | ---: |
 | hello | `HELLO, PL/M-80!` | 256 | 258 |
-| arithmetic | `OK` after byte/address arithmetic, arrays and pointers | 16,716 | 17,498 |
-| sieve | `1899`, ten passes over 8191 odd candidates | 62,059,510 | 63,613,289 |
-| e | 192 digits of e, then `DONE` | 77,709,927 | 82,173,332 |
-| ttt | `6493 MOVES`, ten iterations of alpha-beta tic-tac-toe | 171,454,256 | 170,143,831 |
+| arithmetic | `OK` after byte/address arithmetic, arrays and pointers | 16,716 | 17,338 |
+| sieve | `1899`, ten passes over 8191 odd candidates | 62,059,510 | 63,575,225 |
+| e | 192 digits of e, then `DONE` | 77,709,927 | 81,632,924 |
+| ttt | `6493 MOVES`, ten iterations of alpha-beta tic-tac-toe | 171,454,256 | 169,822,051 |
 
 The examples are ports of ntv8008's PL/M-8 examples. Only the console output,
 the origin and the exit changed; the algorithms are the same.
@@ -108,6 +109,17 @@ up Tymshare's software-interrupt system with monitor calls `CALLI -42` through
 raises an interrupt; the handlers would run only after a trap such as an
 arithmetic overflow. The compiler's code and data are unchanged.
 
+MAC80E and INT80E were built for the KI10 processor. Their runtime checks for
+one by running `AOBJN` on -1: a KA10 carries into the left half and a KI10
+does not. On a KA10 they print `?KI-10 CODE WILL NOT RUN ON A KA-10`. For
+those two images only, the runner selects KI10 halfword arithmetic for `AOBJN`,
+`AOBJP`, `PUSH`, `POP`, `PUSHJ` and `POPJ`; `pdp10.cxx` takes `--ki`.
+
+The runner keeps each channel's disk buffer at 0700000 (output) or 0740000
+(input), above every image. INT80E's code and data reach 0101032, so it failed
+with ntv8008's buffers at 0100000. The PL/M-80 output is byte-identical either
+way.
+
 ## Tests
 
 ```sh
@@ -116,6 +128,6 @@ python3 plm80/test.py
 
 The tests compile every example and run it in ntvcm in both Z80 and 8080 modes.
 They check e against Python's `Decimal`, compare the Python and native runners
-on sieve, and check the source checks, compile errors, and HEX output. A
-runner test for the Tymshare monitor calls needs no compiler images. Build
-ntvcm first.
+on sieve, and check the source checks, compile errors, and HEX output.
+Runner tests for the Tymshare monitor calls, KI10 arithmetic and buffer
+placement need no compiler images. Build ntvcm first.

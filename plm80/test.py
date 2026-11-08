@@ -50,6 +50,47 @@ class Runner(unittest.TestCase):
                     else:
                         self.assertEqual(cpu.run(5), '')
 
+    def execute(self, cpu, native, budget=10):
+        with tempfile.TemporaryDirectory(prefix='plm80 runner ') as directory:
+            cpu.directory = Path(directory)
+            if native:
+                cpu.run_native(budget, state=True)
+            else:
+                cpu.run(budget)
+
+    def test_ki10_halfword_arithmetic(self):
+        # AOBJN from -1 carries into the left half on a KA10 but not on a
+        # KI10, for which MAC80E and INT80E were built; PUSH does the same.
+        for ki in (False, True):
+            for native in (False, True):
+                if native and not NATIVE.is_file():
+                    continue
+                with self.subTest(ki=ki, native=native):
+                    cpu = self.machine()
+                    cpu.ki = ki
+                    cpu.m[1] = cpu.m[2] = (1 << 36) - 1
+                    cpu.m[64:67] = [instruction(0o252, 1, 65), instruction(0o261, 2, 0o2000),
+                                    instruction(0o47, address=0o12)]
+                    self.execute(cpu, native)
+                    self.assertEqual(cpu.m[1], 0 if ki else 1 << 18)
+                    self.assertEqual(cpu.m[2], 0 if ki else 1 << 18)
+
+    def test_output_buffers_above_the_images(self):
+        # INT80E's code and data reach 0101032, where the 8008 runner kept its
+        # buffers, so this runner places them at 0700000.
+        for native in (False, True):
+            if native and not NATIVE.is_file():
+                continue
+            with self.subTest(native=native):
+                cpu = self.machine()
+                cpu.m[0o2002] = 0o3000 << 18
+                cpu.m[64:68] = [instruction(0o50, 1, 0o2000), instruction(0o255), instruction(0o67, 1),
+                                instruction(0o47, address=0o12)]
+                self.execute(cpu, native)
+                base = 0o701000
+                self.assertEqual(cpu.m[0o3000:0o3003], [base - 2, 7 << 24 | base - 1, 640])
+                self.assertEqual(cpu.m[base - 2], 0o201 << 18 | base - 2)
+
 
 @unittest.skipUnless(IMAGES, 'optional PL/M-80 images not supplied; see plm80/README.md')
 class PLM80(unittest.TestCase):
