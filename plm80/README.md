@@ -100,6 +100,12 @@ Source has the same hazards as ntv8008's PL/M-8, and the wrapper checks them:
 Compilation errors fail with both listings, and an existing output file is
 left unchanged.
 
+## The Fortran source
+
+The surviving Fortran source of this compiler is the older version 2.0.
+[dos/](dos/README.md) builds it for MS-DOS with Microsoft Fortran 5.1 in
+ntvdm and compiles the same examples with it.
+
 ## Runner notes
 
 The PL/M-80 images use a newer Tymshare Fortran runtime than ntv8008's 8008

@@ -14,3 +14,4 @@ ntvcm.dSYM/
 /int80/upstream/*.sav
 # PL/M-80 Fortran sources: local reference copies only.
 /plm80/fortran/
+/plm80/dos/bin/
