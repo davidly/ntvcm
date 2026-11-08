@@ -24,7 +24,10 @@ BIN = HERE / 'bin'
 EXE = '.exe' if os.name == 'nt' else ''
 NTVDM = Path(os.environ.get('NTVDM', GITHUB / 'ntvdm' / ('ntvdm' + EXE)))
 FORTRAN = Path(os.environ.get('MSFORTRAN', GITHUB / 'dos_compilers' / 'Microsoft Fortran v51'))
-FL = ['-u', '-r:.', '-e:include=include,init=bin,path=bin;binb,lib=lib,tmp=tmp', 'binb\\fl', '/FPc', '/Ot']
+# DOS uppercases file names; Linux ntvdm's -u matches them to the uppercase
+# files written here. Windows names ignore case, and its ntvdm has no -u.
+ROOT = ([] if os.name == 'nt' else ['-u']) + ['-r:.']
+FL = ROOT + ['-e:include=include,init=bin,path=bin;binb,lib=lib,tmp=tmp', 'binb\\fl', '/FPc', '/Ot']
 
 
 def ntvdm(directory, arguments, answers=()):
@@ -105,9 +108,9 @@ def compile_source(source):
         # Each pass asks for its files in this order the first time it uses
         # each Fortran unit: listing 12, input 2 or controls 1, work files,
         # object 17 and console 11.
-        ntvdm(work, ['-u', '-r:.', 'PLM81.EXE'],
+        ntvdm(work, ROOT + ['PLM81.EXE'],
               ['LIST1.TXT', 'SOURCE.PLM', 'CODE.TMP', 'CONSOLE1.TXT', 'SYMBOLS.TMP'])
-        ntvdm(work, ['-u', '-r:.', 'PLM82.EXE'],
+        ntvdm(work, ROOT + ['PLM82.EXE'],
               ['LIST2.TXT', 'CONTROLS.TXT', 'SYMBOLS.TMP', 'CODE.TMP', 'OBJECT.TXT', 'CONSOLE2.TXT'])
         listing = '\n'.join((work / name).read_text(encoding='latin-1').replace('\r', '')
                             for name in ('LIST1.TXT', 'LIST2.TXT') if (work / name).is_file())
