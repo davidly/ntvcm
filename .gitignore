@@ -12,3 +12,5 @@ ntvcm.dSYM/
 /mac80/examples/*.com
 /mac80/examples/*.hex
 /int80/upstream/*.sav
+# PL/M-80 Fortran sources: local reference copies only.
+/plm80/fortran/
