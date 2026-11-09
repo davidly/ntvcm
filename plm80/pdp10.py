@@ -410,9 +410,9 @@ class PDP10:
             self.pc += 1
         elif op == 0o47 and e >= 0o400000:
             pass
-        elif op == 0o51:  # TTCALL: clear input, write string, write character
-            if ac == 11:
-                pass
+        elif op == 0o51:  # TTCALL
+            if ac in (0o11, 0o12, 0o13):
+                pass  # CLRBFI, CLRBFO; SKPINC doesn't skip: nothing has been typed
             elif ac == 3:
                 a = e
                 while True:

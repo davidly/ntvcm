@@ -542,10 +542,10 @@ static void execute( Word ir, uint32_t at )
     }
     else if ( op == 047 && e >= 0400000 )
         ;
-    else if ( op == 051 ) // TTCALL: clear input, write string, write character
+    else if ( op == 051 ) // TTCALL
     {
-        if ( ac == 11 )
-            ;
+        if ( ac == 011 || ac == 012 || ac == 013 )
+            ; // CLRBFI, CLRBFO; SKPINC doesn't skip: nothing has been typed
         else if ( ac == 3 )
         {
             for ( uint32_t a = e;; a++ )
