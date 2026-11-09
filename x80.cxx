@@ -692,6 +692,30 @@ bool z80_block_repeat_self_modified( uint16_t pc, uint8_t op2 )
     return ( 0xed != memory[ (uint16_t) ( pc - 2 ) ] ) || ( op2 != memory[ (uint16_t) ( pc - 1 ) ] );
 } //z80_block_repeat_self_modified
 
+// The flags INI, IND, OUTI and OUTD leave, as do INIR, INDR, OTIR and OTDR after their last pass,
+// per Sean Young's "The Undocumented Z80 Documented": S, Z, Y and X as DEC B gives them; N is bit 7
+// of the byte moved; and with k the byte plus L after the move (OUTI, OUTD) or C + 1 or C - 1
+// (INI, IND), H and C are set if k > 255 and P/V is the parity of ( k & 7 ) ^ B.
+void z80_block_io_flags( uint8_t value, uint8_t other )
+{
+    unsigned k = (unsigned) value + other;
+    reg.fSign = ( 0 != ( reg.b & 0x80 ) );
+    reg.fZero = ( 0 == reg.b );
+    reg.z80_assignYX( reg.b );
+    reg.fWasSubtract = ( 0 != ( value & 0x80 ) );
+    reg.fAuxCarry = reg.fCarry = ( k > 0xff );
+    set_parity( (uint8_t) ( ( k & 7 ) ^ reg.b ) );
+} //z80_block_io_flags
+
+// A pass of LDIR, LDDR, CPIR or CPDR that will repeat takes Y and X from bits 13 and 11 of the
+// instruction's address instead (found in 2018, after "The Undocumented Z80 Documented"). Here that
+// is only seen when self-modification cuts the repeat short. INIR and friends also change H and P/V
+// on such a pass; that is not modeled.
+void z80_block_repeat_yx( uint16_t address )
+{
+    reg.z80_assignYX( (uint8_t) ( address >> 8 ) );
+} //z80_block_repeat_yx
+
 void z80_op_bit( uint8_t val, uint8_t bit, z80_value_source vs )
 {
     assert( bit <= 7 );
@@ -1596,7 +1620,10 @@ always_inlined uint32_t z80_emulate( uint8_t op, uint16_t & pc, uint16_t & sp ) 
                 } while ( ( 0 != reg.B() ) && !modified );
 
                 if ( modified )
+                {
                     pc -= 2; // it overwrote its own ed/op2 bytes; let the next fetch re-decode them
+                    z80_block_repeat_yx( pc ); // that pass was going to repeat
+                }
 
                 cycles -= 5; // the last iteration is 16T; repeated iterations are 21T
                 reg.fParityEven_Overflow = ( 0 != reg.B() ); // false on normal completion; true if the repeat was interrupted by self-modification
@@ -1628,7 +1655,10 @@ always_inlined uint32_t z80_emulate( uint8_t op, uint16_t & pc, uint16_t & sp ) 
                 } while ( !reg.fZero && ( 0 != reg.B() ) && !modified );
 
                 if ( modified )
+                {
                     pc -= 2; // it overwrote its own ed/op2 bytes; let the next fetch re-decode them
+                    z80_block_repeat_yx( pc ); // that pass was going to repeat
+                }
 
                 cycles -= 5; // the last iteration is 16T; repeated iterations are 21T
                 reg.fParityEven_Overflow = ( 0 != reg.B() ); // not what the Zilog doc says, but it's what works
@@ -1655,7 +1685,10 @@ always_inlined uint32_t z80_emulate( uint8_t op, uint16_t & pc, uint16_t & sp ) 
                 } while ( ( 0 != reg.B() ) && !modified );
 
                 if ( modified )
+                {
                     pc -= 2; // it overwrote its own ed/op2 bytes; let the next fetch re-decode them
+                    z80_block_repeat_yx( pc ); // that pass was going to repeat
+                }
 
                 cycles -= 5; // the last iteration is 16T; repeated iterations are 21T
                 reg.fParityEven_Overflow = ( 0 != reg.B() ); // false on normal completion; true if the repeat was interrupted by self-modification
@@ -1686,7 +1719,10 @@ always_inlined uint32_t z80_emulate( uint8_t op, uint16_t & pc, uint16_t & sp ) 
                 } while ( !reg.fZero && ( 0 != reg.B() ) && !modified );
 
                 if ( modified )
+                {
                     pc -= 2; // it overwrote its own ed/op2 bytes; let the next fetch re-decode them
+                    z80_block_repeat_yx( pc ); // that pass was going to repeat
+                }
 
                 cycles -= 5; // the last iteration is 16T; repeated iterations are 21T
                 reg.fParityEven_Overflow = ( 0 != reg.B() );
@@ -1702,8 +1738,7 @@ always_inlined uint32_t z80_emulate( uint8_t op, uint16_t & pc, uint16_t & sp ) 
                 reg.z80_set_memptr( reg.B() + 1 ); // uses bc before decrementing b
                 reg.SetH( reg.H() + 1 );
                 reg.b = reg.b - 1;
-                reg.fZero = ( 0 == reg.b );
-                reg.fWasSubtract = true;
+                z80_block_io_flags( 0xff, (uint8_t) ( reg.c + 1 ) );
             }
             else if ( 0xaa == op2 ) // ind; no real I/O device attached
             {
@@ -1712,26 +1747,25 @@ always_inlined uint32_t z80_emulate( uint8_t op, uint16_t & pc, uint16_t & sp ) 
                 reg.z80_set_memptr( reg.B() - 1 ); // uses bc before decrementing b
                 reg.SetH( reg.H() - 1 );
                 reg.b = reg.b - 1;
-                reg.fZero = ( 0 == reg.b );
-                reg.fWasSubtract = true;
+                z80_block_io_flags( 0xff, (uint8_t) ( reg.c - 1 ) );
             }
             else if ( 0xa3 == op2 ) // outi; no real I/O device attached
             {
                 cycles = 16;
+                uint8_t value = memory[ reg.H() ];
                 reg.SetH( reg.H() + 1 );
                 reg.b = reg.b - 1;
                 reg.z80_set_memptr( reg.B() + 1 ); // uses bc after decrementing b
-                reg.fZero = ( 0 == reg.b );
-                reg.fWasSubtract = true;
+                z80_block_io_flags( value, (uint8_t) reg.H() );
             }
             else if ( 0xab == op2 ) // outd; no real I/O device attached
             {
                 cycles = 16;
+                uint8_t value = memory[ reg.H() ];
                 reg.SetH( reg.H() - 1 );
                 reg.b = reg.b - 1;
                 reg.z80_set_memptr( reg.B() - 1 ); // uses bc after decrementing b
-                reg.fZero = ( 0 == reg.b );
-                reg.fWasSubtract = true;
+                z80_block_io_flags( value, (uint8_t) reg.H() );
             }
             else if ( 0xb2 == op2 ) // inir; no real I/O device attached
             {
@@ -1753,8 +1787,7 @@ always_inlined uint32_t z80_emulate( uint8_t op, uint16_t & pc, uint16_t & sp ) 
                     pc -= 2; // it overwrote its own ed/op2 bytes; let the next fetch re-decode them
 
                 cycles -= 5; // the last iteration is 16T; repeated iterations are 21T
-                reg.fZero = ( 0 == reg.b ); // true on normal completion; false if the repeat was interrupted by self-modification
-                reg.fWasSubtract = true;
+                z80_block_io_flags( 0xff, (uint8_t) ( reg.c + 1 ) ); // as the last pass's ini/ind
             }
             else if ( 0xba == op2 ) // indr; no real I/O device attached
             {
@@ -1776,16 +1809,17 @@ always_inlined uint32_t z80_emulate( uint8_t op, uint16_t & pc, uint16_t & sp ) 
                     pc -= 2; // it overwrote its own ed/op2 bytes; let the next fetch re-decode them
 
                 cycles -= 5;
-                reg.fZero = ( 0 == reg.b ); // true on normal completion; false if the repeat was interrupted by self-modification
-                reg.fWasSubtract = true;
+                z80_block_io_flags( 0xff, (uint8_t) ( reg.c - 1 ) ); // as the last pass's ini/ind
             }
             else if ( 0xb3 == op2 ) // otir; no real I/O device attached
             {
                 cycles = 0;
                 bool modified = false;
+                uint8_t value = 0;
                 do
                 {
                     cycles += 21;
+                    value = memory[ reg.H() ];
                     reg.SetH( reg.H() + 1 );
                     reg.b = reg.b - 1;
                     reg.z80_set_memptr( reg.B() + 1 ); // exactly as outi: uses bc after decrementing b
@@ -1798,16 +1832,17 @@ always_inlined uint32_t z80_emulate( uint8_t op, uint16_t & pc, uint16_t & sp ) 
                     pc -= 2; // it overwrote its own ed/op2 bytes; let the next fetch re-decode them
 
                 cycles -= 5;
-                reg.fZero = ( 0 == reg.b ); // true on normal completion; false if the repeat was interrupted by self-modification
-                reg.fWasSubtract = true;
+                z80_block_io_flags( value, (uint8_t) reg.H() ); // as the last pass's outi/outd
             }
             else if ( 0xbb == op2 ) // otdr; no real I/O device attached
             {
                 cycles = 0;
                 bool modified = false;
+                uint8_t value = 0;
                 do
                 {
                     cycles += 21;
+                    value = memory[ reg.H() ];
                     reg.SetH( reg.H() - 1 );
                     reg.b = reg.b - 1;
                     reg.z80_set_memptr( reg.B() - 1 ); // exactly as outd: uses bc after decrementing b
@@ -1820,8 +1855,7 @@ always_inlined uint32_t z80_emulate( uint8_t op, uint16_t & pc, uint16_t & sp ) 
                     pc -= 2; // it overwrote its own ed/op2 bytes; let the next fetch re-decode them
 
                 cycles -= 5;
-                reg.fZero = ( 0 == reg.b ); // true on normal completion; false if the repeat was interrupted by self-modification
-                reg.fWasSubtract = true;
+                z80_block_io_flags( value, (uint8_t) reg.H() ); // as the last pass's outi/outd
             }
             else if ( 0x45 == ( op2 & 0xcf ) ) // retn; 0x55/65/75 are undocumented duplicates
             {

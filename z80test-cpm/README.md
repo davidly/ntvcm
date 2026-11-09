@@ -176,7 +176,15 @@ Z80 chips themselves disagree on bits 3/5 of the flags register after `SCF`/
 this reportedly also varies by CPU manufacturer/board. z80test's own
 `readme.txt` says as much. Expect `SCF`/`CCF`-adjacent failures here even on
 a correct, self-consistent emulator, unless it happens to emulate the exact
-same hardware variant the recorded CRCs came from.
+same hardware variant the recorded CRCs came from. `ntvcm` follows the NEC
+variant (X and Y come from A alone), so `SCF (NEC)` and `CCF (NEC)` (003 and
+004) pass while the Zilog (001, 002) and ST (005, 006) variants fail.
+
+For `ntvcm`, `full.com` fails 18 tests in the default build: those 4
+`SCF`/`CCF` variants, the 4 MEMPTR-dependent `BIT n,(HL)` tests, the 9
+`IN`-dependent ones and `LD A,R`. With `TRACK_Z80_MEMPTR` and
+`TRACK_Z80_R_REGISTER` both set, only the `SCF`/`CCF` variants and the 9
+`IN` tests fail.
 
 **`ccf`** inserts a `CCF` after *every* tested instruction and checks flags
 afterward — i.e. it's maximally sensitive to the SCF/CCF ambiguity above.
@@ -266,7 +274,7 @@ broader swath of the interpreter than `R` does; the measured cost is
 
 | ntvcm build | OK | Failed | Skipped |
 |---|---|---|---|
-| `TRACK_Z80_MEMPTR` set to `1` | 143 | 13 | 4 |
+| `TRACK_Z80_MEMPTR` set to `1` | 147 | 9 | 4 |
 | default build | 0 | 160 | 0 |
 
 With the switch off, MEMPTR never changes from its power-on value, so
@@ -277,11 +285,11 @@ in a MEMPTR-sensitive `BIT 0,(HL)` probe; that failure trips the SCF/CCF
 variant-detection gating that normally `Skip`s tests 003-006 in `doc.com`,
 so this build fails those 4 outright instead of skipping them — hence 0
 `Skipped` here versus 4 in every other table on this page.)
-With the switch on, the only 13 remaining failures are `IN A,(N)`, `IN
-R,(C)`, `IN (C)`, `INI`, `IND`, `INIR`, `INDR`, `INIR->NOP'`, `INDR->NOP'`,
-`OUTI`, `OUTD`, `OTIR`, and `OTDR` — the same pre-existing "no real I/O
-device attached" floating-bus gap that also accounts for 9 of `doc.com`'s
-10 default-build failures, not a MEMPTR bug. Set `TRACK_Z80_MEMPTR` to `1`
+With the switch on, the only 9 remaining failures are `IN A,(N)`, `IN
+R,(C)`, `IN (C)`, `INI`, `IND`, `INIR`, `INDR`, `INIR->NOP'` and
+`INDR->NOP'` — the same "no real I/O device attached" floating-bus gap that
+also accounts for 9 of `doc.com`'s 10 default-build failures, not a MEMPTR
+bug. Set `TRACK_Z80_MEMPTR` to `1`
 near `TRACK_Z80_R_REGISTER` in `x80.hxx` and rebuild to get this back;
 `doc.com`, `zexall`, `zexdoc`, and `zexsup` results are unaffected either
 way.
