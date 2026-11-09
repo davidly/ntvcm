@@ -67,8 +67,8 @@ def hex_file(memory):
     return '\n'.join(lines + [':00000001FF']) + '\n'
 
 
-def compile_source(source):
-    """Return the memory image and both passes' listings."""
+def check_source(source, columns=72):
+    """Reject source the original lexer would silently change."""
     source.encode('ascii')
     # The original lexer maps characters outside its alphabet to spaces,
     # even inside strings. Reject them rather than changing text.
@@ -78,10 +78,15 @@ def compile_source(source):
         if character not in allowed:
             raise CompileError(f'character {character!r} is outside the original PL/M alphabet; '
                                'use uppercase source and numeric ASCII values for other characters')
-    # Columns past 72 are silently ignored, which can drop whole statements.
+    # Later columns are silently ignored, which can drop whole statements.
     for number, line in enumerate(source.splitlines(), 1):
-        if len(line.expandtabs(8)) > 72:
-            raise CompileError(f'line {number} exceeds the compiler\'s 72-column limit')
+        if len(line.expandtabs(8)) > columns:
+            raise CompileError(f'line {number} exceeds the compiler\'s {columns}-column limit')
+
+
+def compile_source(source):
+    """Return the memory image and both passes' listings."""
+    check_source(source)
     # EOF is a PL/M token, not host EOF. Accept files with or without it.
     if not re.search(r'\bEOF\s*$', source):
         source = source.rstrip() + '\nEOF\n'

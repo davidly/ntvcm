@@ -85,8 +85,9 @@ CALL MON1(0,0);        /* return to CP/M */
 
 The language is the early PL/M-80 of Intel's Fortran compilers; this copy of
 PLM81 is dated January 1976 in the tape catalog. Arrays need explicit sizes (no
-`(*)`), and there is no `DATA` attribute (use `INITIAL`). Procedure locals are
-static, so procedures are not reentrant.
+`(*)`); `DATA` declares constant bytes, as in `DECLARE MSG DATA ('HI$');`.
+There are no structures, `PUBLIC` or `EXTERNAL`. Procedure locals are static,
+so procedures cannot be recursive, and there is no `REENTRANT`.
 
 Source has the same hazards as ntv8008's PL/M-8, and the wrapper checks them:
 
@@ -102,9 +103,39 @@ left unchanged.
 
 ## The Fortran source
 
-The surviving Fortran source of this compiler is the older version 2.0.
-[dos/](dos/README.md) builds it for MS-DOS with Microsoft Fortran 5.1 in
-ntvdm and compiles the same examples with it.
+The surviving Fortran source of this compiler is the older version 2.0, from
+January 1975. Two folders build it and compile the same examples with it:
+
+* [gfortran/](gfortran/README.md) builds it with gfortran, the fastest way to
+  run PL/M-80: a compile takes a few milliseconds.
+* [dos/](dos/README.md) builds it for MS-DOS with Microsoft Fortran 5.1 in
+  ntvdm.
+
+Both builds give the same bytes, and both reproduce the sample HEX compiled on
+an IBM mainframe under MTS.
+
+### Version 2.0 and 4.1
+
+A probe of each feature in the 2.0 language summary (`PLMLANG.DOC`), plus
+some later PL/M-80 features, compiled with both versions and run in ntvcm,
+finds the same language:
+
+* Both accept and give the same results for every documented statement,
+  declaration (including `BASED`, `LITERALLY`, `DATA`, `INITIAL` and
+  `INTERRUPT n`), operator (including `PLUS`, `MINUS` and embedded `:=`),
+  built-in procedure (`LENGTH`, `LAST`, `LOW`, `HIGH`, `DOUBLE`, `ROL`, `ROR`,
+  `SCL`, `SCR`, `SHL`, `SHR`, `TIME`, `DEC`, `INPUT`, `OUTPUT`) and
+  predefined variable (`CARRY`, `ZERO`, `SIGN`, `PARITY`, `MEMORY`,
+  `STACKPTR`). Almost all compile to identical bytes.
+* Both reject recursion, `REENTRANT`, `(*)` array dimensions, structures,
+  `PUBLIC` and `EXTERNAL`, with the same error numbers. Both have the same
+  alphabet: lowercase becomes a space, even inside strings.
+* Version 2.0 reads 80 columns, 4.1 only 72.
+* Version 4.1 generates slightly better code in places: after a `DO CASE`
+  whose branches all leave the same address in HL, it omits the reload, which
+  makes ttt three bytes smaller. Version 2.0 writes zero records for the rest
+  of a page of variables with `INITIAL` values, which can make its `.COM`
+  file longer.
 
 ## Runner notes
 

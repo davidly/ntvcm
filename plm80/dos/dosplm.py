@@ -16,10 +16,11 @@ import tempfile
 
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE.parent))
-from compile import CompileError, com_file, hex_file, read_object  # noqa: E402
+from compile import CompileError, check_source, com_file, hex_file, read_object  # noqa: E402
 
 GITHUB = HERE.parents[2]
 SOURCES = HERE.parent / 'fortran' / 'mts-1989'
+COLUMNS = 80  # version 2.0 reads 80 columns; 4.1 reads 72
 BIN = HERE / 'bin'
 EXE = '.exe' if os.name == 'nt' else ''
 NTVDM = Path(os.environ.get('NTVDM', GITHUB / 'ntvdm' / ('ntvdm' + EXE)))
@@ -95,7 +96,8 @@ def compile_source(source):
     for name in ('PLM81.EXE', 'PLM82.EXE'):
         if not (BIN / name).is_file():
             raise CompileError(f'{BIN / name} not found; run dosplm.py build')
-    source = source.replace('\r', '')
+    check_source(source, COLUMNS)
+    source = source.replace('\r', '').expandtabs(8)
     # EOF is a PL/M token, not host EOF. Accept files with or without it.
     if not re.search(r'\bEOF\s*$', source):
         source = source.rstrip() + '\nEOF\n'

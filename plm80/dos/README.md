@@ -40,6 +40,9 @@ python3 plm80/dos/dosplm.py compile plm80/examples/hello.plm -o hello.com
 
 `-o` ending in `.hex` writes Intel HEX, and `--listing` saves both passes'
 listings. `EOF` is appended when missing. Errors fail with the listings.
+Source gets the same checks as with version 4.1 (see
+[../README.md](../README.md#writing-cpm-programs)), except that version 2.0
+reads 80 columns rather than 72.
 
 The Fortran opens its units by number, and Microsoft's runtime asks for a
 file name the first time each unit is used. `dosplm.py` answers the prompts

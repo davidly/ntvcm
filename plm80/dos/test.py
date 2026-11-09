@@ -55,6 +55,12 @@ class DOS(unittest.TestCase):
     def test_errors(self):
         with self.assertRaisesRegex(dosplm.CompileError, 'ERROR 3'):
             dosplm.compile_source('100H: DECLARE X BYTE;\nX = ;\n')
+        # Version 2.0 reads 80 columns, where 4.1 reads 72, and has the same alphabet.
+        dosplm.check_source('100H: DECLARE A BYTE;' + ' ' * 55 + 'A=1;\n', dosplm.COLUMNS)
+        for source, message in (('100H: DECLARE A BYTE;' + ' ' * 56 + 'A=1;\n', '80-column'),
+                                ("100H: DECLARE S(2) BYTE INITIAL ('ab');\n", 'alphabet')):
+            with self.subTest(message=message), self.assertRaisesRegex(dosplm.CompileError, message):
+                dosplm.compile_source(source)
 
 
 if __name__ == '__main__':
