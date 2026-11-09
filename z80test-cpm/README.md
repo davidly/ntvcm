@@ -176,15 +176,20 @@ Z80 chips themselves disagree on bits 3/5 of the flags register after `SCF`/
 this reportedly also varies by CPU manufacturer/board. z80test's own
 `readme.txt` says as much. Expect `SCF`/`CCF`-adjacent failures here even on
 a correct, self-consistent emulator, unless it happens to emulate the exact
-same hardware variant the recorded CRCs came from. `ntvcm` follows the NEC
-variant (X and Y come from A alone), so `SCF (NEC)` and `CCF (NEC)` (003 and
-004) pass while the Zilog (001, 002) and ST (005, 006) variants fail.
+same hardware variant the recorded CRCs came from. By default `ntvcm` follows
+the NEC variant (X and Y come from A alone), so `SCF (NEC)` and `CCF (NEC)`
+(003 and 004) pass while the Zilog (001, 002) and ST (005, 006) variants
+fail. Set `Z80_ZILOG_SCF_CCF` to `1` near `TRACK_Z80_R_REGISTER` in `x80.hxx`
+for the Zilog behavior, in which X and Y also take F's when the instruction
+before didn't write the flags: then 001 and 002 pass. It costs ~3% of
+runtime, since `ntvcm` must remember where each instruction started.
 
 For `ntvcm`, `full.com` fails 18 tests in the default build: those 4
 `SCF`/`CCF` variants, the 4 MEMPTR-dependent `BIT n,(HL)` tests, the 9
-`IN`-dependent ones and `LD A,R`. With `TRACK_Z80_MEMPTR` and
-`TRACK_Z80_R_REGISTER` both set, only the `SCF`/`CCF` variants and the 9
-`IN` tests fail.
+`IN`-dependent ones and `LD A,R`. With `Z80_ZILOG_SCF_CCF`,
+`TRACK_Z80_MEMPTR` and `TRACK_Z80_R_REGISTER` all set, only the 9 `IN`
+tests fail in `full.com`, `flags.com` and `memptr.com`, and `ccf.com` adds
+just `LDIR->NOP'` and `LDDR->NOP'`.
 
 **`ccf`** inserts a `CCF` after *every* tested instruction and checks flags
 afterward — i.e. it's maximally sensitive to the SCF/CCF ambiguity above.

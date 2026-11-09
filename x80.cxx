@@ -540,6 +540,10 @@ not_inlined void z80_ni( uint8_t op, uint8_t op2 )
 
 bool check_conditional( uint8_t op ); // defined below; needed by z80_execute_unprefixed
 uint32_t z80_emulate( uint8_t op, uint16_t & pc, uint16_t & sp ); // defined below; needed by z80_execute_unprefixed
+#if Z80_ZILOG_SCF_CCF
+static uint16_t g_z80PreviousStart = 0; // where the instruction before started, for scf and ccf after a dd or fd prefix
+static uint8_t z80_scf_ccf_yx( uint16_t previousStart ); // defined below
+#endif
 
 #ifndef WATCOMDOS // this is above-and-beyond emulation no app or widely-used test suite verifies and it's too big for WATCOMDOS
 
@@ -603,9 +607,14 @@ uint32_t z80_execute_unprefixed( uint8_t op, uint8_t op2, uint16_t & pc, uint16_
         case 0x27: op_daa<true>(); break;
         case 0x2f: op_cma<true>(); break;
         case 0x32: { uint16_t addr = pcword( pc ); memory[ addr ] = reg.a; reg.z80_set_memptr( ( (uint16_t) reg.a << 8 ) | ( ( addr + 1 ) & 0xff ) ); break; } // sta a16
+#if Z80_ZILOG_SCF_CCF
+        case 0x37: reg.z80_assignYX( z80_scf_ccf_yx( g_z80PreviousStart ) ); reg.fCarry = 1; reg.clearHN(); break; // stc
+        case 0x3f: { uint8_t yx = z80_scf_ccf_yx( g_z80PreviousStart ); op_cmc<true>(); reg.z80_assignYX( yx ); break; }
+#else
         case 0x37: reg.fCarry = 1; reg.clearHN(); reg.z80_assignYX( reg.a ); break; // stc
         case 0x3a: { uint16_t addr = pcword( pc ); reg.a = memory[ addr ]; reg.z80_set_memptr( addr + 1 ); break; } // lda a16
         case 0x3f: op_cmc<true>(); break;
+#endif
         case 0x80: case 0x81: case 0x82: case 0x83: case 0x87: op_add<true>( src_value( op2 ) ); break;
         case 0x88: case 0x89: case 0x8a: case 0x8b: case 0x8f: op_adc<true>( src_value( op2 ) ); break; // adc
         case 0x90: case 0x91: case 0x92: case 0x93: case 0x97: reg.a = op_sub<true>( src_value( op2 ) ); break;
@@ -687,6 +696,55 @@ uint32_t z80_execute_unprefixed( uint8_t op, uint8_t op2, uint16_t & pc, uint16_
 // that's happened so the repeat loops below can detect it without having to
 // re-fetch on every single iteration in the overwhelmingly common case
 // where nothing self-modifies.
+#if Z80_ZILOG_SCF_CCF
+// Whether the instruction at address wrote the flags as an operation's result. POP AF and EX AF,AF'
+// load F instead, and like every other instruction they count as not writing it.
+static bool z80_wrote_flags( uint16_t address )
+{
+    uint8_t op = memory[ address ];
+    while ( 0xdd == op || 0xfd == op )
+    {
+        address++;
+        op = memory[ address ];
+        if ( 0xcb == op ) // dd/fd cb d op: as cb op
+            return memory[ (uint16_t) ( address + 2 ) ] < 0x80;
+    }
+    if ( 0xcb == op )
+        return memory[ (uint16_t) ( address + 1 ) ] < 0x80; // rotates, shifts and bit; not res or set
+    if ( 0xed == op )
+    {
+        uint8_t op2 = memory[ (uint16_t) ( address + 1 ) ];
+        if ( 0xa0 == ( op2 & 0xe4 ) )
+            return true; // ldi, cpi, ini, outi and their d and repeating forms
+        uint8_t low = op2 & 0x07;
+        return ( op2 >= 0x40 && op2 < 0x80 ) && ( 0 == low || 2 == low || 4 == low ||                // in r,(c), adc/sbc hl, neg
+                                                  0x57 == op2 || 0x5f == op2 || 0x67 == op2 || 0x6f == op2 ); // ld a,i / ld a,r / rrd / rld
+    }
+    if ( op >= 0x80 && op < 0xc0 )
+        return true; // add, adc, sub, sbc, and, xor, or, cp
+    switch ( op )
+    {
+        case 0x04: case 0x0c: case 0x14: case 0x1c: case 0x24: case 0x2c: case 0x34: case 0x3c: // inc
+        case 0x05: case 0x0d: case 0x15: case 0x1d: case 0x25: case 0x2d: case 0x35: case 0x3d: // dec
+        case 0x07: case 0x0f: case 0x17: case 0x1f: case 0x27: case 0x2f: case 0x37: case 0x3f: // rotates, daa, cpl, scf, ccf
+        case 0x09: case 0x19: case 0x29: case 0x39:                                             // add hl,rr
+        case 0xc6: case 0xce: case 0xd6: case 0xde: case 0xe6: case 0xee: case 0xf6: case 0xfe: // alu with immediates
+            return true;
+    }
+    return false;
+} //z80_wrote_flags
+
+// Y and X for SCF and CCF on a Zilog Z80: from A, ORed with F's when the instruction before didn't write
+// F. Call it before the instruction changes the flags.
+static uint8_t z80_scf_ccf_yx( uint16_t previousStart )
+{
+    uint8_t yx = reg.a;
+    if ( !z80_wrote_flags( previousStart ) )
+        yx |= (uint8_t) ( ( (int) reg.fY << 5 ) | ( (int) reg.fX << 3 ) );
+    return yx;
+} //z80_scf_ccf_yx
+#endif
+
 bool z80_block_repeat_self_modified( uint16_t pc, uint8_t op2 )
 {
     return ( 0xed != memory[ (uint16_t) ( pc - 2 ) ] ) || ( op2 != memory[ (uint16_t) ( pc - 1 ) ] );
@@ -2452,6 +2510,9 @@ template <bool Z80Mode> static uint32_t x80_emulate_impl( uint16_t maxcycles )
     // re-synced from the locals at every exit from this function (see _all_done below).
     uint16_t pc = reg.pc;
     uint16_t sp = reg.sp;
+#if Z80_ZILOG_SCF_CCF
+    uint16_t currentStart = reg.z80LastStart; // this instruction's start; reg.z80PreviousStart has the last one's
+#endif
 
     // with the Watcom compiler for real-mode DOS, the cycle check, cycle addition, and trace check consume 17% of runtime
 
@@ -2468,6 +2529,13 @@ template <bool Z80Mode> static uint32_t x80_emulate_impl( uint16_t maxcycles )
                 break;
         }
 
+#if Z80_ZILOG_SCF_CCF
+        if ( Z80Mode )
+        {
+            reg.z80PreviousStart = currentStart;
+            currentStart = pc;
+        }
+#endif
         uint8_t op = memory[ pc ];      // 1% of runtime
         pc++;                            // 7% of runtime
         cycles += Z80Mode ? z80_cycles[ op ] : i8080_cycles[ op ];
@@ -2582,12 +2650,27 @@ template <bool Z80Mode> static uint32_t x80_emulate_impl( uint16_t maxcycles )
                 if ( Z80Mode )
                 {
                     reg.clearHN();
+#if Z80_ZILOG_SCF_CCF
+                    reg.z80_assignYX( z80_scf_ccf_yx( reg.z80PreviousStart ) );
+#else
                     reg.z80_assignYX( reg.a );
+#endif
                 }
                 break;
             }
             case 0x3a: { uint16_t addr = pcword( pc ); reg.a = memory[ addr ]; reg.z80_set_memptr( addr + 1 ); break; } // lda a16
-            case 0x3f: { op_cmc<Z80Mode>(); break; } // cmc
+            case 0x3f: // cmc
+            {
+#if Z80_ZILOG_SCF_CCF
+                uint8_t yx = Z80Mode ? z80_scf_ccf_yx( reg.z80PreviousStart ) : 0;
+                op_cmc<Z80Mode>();
+                if ( Z80Mode )
+                    reg.z80_assignYX( yx );
+#else
+                op_cmc<Z80Mode>();
+#endif
+                break;
+            }
             case 0x40: case 0x41: case 0x42: case 0x43: case 0x44: case 0x45: case 0x46: case 0x47: // mov
             case 0x48: case 0x49: case 0x4a: case 0x4b: case 0x4c: case 0x4d: case 0x4e: case 0x4f:
             case 0x50: case 0x51: case 0x52: case 0x53: case 0x54: case 0x55: case 0x56: case 0x57:
@@ -2700,7 +2783,12 @@ template <bool Z80Mode> static uint32_t x80_emulate_impl( uint16_t maxcycles )
             default:
             {
                 if ( Z80Mode )
+                {
+#if Z80_ZILOG_SCF_CCF
+                    g_z80PreviousStart = reg.z80PreviousStart; // for scf and ccf after a dd or fd prefix
+#endif
                     cycles += z80_emulate( op, pc, sp ); // pc/sp passed by reference - no reg.pc/reg.sp sync needed
+                }
                 else if ( 0x08 == op ) // Pascal MT++ generates 8080 apps that use 0x08. Treat it as a NOP just like an 8080.
                     break;
                 else
@@ -2713,6 +2801,9 @@ template <bool Z80Mode> static uint32_t x80_emulate_impl( uint16_t maxcycles )
 _all_done:
     reg.pc = pc; // every exit from this loop (normal maxcycles exit, hlt, hook end-of-emulation)
     reg.sp = sp; // funnels through here - flush the locals back so callers see current state
+#if Z80_ZILOG_SCF_CCF
+    reg.z80LastStart = currentStart;
+#endif
     if ( ( g_State & stateProfile ) && ( cycles >= g_profileLastCycles ) )
         g_pcHits[ g_profileLastPC ] += ( cycles - g_profileLastCycles );
 #if RETURN_INSTRUCTION_COUNT

@@ -45,6 +45,8 @@ struct registers
     uint8_t r;    // refresh
     uint8_t i;    // interrupt page
     uint16_t memptr; // undocumented "WZ" register; see TRACK_Z80_MEMPTR below
+    uint16_t z80LastStart;     // where the last instruction started, kept between calls; see Z80_ZILOG_SCF_CCF
+    uint16_t z80PreviousStart; // where the one before the current instruction started; see Z80_ZILOG_SCF_CCF
 
     // these first four bool flags must remain in this order for getFlag() to work
 
@@ -127,6 +129,15 @@ struct registers
     // bump in the emulator - there's no other place r changes except an
     // explicit ld r,a.
 #define TRACK_Z80_R_REGISTER 0
+
+    // set to 1 for the Zilog Z80's SCF and CCF: when the instruction before them
+    // didn't write the flags, undocumented flags Y and X come from A ORed with F's
+    // own Y and X; otherwise from A alone. Set to 0 (the default) for the NEC
+    // behavior, always from A. Real Z80s differ here; z80test's SCF and CCF tests
+    // (001, 002) check the Zilog behavior, and SCF (NEC) and CCF (NEC) (003, 004)
+    // the other. Remembering where each instruction started costs ~3% of runtime,
+    // and almost no software reads these two flag bits after SCF or CCF.
+#define Z80_ZILOG_SCF_CCF 0
 
     // only the low 7 bits of r auto-increment (wrapping without touching bit 7);
     // bit 7 is sticky and only ever changes via an explicit ld r,a. a no-op
@@ -328,6 +339,7 @@ struct registers
         ap = fp = bp = cp = dp = ep = hp = lp = 0xff;
         fZero = fCarry = fParityEven_Overflow = fSign = fAuxCarry = fWasSubtract = fY = fX = 0;
         fINTE = false;
+        z80LastStart = z80PreviousStart = 0;
     } //powerOn
 };
 
