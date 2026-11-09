@@ -796,9 +796,7 @@ uint16_t z80_op_sub_16( uint16_t lhs, uint16_t rhs, bool borrow = false )
 
     reg.fParityEven_Overflow = ! ( ( lhs ^ com_rhs ) & 0x8000 ) && ( ( lhs ^ res16 ) & 0x8000 );
     reg.fWasSubtract = true;
-    if ( borrow )
-        rhs++;
-    reg.fAuxCarry = ( ( rhs & 0xfff ) > ( lhs & 0xfff ) );
+    reg.fAuxCarry = ( ( ( rhs & 0xfff ) + ( borrow ? 1 : 0 ) ) > ( lhs & 0xfff ) ); // borrow from bit 12; add the carry after masking
     reg.z80_assignYX( res16 >> 8 );
 
     return res16;
