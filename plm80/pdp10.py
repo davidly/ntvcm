@@ -342,14 +342,16 @@ class PDP10:
             self.execute(v, e)
         elif op == 0o250:
             (m[ac], m[e]) = (v, av)
-        elif op == 0o251:
+        elif op == 0o251:  # BLT
             a = av >> 18
             d = av & RH
+            keep = d <= ac <= e  # an AC in the destination keeps the word moved there, as BLT 17,17 relies on
             while d <= e:
                 m[d] = m[a]
                 a = a + 1 & RH
                 d += 1
-            m[ac] = (a << 18 | d) & MASK
+            if not keep:
+                m[ac] = (a << 18 | d) & MASK
         elif op in (0o242, 0o240, 0o241):
             n = e if e < 131072 else e - (1 << 18)
             if op == 0o242:

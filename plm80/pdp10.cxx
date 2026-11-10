@@ -418,10 +418,11 @@ static void execute( Word ir, uint32_t at )
         m[ ac ] = v;
         m[ e ] = av;
     }
-    else if ( op == 0251 )
+    else if ( op == 0251 ) // BLT
     {
         Word a = av >> 18;
         Word d = av & RH;
+        bool keep = d <= ac && ac <= e; // an AC in the destination keeps the word moved there, as BLT 17,17 relies on
         while ( d <= e )
         {
             if ( d > RH || a > RH )
@@ -430,7 +431,8 @@ static void execute( Word ir, uint32_t at )
             a = ( a + 1 ) & RH;
             d++;
         }
-        m[ ac ] = ( a << 18 | d ) & MASK;
+        if ( !keep )
+            m[ ac ] = ( a << 18 | d ) & MASK;
     }
     else if ( op == 0242 || op == 0240 || op == 0241 )
     {
