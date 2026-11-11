@@ -82,6 +82,16 @@ CASES = [
     ("djnz taken",  [0x06, 0x02, 0x10, 0x00], 7 + 13),
     ("call nz,nt",  [0xAF, 0xC4] + w16(SCR), 4 + 10),
     ("ret nz,nt",   [0xAF, 0xC0],           4 + 5),
+    # --- DD/FD prefix on an instruction that doesn't use HL costs 4 T for the prefix ---
+    ("dd ex af,af'",[0xDD, 0x08],            8),
+    ("fd ex af,af'",[0xFD, 0x08],            8),
+    ("dd nop",      [0xDD, 0x00],            8),
+    ("dd ld bc,nn", [0xDD, 0x01] + w16(0),  14),
+    ("dd jr +0",    [0xDD, 0x18, 0x00],     16),
+    ("dd exx",      [0xDD, 0xD9],            8),
+    ("dd dd nop",   [0xDD, 0xDD, 0x00],     12),
+    ("dd fd ld a,(iy+0)", [0xDD, 0xFD, 0x7E, 0x00], 23),
+    ("dd ed neg",   [0xDD, 0xED, 0x44],     12),
 ]
 
 def make_com(body, k):
@@ -148,6 +158,13 @@ def main():
         ("cpir", [0x3E,0xFF] + [0x21]+w16(BUF1) + [0x01]+w16(M) + [0xB7], [0xED, 0xB1]),
         ("cpdr", [0x3E,0xFF] + [0x21]+w16(BUF1+M-1) + [0x01]+w16(M) + [0xB7], [0xED, 0xB9]),
     ]
+    # block I/O repeats like the copies and compares: M*21 - 5 in total.
+    BLK += [
+        ("inir", [0x06, M, 0x0E, 0x00] + [0x21]+w16(BUF1) + [0xB7], [0xED, 0xB2]),
+        ("indr", [0x06, M, 0x0E, 0x00] + [0x21]+w16(BUF1+M-1) + [0xB7], [0xED, 0xBA]),
+        ("otir", [0x06, M, 0x0E, 0x00] + [0x21]+w16(BUF1) + [0xB7], [0xED, 0xB3]),
+        ("otdr", [0x06, M, 0x0E, 0x00] + [0x21]+w16(BUF1+M-1) + [0xB7], [0xED, 0xBB]),
+    ]
     for name, setup, op in BLK:
         with_op = block(setup, op)
         without = block(setup, [])
@@ -155,6 +172,16 @@ def main():
         ok = (cost == expect_block)
         if not ok: fails += 1
         print(f"{name+' x'+str(M):<14}{expect_block:>7}{cost:>8}   {'ok' if ok else 'FAIL'}")
+
+    # cpir/cpdr that match on the first byte stop after one 16 T pass.
+    for name, setup, op in [
+        ("cpir match", [0x3E,0x00] + [0x21]+w16(BUF1) + [0x01]+w16(M) + [0xB7], [0xED, 0xB1]),
+        ("cpdr match", [0x3E,0x00] + [0x21]+w16(BUF1+M-1) + [0x01]+w16(M) + [0xB7], [0xED, 0xB9]),
+    ]:
+        cost = block(setup, op) - block(setup, [])
+        ok = (cost == 16)
+        if not ok: fails += 1
+        print(f"{name:<14}{16:>7}{cost:>8}   {'ok' if ok else 'FAIL'}")
 
     print()
     if fails:
