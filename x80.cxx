@@ -170,7 +170,7 @@ static const acycles_t i8080_cycles =
 
 static const acycles_t z80_cycles =
 {
-    /*00*/  4, 10,  7,  6,  4,  4,  7,  4,    4, 11,  7,  6,  4,  4,  7,  4,
+    /*00*/  4, 10,  7,  6,  4,  4,  7,  4,    0, 11,  7,  6,  4,  4,  7,  4,
     /*10*/  0, 10,  7,  6,  4,  4,  7,  4,    0, 11,  7,  6,  4,  4,  7,  4,
     /*20*/  0, 10, 16,  6,  4,  4,  7,  4,    0, 11, 16,  6,  4,  4,  7,  4,
     /*30*/  0, 10, 13,  6, 11, 11, 10,  4,    0, 11, 13,  6,  4,  4,  7,  4,
@@ -983,7 +983,6 @@ always_inlined uint32_t z80_emulate( uint8_t op, uint16_t & pc, uint16_t & sp ) 
     {
         case 0x08: // ex af and af'
         {
-            cycles = 0; // base table already counted the 4T for this one-byte opcode
             swap( reg.a, reg.ap );
             reg.materializeFlags<true>(); // z80_emulate is only ever reached in Z80 mode
             swap( reg.f, reg.fp );
@@ -1066,6 +1065,7 @@ always_inlined uint32_t z80_emulate( uint8_t op, uint16_t & pc, uint16_t & sp ) 
         }
         case 0xcb: // rotate / bits
         {
+            reg.z80_bump_r(); // the opcode after the cb prefix is a second M1 fetch
             uint8_t op2 = pcbyte( pc ); // get past op2
 
             if ( op2 <= 0x1f ) // rlc, rrc, rl, rr on rm
@@ -1158,7 +1158,8 @@ always_inlined uint32_t z80_emulate( uint8_t op, uint16_t & pc, uint16_t & sp ) 
             // consuming them until a non-DD/FD opcode arrives, with the last
             // prefix selecting IX or IY.  Every additional prefix is another
             // 4T M1 cycle and increments R just like the first prefix fetch.
-            while ( 0xdd == op2 || 0xfd == op2 )
+            // Memory holding nothing but prefixes has no instruction to reach.
+            for ( uint32_t extra = 0; ( 0xdd == op2 || 0xfd == op2 ) && extra < 0x10000; extra++ )
             {
                 op = op2;
                 repeated_prefix_cycles += 4;
@@ -1186,7 +1187,7 @@ always_inlined uint32_t z80_emulate( uint8_t op, uint16_t & pc, uint16_t & sp ) 
             // (0x46 == (op2 & 0xc7)) purely by bit-pattern coincidence, and
             // would otherwise be silently misinterpreted as a load from
             // (IX+d) into (HL) instead of ever reaching this check.
-            if ( 0x76 == op2 )
+            if ( 0x76 == op2 || 0xdd == op2 || 0xfd == op2 )
             {
                 z80_ni( op, op2 );
                 break;
@@ -1379,10 +1380,9 @@ always_inlined uint32_t z80_emulate( uint8_t op, uint16_t & pc, uint16_t & sp ) 
                 else
                     *pval = op_inc<true>( *pval );
             }
-            else if ( 0xcb == op2 ) // bit operations
+            else if ( 0xcb == op2 ) // bit operations; the displacement and final opcode are not M1 fetches
             {
                 uint8_t op4 = memory[ pc + 1 ];
-                reg.z80_bump_r();
                 if ( 0x26 == op4 || 0x2e == op4 || 0x3e == op4 ) // sla, sra, srl [ix/iy + offset]
                 {
                     cycles = 23;
