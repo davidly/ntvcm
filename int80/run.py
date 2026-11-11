@@ -10,6 +10,7 @@ import tempfile
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE.parent / 'plm80'))
 from compile import CompileError  # noqa: E402
+import ka10  # noqa: E402
 from pdp10 import NATIVE, PDP10  # noqa: E402
 
 UPSTREAM = HERE / 'upstream'
@@ -210,12 +211,17 @@ def main():
     parser.add_argument('-n', '--states', type=int, default=2_000_000_000,
                         help='fail without an exit after this many states')
     parser.add_argument('-p', action='store_true', help="report the program's INTERP/80 states")
+    parser.add_argument('--ka10', action='store_true', help='report how long INT80 took on a 1967 DEC KA10')
     args = parser.parse_args()
+    if args.ka10:
+        PDP10.timers = []
     try:
         output, states, _ = run_program(load_program(args.program), args.expanded, limit=args.states)
         sys.stdout.write(output)
         if args.p:
             print(f'{states} states')
+        if args.ka10:
+            print(ka10.report(PDP10.timers), file=sys.stderr)
     except (OSError, ValueError, CompileError) as error:
         print(f'INT80: {error}', file=sys.stderr)
         return 1

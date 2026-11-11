@@ -32,7 +32,8 @@ python3 mac80/assemble.py mac80/examples/hello.asm
 
 That prints `HELLO FROM MAC80!`. `-o file.com` selects the output; an `-o`
 path ending in `.hex` writes Intel HEX instead. `--listing file` saves the
-assembler listing, and `--expanded` selects MAC80E (below).
+assembler listing, `--expanded` selects MAC80E (below), and `--ka10` estimates
+how long MAC80 itself took on a DEC KA10 (see [plm80](../plm80/README.md#ka10-runtime)).
 `mac80/rebuild.sh` or `rebuild.bat` reassembles every example.
 
 | Example | Output | Z80 cycles | 8080 cycles (`-8`) |

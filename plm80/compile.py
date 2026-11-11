@@ -7,6 +7,7 @@ import re
 import sys
 import tempfile
 
+import ka10
 from pdp10 import NATIVE, PDP10
 
 UPSTREAM = Path(__file__).resolve().parent / 'upstream'
@@ -113,7 +114,10 @@ def main():
     parser.add_argument('source', type=Path)
     parser.add_argument('-o', '--output', type=Path, help='.COM path (default: source.com); a .hex suffix writes Intel HEX')
     parser.add_argument('--listing', type=Path, help='save both compiler passes\' listings')
+    parser.add_argument('--ka10', action='store_true', help='report how long PL/M-80 took on a 1967 DEC KA10')
     args = parser.parse_args()
+    if args.ka10:
+        PDP10.timers = []
     try:
         memory, listing = compile_source(args.source.read_text(encoding='ascii'))
         destination = args.output or args.source.with_suffix('.com')
@@ -122,6 +126,8 @@ def main():
             args.listing.write_text(listing, encoding='ascii')
         destination.write_bytes(output)
         print(f'{args.source}: compiled to {destination}')
+        if args.ka10:
+            print(ka10.report(PDP10.timers), file=sys.stderr)
     except (OSError, ValueError, CompileError) as error:
         print(f'PL/M-80: {error}', file=sys.stderr)
         return 1

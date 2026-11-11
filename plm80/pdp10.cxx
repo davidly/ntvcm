@@ -5,8 +5,10 @@
 // Python runner remains the reference. pdp10.py validates and loads the
 // compiler image, then passes the loaded memory and entry point here.
 //
-// usage: pdp10 [--ki] memory.bin entry input.txt directory output.txt budget [final.bin]
+// usage: pdp10 [--ki] [--ka10 times.txt] memory.bin entry input.txt directory output.txt budget [final.bin]
 // --ki selects KI10 stack and AOBJ arithmetic, which counts the halves separately.
+// --ka10 writes the approximate KA10 time in hundredths of a microsecond, the
+// instructions, the monitor calls and the KI10-only instructions to times.txt.
 // Exit 0 when the program EXITs; otherwise 2 with the error on stderr. The
 // console output produced so far is written to output.txt either way, and the
 // optional final.bin receives the final memory followed by the PC (for tests).
@@ -43,6 +45,217 @@ static Word step( Word word, int delta )
     if ( ki10 )
         return ( ( ( word >> 18 ) + delta ) & RH ) << 18 | ( ( word + delta ) & RH );
     return ( word + (Word) ( delta * 01000001LL ) ) & MASK;
+}
+
+// Approximate DEC KA10 times, as ka10.py computes them: hundredths of a
+// microsecond from the PDP-10 System Reference Manual (May 1968), in user mode.
+struct Ka10
+{
+    bool on = false;
+    long long hundredths = 0, instructions = 0, monitorCalls = 0, kiOnly = 0;
+};
+static Ka10 ka10;
+
+static const int HALF[ 4 ] = { 243, 147, 258, 287 };
+static const int HALF_LL[ 4 ] = { 257, 161, 301, 287 };
+static const int HALF_RL[ 4 ] = { 292, 196, 301, 287 };
+static const int MOVE[ 4 ] = { 243, 147, 258, 287 };
+static const int MOVN[ 4 ] = { 261, 165, 276, 305 };
+static const int BOOLEAN_SET[ 4 ] = { 147, 147, 244, 244 };       // SETZ, SETO
+static const int BOOLEAN_SETA[ 4 ] = { 161, 161, 258, 258 };      // SETA, SETCA
+static const int BOOLEAN_SETM[ 4 ] = { 243, 147, 287, 287 };      // SETM, SETCM
+static const int BOOLEAN_COMPLEMENT[ 4 ] = { 292, 196, 363, 363 }; // ANDCA, ANDCB, ORCA, ORCB
+static const int BOOLEAN_OTHER[ 4 ] = { 257, 161, 301, 301 };
+static const int CONDITIONAL[ 8 ] = { 179, 275, 179, 261, 179, 305, 179, 305 }; // CAI CAM JUMP SKIP AOJ AOS SOJ SOS
+
+static int arithmetic( int op, int mode )
+{
+    static const int t[ 6 ][ 4 ] = { { 981, 820, 1078, 1078 }, { 1082, 869, 1163, 1163 }, { 1670, 1580, 1760, 1760 },
+                                     { 1640, 1550, 1730, 1730 }, { 275, 179, 319, 319 }, { 275, 179, 319, 319 } };
+    switch ( op & ~3 )
+    {
+        case 0220: return t[ 0 ][ mode ];
+        case 0224: return t[ 1 ][ mode ];
+        case 0230: return t[ 2 ][ mode ];
+        case 0234: return t[ 3 ][ mode ];
+        case 0270: return t[ 4 ][ mode ];
+        case 0274: return t[ 5 ][ mode ];
+    }
+    return -1;
+}
+
+static int floating( int op, int mode )
+{
+    static const int t[ 8 ][ 4 ] = { { 468, 553, 565, 565 }, { 468, 381, 565, 565 }, { 486, 571, 583, 583 },
+                                     { 486, 399, 583, 583 }, { 1051, 1136, 1148, 1148 }, { 1051, 847, 1148, 1148 },
+                                     { 1430, 1580, 1530, 1530 }, { 1430, 1340, 1530, 1530 } };
+    if ( op < 0140 || op > 0177 )
+        return -1;
+    return t[ ( op - 0140 ) >> 2 ][ mode ];
+}
+
+static int single( int op )
+{
+    switch ( op )
+    {
+        case 0130: return 484; // UFA
+        case 0131: return 354; // DFN
+        case 0132: return 286; // FSC
+        case 0133: return 298; // IBP
+        case 0134: return 457; // ILDB
+        case 0135: return 435; // LDB
+        case 0136: return 551; // IDPB
+        case 0137: return 520; // DPB
+        case 0243: return 230; // JFFO
+        case 0250: return 301; // EXCH
+        case 0251: return 108; // BLT
+        case 0252: case 0253: return 179; // AOBJP, AOBJN
+        case 0254: case 0255: case 0256: case 0257: return 147; // JRST, JFCL, XCT, MAP
+        case 0260: return 311; // PUSHJ
+        case 0261: return 407; // PUSH
+        case 0262: return 415; // POP
+        case 0263: return 318; // POPJ
+        case 0264: return 243; // JSR
+        case 0265: return 147; // JSP
+        case 0266: return 293; // JSA
+        case 0267: return 314; // JRA
+    }
+    return -1;
+}
+
+static long long ka10_exponent( Word word )
+{
+    if ( word & SIGN )
+        word = ( 0 - word ) & MASK;
+    return (long long) ( word >> 27 & 255 );
+}
+
+static long long ka10_float_terms( Word a, Word b, bool normalize )
+{
+    if ( !a || !b )
+        return 0;
+    long long d = ka10_exponent( a ) - ka10_exponent( b );
+    if ( d < 0 )
+        d = -d;
+    return 15 * ( d < 63 ? d : 63 ) + ( normalize ? 25 : 0 );
+}
+
+static long long ka10_byte_terms( int op, Word pointer )
+{
+    long long p = (long long) ( pointer >> 30 & 63 ), s = (long long) ( pointer >> 24 & 63 );
+    bool crosses = ( op == 0133 || op == 0134 || op == 0136 ) && p < s;
+    return ( op != 0133 ? 15 * ( p + s ) : 0 ) + ( crosses ? 26 : 0 );
+}
+
+static long long ka10_time( Word ir )
+{
+    int op = (int) ( ir >> 27 ), ac = (int) ( ir >> 23 & 15 );
+    if ( ( op >= 040 && op <= 077 ) || op >= 0700 )
+    {
+        ka10.monitorCalls++; // the monitor's time, not the program's
+        return 0;
+    }
+    if ( op < 040 )
+        return 244; // a local UUO; its handler's instructions are timed too
+    long long t = 0;
+    uint32_t e = 0;
+    Word word = ir;
+    for ( int i = 0; i < 30; i++ ) // the effective address: + .28 indexed, + 1.09 a level of indirection
+    {
+        uint32_t x = (uint32_t) ( word >> 18 & 15 );
+        e = (uint32_t) ( word & RH );
+        if ( x )
+        {
+            e = (uint32_t) ( ( e + m[ x ] ) & RH );
+            t += 28;
+        }
+        if ( !( word & ( (Word) 1 << 22 ) ) )
+            break;
+        word = m[ e ];
+        t += 109;
+    }
+    int mode = op & 3, value;
+    bool readsMemory = mode != 1;
+    if ( op >= 0500 && op <= 0577 )
+    {
+        int family = op >> 2 & 15;
+        t += ( family == 0 || family == 8 ? HALF_LL : family == 1 || family == 9 ? HALF_RL : HALF )[ mode ];
+    }
+    else if ( op >= 0200 && op <= 0217 )
+        t += ( op >= 0210 ? MOVN : MOVE )[ mode ];
+    else if ( op >= 0400 && op <= 0477 )
+    {
+        int kind = op >> 2 & 15;
+        const int * table = kind == 0 || kind == 15 ? BOOLEAN_SET : kind == 6 || kind == 10 ? BOOLEAN_SETA
+                          : kind == 3 || kind == 12 ? BOOLEAN_SETM
+                          : kind == 2 || kind == 8 || kind == 11 || kind == 14 ? BOOLEAN_COMPLEMENT : BOOLEAN_OTHER;
+        t += table[ mode ];
+    }
+    else if ( ( value = arithmetic( op, mode ) ) >= 0 )
+        t += value;
+    else if ( ( value = floating( op, mode ) ) >= 0 )
+    {
+        t += value;
+        bool immediate = ( op & 4 ) && mode == 1; // FADRI and the like: the operand is E,,0
+        if ( op < 0160 )
+            t += ka10_float_terms( m[ ac ], immediate ? (Word) e << 18 : m[ e ], true );
+        readsMemory = !immediate;
+    }
+    else if ( op >= 0300 && op <= 0377 )
+    {
+        int group = op >> 3 & 7;
+        t += CONDITIONAL[ group ];
+        readsMemory = ( group & 1 ) != 0;
+    }
+    else if ( op >= 0600 && op <= 0677 )
+    {
+        readsMemory = ( op & 010 ) != 0; // TD and TS test memory; TR and TL, E
+        t += readsMemory ? 292 : 196;
+    }
+    else if ( op == 0240 || op == 0241 || op == 0242 || op == 0244 || op == 0245 || op == 0246 )
+    {
+        long long n = e & 0400000 ? (long long) e - 01000000 : (long long) e;
+        bool combined = op >= 0244;
+        t += n >= 0 ? ( combined ? 211 : 173 ) : ( combined ? 195 : 157 );
+        n = n < 0 ? -n : n;
+        t += 15 * ( n < 255 ? n : 255 );
+        readsMemory = false;
+    }
+    else if ( ( value = single( op ) ) >= 0 )
+    {
+        t += value;
+        readsMemory = op == 0250 || op == 0261 || op == 0262;
+        if ( op >= 0133 && op <= 0137 )
+        {
+            t += ka10_byte_terms( op, m[ e ] );
+            readsMemory = false;
+        }
+        else if ( op == 0243 )
+        {
+            Word v = m[ ac ];
+            int bits = 0;
+            while ( v >> bits )
+                bits++;
+            t += m[ ac ] ? 20 * ( ( 36 - bits ) % 18 ) : 0;
+        }
+        else if ( op == 0251 )
+        {
+            long long words = (long long) e - (long long) ( m[ ac ] & RH ) + 1;
+            t += ( m[ ac ] >> 18 < 16 ? 248 : 283 ) * ( words > 0 ? words : 0 );
+        }
+        else if ( op == 0130 )
+            t += ka10_float_terms( m[ ac ], m[ e ], false );
+        else if ( op == 0132 )
+            t += 25; // one normalization step, the usual case
+    }
+    else
+    {
+        ka10.kiOnly++;
+        return t + 300; // FIX, DMOVE and the like, which the KA10 did in software
+    }
+    if ( readsMemory && e < 16 )
+        t -= 34; // the operand is in a fast register
+    return t;
 }
 
 struct Finished {};
@@ -198,6 +411,11 @@ static void nested( Word ir, uint32_t at )
 
 static void execute( Word ir, uint32_t at )
 {
+    if ( ka10.on )
+    {
+        ka10.hundredths += ka10_time( ir );
+        ka10.instructions++;
+    }
     unsigned op = (unsigned) ( ir >> 27 );
     unsigned ac = (unsigned) ( ir >> 23 & 15 );
     uint32_t e;
@@ -442,8 +660,9 @@ static void execute( Word ir, uint32_t at )
             val = ( n >= 0 ? av << ( n < 36 ? n : 36 ) : av >> ( -n < 36 ? -n : 36 ) ) & MASK;
         else if ( op == 0240 )
         {
-            int64_t s = sgn( av );
-            val = ( n >= 0 ? (Word) s << ( n < 36 ? n : 36 ) : (Word) ( s >> ( -n < 36 ? -n : 36 ) ) ) & MASK;
+            int64_t s = sgn( av ); // ASH: the sign stays, as on the hardware
+            val = ( av & SIGN ) | ( ( n >= 0 ? (Word) s << ( n < 36 ? n : 36 ) : (Word) ( s >> ( -n < 36 ? -n : 36 ) ) )
+                                    & ( SIGN - 1 ) );
         }
         else
         {
@@ -726,15 +945,23 @@ static bool read_file( const char * path, std::string & text )
 
 int main( int argc, char ** argv )
 {
+    const char * times = nullptr;
     if ( argc > 1 && !strcmp( argv[ 1 ], "--ki" ) )
     {
         ki10 = true;
         argc--;
         argv++;
     }
+    if ( argc > 2 && !strcmp( argv[ 1 ], "--ka10" ) )
+    {
+        ka10.on = true;
+        times = argv[ 2 ];
+        argc -= 2;
+        argv += 2;
+    }
     if ( argc != 7 && argc != 8 )
     {
-        fprintf( stderr, "usage: pdp10 [--ki] memory.bin entry input.txt directory output.txt budget [final.bin]\n" );
+        fprintf( stderr, "usage: pdp10 [--ki] [--ka10 times.txt] memory.bin entry input.txt directory output.txt budget [final.bin]\n" );
         return 2;
     }
     std::string image;
@@ -800,6 +1027,16 @@ int main( int argc, char ** argv )
         if ( !final || fwrite( state.data(), 1, state.size(), final ) != state.size() || fclose( final ) )
         {
             fprintf( stderr, "cannot write final state\n" );
+            return 2;
+        }
+    }
+    if ( times )
+    {
+        FILE * f = fopen( times, "w" );
+        if ( !f || fprintf( f, "%lld %lld %lld %lld\n", ka10.hundredths, ka10.instructions, ka10.monitorCalls,
+                            ka10.kiOnly ) < 0 || fclose( f ) )
+        {
+            fprintf( stderr, "cannot write KA10 times\n" );
             return 2;
         }
     }

@@ -157,6 +157,41 @@ The runner keeps each channel's disk buffer at 0700000 (output) or 0740000
 with ntv8008's buffers at 0100000. The PL/M-80 output is byte-identical either
 way.
 
+## KA10 runtime
+
+`--ka10` on `plm80/compile.py`, `mac80/assemble.py` and `int80/run.py` reports,
+on stderr, roughly how long the tool itself would have run on a 1967 DEC KA10:
+
+```sh
+python3 plm80/compile.py --ka10 plm80/examples/sieve.plm
+```
+
+prints `approximate DEC KA10 runtime: 17.004139 seconds on a 1967 DEC KA10,
+asynchronous logic, 1.00 us MA10 core memory (excluding 1,381 monitor calls and
+I/O waits)`. `compile.py` adds its two passes together.
+
+The times are those of the PDP-10 System Reference Manual (May 1968) for user
+mode, with 1.00 µs MA10 core memory, plus the manual's terms for indexing,
+indirection, shift counts, byte sizes, BLT lengths and floating-point
+alignment; [ka10.py](ka10.py) describes the model. Monitor calls ran in the
+operating system, so they are counted but not timed, and I/O waits are left
+out. Both runners total the time in hundredths of a microsecond and report
+exactly the same figure. The KA10's logic is asynchronous, so it has no clock
+rate, and the manual gives its times as ±5%.
+
+| Example | PL/M-80 | MAC80 | MAC80E | INT80 |
+| --- | ---: | ---: | ---: | ---: |
+| hello | 5.41 s | 2.78 s | 2.77 s | 107.55 s |
+| arithmetic | 15.41 s | | | |
+| sieve | 17.00 s | 41.76 s | 41.78 s | 1,287.11 s |
+| e | 14.14 s | 73.47 s | 73.46 s | 644.53 s |
+| ttt | 61.86 s | 95.31 s | 95.37 s | 599.66 s |
+
+The MAC80 and INT80 columns use the `mac80/examples` programs. MAC80E and
+INT80E were built for the KI10, but their instructions are all ones the KA10
+has; INT80E runs sieve in 1,392.96 s. `test.py` requires both runners to report
+the same time for both passes of hello.
+
 ## Tests
 
 ```sh

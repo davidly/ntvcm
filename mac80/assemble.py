@@ -10,6 +10,7 @@ import tempfile
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE.parent / 'plm80'))
 from compile import CompileError, com_file, hex_file, read_object  # noqa: E402
+import ka10  # noqa: E402
 from pdp10 import NATIVE, PDP10  # noqa: E402
 
 UPSTREAM = HERE / 'upstream'
@@ -99,7 +100,10 @@ def main():
     parser.add_argument('--listing', type=Path, help='save the assembler listing')
     parser.add_argument('--expanded', action='store_true',
                         help='use MAC80E, the expanded 2.3 assembler with about 4,000 symbols instead of 500')
+    parser.add_argument('--ka10', action='store_true', help='report how long MAC80 took on a 1967 DEC KA10')
     args = parser.parse_args()
+    if args.ka10:
+        PDP10.timers = []
     try:
         memory, listing = assemble_source(args.source.read_text(encoding='ascii'), args.expanded)
         destination = args.output or args.source.with_suffix('.com')
@@ -110,6 +114,8 @@ def main():
             args.listing.write_text(listing, encoding='ascii')
         destination.write_bytes(output)
         print(f'{args.source}: assembled to {destination}')
+        if args.ka10:
+            print(ka10.report(PDP10.timers), file=sys.stderr)
     except (OSError, ValueError, CompileError) as error:
         print(f'MAC80: {error}', file=sys.stderr)
         return 1

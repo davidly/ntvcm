@@ -32,7 +32,8 @@ python3 int80/run.py -p mac80/examples/sieve.com
 That prints `1899 primes.` and `9240149 states`. The program may be a CP/M
 `.COM` file, an Intel HEX file, or MAC80 source, which `run.py` assembles.
 `-p` reports the program's own states (below), `-n` sets the limit before it
-fails without an exit, and `--expanded` selects INT80E.
+fails without an exit, `--expanded` selects INT80E, and `--ka10` estimates
+how long INT80 itself took on a DEC KA10 (see [plm80](../plm80/README.md#ka10-runtime)).
 
 INT80 simulates 24K of memory, 0000H–5FFFH; INT80E, the `EXPANDED VERSION OF
 INT80 7/20/75`, simulates 48K, to BFFFH. INT80E was built for the KI10 and,

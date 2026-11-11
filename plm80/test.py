@@ -125,6 +125,24 @@ class PLM80(unittest.TestCase):
         finally:
             del os.environ['PLM80_PYTHON']
 
+    def test_ka10_times_agree(self):
+        """Both runners total the same KA10 time for both passes, to the hundredth of a microsecond."""
+        if not NATIVE.is_file():
+            self.skipTest('native PDP-10 runner not built; run plm80/m.sh or m.bat')
+        source = (HERE / 'examples/hello.plm').read_text()
+        times = []
+        for python in ('', '1'):
+            os.environ['PLM80_PYTHON'] = python
+            PDP10.timers = []
+            try:
+                plm80.compile_source(source)
+                times.append([(t.hundredths, t.instructions, t.monitor_calls, t.ki_only) for t in PDP10.timers])
+            finally:
+                PDP10.timers = None
+                del os.environ['PLM80_PYTHON']
+        self.assertEqual(times[0], times[1])
+        self.assertEqual(len(times[0]), 2)
+
     def test_source_checks(self):
         for source, message in (("100H: DECLARE A BYTE INITIAL ('a');\n", 'alphabet'),
                                 ('100H: DECLARE A BYTE;' + ' ' * 60 + 'A=1;\n', '72-column'),

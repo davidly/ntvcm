@@ -54,6 +54,8 @@ IN_BUFFERS = 0o740000
 
 class PDP10:
     ki = False  # KA10 unless the image was built for the KI10
+    timer = None  # a ka10.Timer, once time_ka10() is called
+    timers = None  # a list: every runner created from then on is timed and added to it
 
     def __init__(self, image, source, directory):
         self.m = [0] * (1 << 18)
@@ -104,6 +106,14 @@ class PDP10:
         if len(matches) != 1:
             raise ValueError('unrecognized Tymshare accounting wrapper')
         self.m[matches[0]] = 0o267716000002  # JRA 16,2(16)
+        if self.timers is not None:
+            self.timers.append(self.time_ka10())
+
+    def time_ka10(self):
+        """Total the approximate DEC KA10 time of what run() or run_native() executes."""
+        import ka10
+        self.timer = ka10.Timer(self)
+        return self.timer
 
     def run(self, budget=50_000_000):
         memory = self.m
@@ -127,11 +137,12 @@ class PDP10:
         With state=True, also copy the final memory and PC back (for tests).
         """
         with tempfile.TemporaryDirectory(prefix='pdp10-') as scratch:
-            memory, source, listing, final = (Path(scratch, name) for name in
-                                              ('memory.bin', 'input.txt', 'output.txt', 'final.bin'))
+            memory, source, listing, final, times = (Path(scratch, name) for name in
+                                                     ('memory.bin', 'input.txt', 'output.txt', 'final.bin', 'times.txt'))
             memory.write_bytes(struct.pack('<%dQ' % len(self.m), *self.m))
             source.write_bytes(self.input.getvalue().encode('ascii'))
-            command = [str(NATIVE), *(['--ki'] if self.ki else []), str(memory), str(self.pc), str(source),
+            command = [str(NATIVE), *(['--ki'] if self.ki else []), *(['--ka10', str(times)] if self.timer else []),
+                       str(memory), str(self.pc), str(source),
                        str(self.directory), str(listing), str(budget)]
             result = subprocess.run(command + ([str(final)] if state else []), capture_output=True)
             text = listing.read_bytes().decode('ascii') if listing.exists() else ''
@@ -139,6 +150,12 @@ class PDP10:
                 words = struct.unpack('<%dQ' % (len(self.m) + 1), final.read_bytes())
                 self.m[:] = words[:-1]
                 self.pc = words[-1]
+            if self.timer and times.exists():
+                counts = [int(n) for n in times.read_text().split()]
+                self.timer.hundredths += counts[0]
+                self.timer.instructions += counts[1]
+                self.timer.monitor_calls += counts[2]
+                self.timer.ki_only += counts[3]
         self.output = io.StringIO(text)
         self.output.seek(0, io.SEEK_END)
         if result.returncode:
@@ -356,8 +373,9 @@ class PDP10:
             n = e if e < 131072 else e - (1 << 18)
             if op == 0o242:
                 val = (av << min(n, 36) if n >= 0 else av >> min(-n, 36)) & MASK
-            elif op == 0o240:
-                val = (signed(av) << min(n, 36) if n >= 0 else signed(av) >> min(-n, 36)) & MASK
+            elif op == 0o240:  # ASH: the sign stays, as on the hardware
+                shifted = signed(av) << min(n, 36) if n >= 0 else signed(av) >> min(-n, 36)
+                val = av & SIGN | shifted & SIGN - 1
             else:
                 n %= 36
                 val = (av << n | av >> 36 - n) & MASK
