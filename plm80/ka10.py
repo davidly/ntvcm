@@ -8,8 +8,10 @@ accumulators in fast registers, and direct addressing; the manual's Appendix C
 timing chart adds .28 microseconds for indexing and 1.09 for each level of
 indirection. Variable terms (shift counts, byte sizes, BLT words, floating
 point alignment and normalization) are computed from the operands, and a
-memory operand in a fast register saves .34 microseconds. The KA10's logic is
-asynchronous, so it has no clock rate; the manual gives its times as +-5%.
+memory operand in a fast register saves .34 microseconds. So does fetching
+the instruction from one: the manual gives 550 ns to read the core memory and
+210 ns to read fast memory. The KA10's logic is asynchronous, so it has no
+clock rate; the manual gives its times as +-5%.
 
 Monitor calls (opcodes 040 to 077: CALLI, TTCALL, the channel UUOs, Tymshare's
 AUXCAL and CHANIO) ran in the operating system, not the program, so they are
@@ -24,6 +26,7 @@ CLOCK = 'asynchronous logic, 1.00 us MA10 core memory'
 INDEX = 28  # Appendix C: adding the index register, from fast memory
 INDIRECT = 109  # Appendix C: another fetch in user mode: 17 + 11 + 55 + 17, then 9
 FAST_OPERAND = 34  # most memory-operand instructions, when E is an accumulator
+FAST_FETCH = 34  # an instruction fetched from an accumulator: 550 - 210 ns
 
 # Times in hundredths of a microsecond, kept as integers so the native runners
 # total exactly the same, for the four modes, as the manual orders them: basic,
@@ -103,7 +106,10 @@ class Timer:
         cpu.execute = self.timed
 
     def timed(self, ir, at):
-        self.hundredths += self.time(ir)
+        t = self.time(ir)
+        if t and at < 16:  # a monitor call's 0 stays 0
+            t -= FAST_FETCH
+        self.hundredths += t
         self.instructions += 1
         return self.execute(ir, at)
 

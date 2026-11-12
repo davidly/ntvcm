@@ -413,7 +413,10 @@ static void execute( Word ir, uint32_t at )
 {
     if ( ka10.on )
     {
-        ka10.hundredths += ka10_time( ir );
+        long long t = ka10_time( ir );
+        if ( t && at < 16 )
+            t -= 34; // the instruction was fetched from fast memory
+        ka10.hundredths += t;
         ka10.instructions++;
     }
     unsigned op = (unsigned) ( ir >> 27 );
