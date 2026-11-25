@@ -2947,7 +2947,6 @@ uint8_t x80_invoke_hook()
                     uint32_t record = pfcb->GetRandomIOOffset();
                     tracer.Trace( "  read random record %u == %#x\n", record, record );
                     uint32_t file_offset = (uint32_t) record * (uint32_t) 128;
-                    memset( g_DMA, g_readFileFillValue, 128 );
 
                     uint32_t file_size = portable_filelen( fp );
 
@@ -2963,6 +2962,7 @@ uint8_t x80_invoke_hook()
                     if ( file_size > file_offset )
                     {
                         uint32_t to_read = get_min( file_size - file_offset, (uint32_t) 128 );
+                        memset( g_DMA, g_readFileFillValue, 128 ); // only the tail of a short last record. CP/M 2.2 leaves the DMA alone when a read fails
                         ok = !fseek( fp, file_offset, SEEK_SET );
                         if ( ok )
                         {
