@@ -1790,7 +1790,23 @@ char get_next_kbd_char()
     if ( g_fileInputOffset < g_fileInputText.size() )
         return g_fileInputText[ g_fileInputOffset++ ];
 
-    return (char) ConsoleConfiguration::portable_getch();
+    int ch = ConsoleConfiguration::portable_getch();
+
+    if ( EOF == ch && !isatty( fileno( stdin ) ) )
+    {
+        // Redirected input is exhausted and the app is waiting for a keystroke that can never come.
+        // Returning EOF would hand it 0xff forever, so end the app as if it had exited. This lets
+        // batch runs end without typing an exit command, e.g. TDL Z-80 BASIC, whose only way out
+        // is ^X: its input can stop after "run" rather than end with filler text and ^X that must
+        // arrive after the program finishes.
+
+        tracer.Trace( "  redirected input is exhausted; ending the app\n" );
+        x80_end_emulation();
+        g_emulationEnded = true;
+        return 13;
+    }
+
+    return (char) ch;
 } //get_next_kbd_char
 
 bool is_kbd_char_available( bool throttled = true )
